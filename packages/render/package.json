@@ -13,6 +13,10 @@
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
+  "dependencies": {
+    "@loaders.gl/core": "^4.4.3",
+    "@loaders.gl/textures": "^4.4.3"
+  },
   "devDependencies": {
     "@types/node": "^22.10.0",
     "engine-core": "workspace:*",

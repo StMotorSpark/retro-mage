@@ -1,13 +1,4 @@
-import { load } from '@loaders.gl/core';
-import { CompressedTextureLoader } from '@loaders.gl/textures';
-
-interface TextureLevel {
-  width: number;
-  height: number;
-  data: Uint8Array;
-  compressed: boolean;
-  format?: number;
-}
+import { loadKtx2Texture } from 'render';
 
 const vsSource = `#version 300 es
 in vec2 aPos;
@@ -96,9 +87,6 @@ export class TextureQuadDemo {
       const buffer = await res.arrayBuffer();
       const bytes = new Uint8Array(buffer);
 
-      const tex = gl.createTexture()!;
-      gl.bindTexture(gl.TEXTURE_2D, tex);
-
       // Check for KTX2 magic header: 0xAB 0x4B 0x54 0x58 0x20 0x32 0x30
       const isKtx2 =
         bytes.length >= 7 &&
@@ -108,57 +96,25 @@ export class TextureQuadDemo {
         bytes[3] === 0x58;
 
       if (isKtx2) {
-        const blob = new Blob([buffer], { type: 'image/ktx2' });
-        const blobUrl = URL.createObjectURL(blob);
-        try {
-          const result = (await load(blobUrl, CompressedTextureLoader, {
-            worker: false,
-            'compressed-texture': { useBasis: true },
-            basis: { format: 'auto' },
-          })) as TextureLevel[];
-
-          if (result && result.length > 0) {
-            const base = result[0]!;
-            if (base.compressed && base.format !== undefined) {
-              gl.compressedTexImage2D(
-                gl.TEXTURE_2D,
-                0,
-                base.format,
-                base.width,
-                base.height,
-                0,
-                base.data
-              );
-            } else {
-              gl.texImage2D(
-                gl.TEXTURE_2D,
-                0,
-                gl.RGBA,
-                base.width,
-                base.height,
-                0,
-                gl.RGBA,
-                gl.UNSIGNED_BYTE,
-                base.data
-              );
-            }
-          }
-        } finally {
-          URL.revokeObjectURL(blobUrl);
-        }
+        const result = await loadKtx2Texture(gl, bytes);
+        this.texture = result.texture;
+        gl.bindTexture(gl.TEXTURE_2D, this.texture);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
       } else {
         // Fallback for raw PNG (e.g. dev server passthrough)
+        const tex = gl.createTexture()!;
+        gl.bindTexture(gl.TEXTURE_2D, tex);
         const blob = new Blob([buffer], { type: 'image/png' });
         const bitmap = await createImageBitmap(blob);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bitmap);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        this.texture = tex;
       }
 
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-
-      this.texture = tex;
       this.initShader();
     } catch (err) {
       console.error('Failed to load demo texture:', err);

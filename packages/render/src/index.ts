@@ -28,3 +28,4 @@ export * from './loop.js';
 export * from './world-tiles/index.js';
 export * from './sprites/index.js';
 export * from './matrix.js';
+export * from './textures/index.js';

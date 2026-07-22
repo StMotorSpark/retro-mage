@@ -33,11 +33,11 @@ Lighting lookup tables are specified conceptually in [Rendering](../architecture
 
 ### Asset Pipeline
 
-Texture compression format, transcode/upload ownership, fallback behavior, and mipmap handling are resolved — see [Asset Pipeline](../architecture/asset-pipeline.md). `packages/render` does not yet implement this target state in code: the bytes-in texture-loading function, ASTC-probe fallback, and block-aligned mip upload are designed but not built (task:17 still wires transcode/upload directly into `examples/demo` as a demonstration, per that task's explicit scope). Building the `packages/render` module itself is the next concrete task.
+Texture compression format, transcode/upload ownership, fallback behavior, and mipmap handling are resolved and implemented — see [Asset Pipeline](../architecture/asset-pipeline.md). `packages/render` owns KTX2 transcode/upload via its `loadKtx2Texture` function (bytes-in, ASTC-probe fallback, block-aligned mip upload, throw-on-failure), and `examples/demo` consumes it directly rather than transcoding inline.
 
 Still undecided: tile/sprite source folder conventions per consuming game, and the outdoor chunk file format (the latter deferred until the visibility algorithm gap below is resolved, since chunk file shape depends on the chunking scheme visibility settles on).
 
-- Blocks: any task that adds real game assets rather than placeholder geometry, or has `packages/render` (rather than a consuming app) load textures directly
+- Blocks: any task that adds real game assets rather than placeholder geometry
 - Relates to: [Asset Pipeline](../architecture/asset-pipeline.md), [Tech Stack](../architecture/tech-stack.md), [Rendering](../architecture/rendering.md)
 
 ### Example Demo Scope
