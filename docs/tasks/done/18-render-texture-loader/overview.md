@@ -1,12 +1,12 @@
 ---
 task: "18"
 slug: render-texture-loader
-status: pending
+status: done
 depends-on: []
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-25
-outcome: ""
+outcome: "Created packages/render/src/textures/index.ts exporting loadKtx2Texture and TextureLoadResult. Added @loaders.gl/core and @loaders.gl/textures dependencies to packages/render. Added tests in index.test.ts covering ASTC compressed path, uncompressed RGBA32 fallback, sub-4px mipmap stopping, LINEAR/LINEAR_MIPMAP_LINEAR filtering, and malformed input handling. Typecheck and tests pass cleanly."
 ---
 
 # Render Package Texture Loader
@@ -51,12 +51,13 @@ Give `packages/render` a public, tested texture-loading module that transcodes K
 
 ## Definition of Done
 
-- [ ] `packages/render` exports `loadKtx2Texture` and `TextureLoadResult` from its public `index.ts`
-- [ ] `@loaders.gl/core` and `@loaders.gl/textures` are listed in `packages/render/package.json` dependencies
-- [ ] `pnpm --filter render test` passes, including all five test cases listed above
-- [ ] `pnpm --filter render typecheck` passes
-- [ ] Function throws (never silently swallows) on malformed input or transcode/upload failure
-- [ ] No network/`fetch` calls anywhere in the new module — bytes are a function parameter, not fetched internally
+- [x] `packages/render` exports `loadKtx2Texture` and `TextureLoadResult` from its public `index.ts`
+- [x] `@loaders.gl/core` and `@loaders.gl/textures` are listed in `packages/render/package.json` dependencies
+- [x] `pnpm --filter render test` passes, including all five test cases listed above
+- [x] `pnpm --filter render typecheck` passes
+- [x] Function throws (never silently swallows) on malformed input or transcode/upload failure
+- [x] No network/`fetch` calls anywhere in the new module — bytes are a function parameter, not fetched internally
+
 
 ## Out of Scope
 

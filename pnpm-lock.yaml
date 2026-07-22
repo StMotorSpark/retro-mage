@@ -108,6 +108,13 @@ importers:
         version: 2.1.9(@types/node@25.9.5)(happy-dom@20.11.1)(terser@5.49.0)
 
   packages/render:
+    dependencies:
+      '@loaders.gl/core':
+        specifier: ^4.4.3
+        version: 4.4.3
+      '@loaders.gl/textures':
+        specifier: ^4.4.3
+        version: 4.4.3(@loaders.gl/core@4.4.3)
     devDependencies:
       '@types/node':
         specifier: ^22.10.0
