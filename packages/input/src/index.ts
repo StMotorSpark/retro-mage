@@ -1,0 +1,38 @@
+import { createGamepadSource } from './gamepad/index.js';
+import { createTouchSource } from './touch/index.js';
+import { createEmptyInputState, type InputState } from './types.js';
+
+export type { InputState } from './types.js';
+
+export interface InputSource {
+  getState(): InputState;
+  dispose(): void;
+}
+
+/**
+ * Unified input source: merges whichever device is active into a single
+ * InputState. Gamepad takes precedence if connected; otherwise falls back
+ * to the touch overlay rendered into `container`.
+ *
+ * This package only produces InputState — it does not consume or
+ * integrate with engine-core or render.
+ */
+export function createInputSource(container: HTMLElement): InputSource {
+  const gamepad = createGamepadSource();
+  const touch = createTouchSource(container);
+
+  return {
+    getState(): InputState {
+      if (gamepad.isConnected()) {
+        return gamepad.getState();
+      }
+      const touchState = touch.getState();
+      return touchState ?? createEmptyInputState();
+    },
+
+    dispose(): void {
+      gamepad.dispose();
+      touch.dispose();
+    },
+  };
+}
