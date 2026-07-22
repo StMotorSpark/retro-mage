@@ -7,6 +7,7 @@ pub mod lights;
 pub mod tiles;
 pub mod visibility;
 
+use std::collections::HashMap;
 use actors::{ActorsBuffer, MAX_ACTORS};
 use camera::{CameraBuffer, MAX_CAMERA};
 use input::InputState;
@@ -24,6 +25,9 @@ pub struct EngineState {
     lights: LightsBuffer,
     tiles: TilesBuffer,
     camera: CameraBuffer,
+    master_actors: ActorsBuffer,
+    master_lights: LightsBuffer,
+    master_tiles: TilesBuffer,
 }
 
 #[wasm_bindgen]
@@ -38,6 +42,9 @@ impl EngineState {
             lights: LightsBuffer::new(),
             tiles: TilesBuffer::new(),
             camera: CameraBuffer::new(),
+            master_actors: ActorsBuffer::new(),
+            master_lights: LightsBuffer::new(),
+            master_tiles: TilesBuffer::new(),
         }
     }
 
@@ -63,9 +70,10 @@ impl EngineState {
         };
     }
 
-    /// Advance the engine simulation tick by `dt` seconds.
+    /// Advance the engine simulation tick by `dt` seconds and recompute visibility.
     pub fn tick(&mut self, dt: f64) {
         self.tick_count += dt;
+        self.recompute_visibility();
     }
 
     /// Accumulated tick time count in seconds.
@@ -82,6 +90,7 @@ impl EngineState {
     /// Set the global ambient light scalar for the loaded space.
     pub fn set_ambient_light(&mut self, level: f32) {
         self.ambient_light = level;
+        self.recompute_visibility();
     }
 
     // ==========================================
@@ -144,8 +153,13 @@ impl EngineState {
         sprite_id: f32,
         active: f32,
     ) -> bool {
-        self.actors
-            .set_actor(index, x, y, z, facing, sprite_id, active)
+        let ok = self
+            .master_actors
+            .set_actor(index, x, y, z, facing, sprite_id, active);
+        if ok {
+            self.recompute_visibility();
+        }
+        ok
     }
 
     // ==========================================
@@ -224,8 +238,13 @@ impl EngineState {
         intensity: f32,
         active: f32,
     ) -> bool {
-        self.lights
-            .set_light(index, x, y, z, r, g, b, intensity, active)
+        let ok = self
+            .master_lights
+            .set_light(index, x, y, z, r, g, b, intensity, active);
+        if ok {
+            self.recompute_visibility();
+        }
+        ok
     }
 
     // ==========================================
@@ -288,8 +307,13 @@ impl EngineState {
         variant: f32,
         solid: f32,
     ) -> bool {
-        self.tiles
-            .set_tile(index, x, y, z, tile_id, variant, solid)
+        let ok = self
+            .master_tiles
+            .set_tile(index, x, y, z, tile_id, variant, solid);
+        if ok {
+            self.recompute_visibility();
+        }
+        ok
     }
 
     // ==========================================
@@ -333,23 +357,160 @@ impl EngineState {
 
     pub fn set_camera(&mut self, x: f32, y: f32, z: f32, yaw: f32, pitch: f32) {
         self.camera.set_camera(x, y, z, yaw, pitch);
+        self.recompute_visibility();
     }
 
     // ==========================================
-    // Sight Radius
+    // Sight Radius & Visibility Culling
     // ==========================================
 
     /// Calculate current effective sight radius based on ambient light level,
-    /// camera position, and active lights buffer.
+    /// camera position, and master active lights buffer.
     pub fn sight_radius(&self) -> f32 {
         visibility::compute_sight_radius(
             self.ambient_light,
             self.camera.x[0],
             self.camera.y[0],
             self.camera.z[0],
-            &self.lights,
+            &self.master_lights,
             visibility::DEFAULT_MAX_DRAW_DISTANCE,
         )
+    }
+
+    /// Recompute visibility cull for current camera pose and update output WASM buffers.
+    pub fn recompute_visibility(&mut self) {
+        let radius = self.sight_radius();
+        let cam_x = self.camera.x[0];
+        let cam_y = self.camera.y[0];
+        let cam_z = self.camera.z[0];
+
+        // Determine axis usage: if all tiles have z == 0 and y varies, use y axis
+        let mut min_z = f32::MAX;
+        let mut max_z = f32::MIN;
+        let mut min_y = f32::MAX;
+        let mut max_y = f32::MIN;
+
+        for i in 0..self.master_tiles.count {
+            min_z = min_z.min(self.master_tiles.z[i]);
+            max_z = max_z.max(self.master_tiles.z[i]);
+            min_y = min_y.min(self.master_tiles.y[i]);
+            max_y = max_y.max(self.master_tiles.y[i]);
+        }
+        let use_y_axis = (max_z - min_z).abs() < 1e-4 && (max_y - min_y).abs() > 1e-4;
+
+        // Build solid grid map from master tiles
+        let mut grid_solids = HashMap::new();
+        for i in 0..self.master_tiles.count {
+            let pos = visibility::get_grid_pos(
+                self.master_tiles.x[i],
+                self.master_tiles.y[i],
+                self.master_tiles.z[i],
+                use_y_axis,
+            );
+            let solid = self.master_tiles.solid[i] != 0.0;
+            if solid {
+                grid_solids.insert(pos, true);
+            } else {
+                grid_solids.entry(pos).or_insert(false);
+            }
+        }
+
+        // Compute visible grid cells
+        let visible_cells = visibility::compute_visible_grid_cells(
+            cam_x,
+            cam_y,
+            cam_z,
+            radius,
+            &grid_solids,
+            use_y_axis,
+        );
+
+        // Filter tiles: copy visible master tiles to self.tiles
+        let mut visible_tile_count = 0;
+        for i in 0..self.master_tiles.count {
+            let tx = self.master_tiles.x[i];
+            let ty = self.master_tiles.y[i];
+            let tz = self.master_tiles.z[i];
+            let pos = visibility::get_grid_pos(tx, ty, tz, use_y_axis);
+
+            let dx = tx - cam_x;
+            let dy = ty - cam_y;
+            let dz = tz - cam_z;
+            let dist = (dx * dx + dy * dy + dz * dz).sqrt();
+
+            if visible_cells.contains(&pos) && dist <= radius {
+                if visible_tile_count < MAX_TILES {
+                    self.tiles.x[visible_tile_count] = tx;
+                    self.tiles.y[visible_tile_count] = ty;
+                    self.tiles.z[visible_tile_count] = tz;
+                    self.tiles.tile_id[visible_tile_count] = self.master_tiles.tile_id[i];
+                    self.tiles.variant[visible_tile_count] = self.master_tiles.variant[i];
+                    self.tiles.solid[visible_tile_count] = self.master_tiles.solid[i];
+                    visible_tile_count += 1;
+                }
+            }
+        }
+        self.tiles.count = visible_tile_count;
+
+        // Filter actors: update active state in self.actors
+        for i in 0..MAX_ACTORS {
+            self.actors.x[i] = self.master_actors.x[i];
+            self.actors.y[i] = self.master_actors.y[i];
+            self.actors.z[i] = self.master_actors.z[i];
+            self.actors.facing[i] = self.master_actors.facing[i];
+            self.actors.sprite_id[i] = self.master_actors.sprite_id[i];
+
+            if self.master_actors.active[i] != 0.0 {
+                let ax = self.master_actors.x[i];
+                let ay = self.master_actors.y[i];
+                let az = self.master_actors.z[i];
+                let pos = visibility::get_grid_pos(ax, ay, az, use_y_axis);
+
+                let dx = ax - cam_x;
+                let dy = ay - cam_y;
+                let dz = az - cam_z;
+                let dist = (dx * dx + dy * dy + dz * dz).sqrt();
+
+                if visible_cells.contains(&pos) && dist <= radius {
+                    self.actors.active[i] = self.master_actors.active[i];
+                } else {
+                    self.actors.active[i] = 0.0;
+                }
+            } else {
+                self.actors.active[i] = 0.0;
+            }
+        }
+
+        // Filter lights: update active state in self.lights
+        for i in 0..MAX_LIGHTS {
+            self.lights.x[i] = self.master_lights.x[i];
+            self.lights.y[i] = self.master_lights.y[i];
+            self.lights.z[i] = self.master_lights.z[i];
+            self.lights.r[i] = self.master_lights.r[i];
+            self.lights.g[i] = self.master_lights.g[i];
+            self.lights.b[i] = self.master_lights.b[i];
+            self.lights.intensity[i] = self.master_lights.intensity[i];
+
+            if self.master_lights.active[i] != 0.0 {
+                let lx = self.master_lights.x[i];
+                let ly = self.master_lights.y[i];
+                let lz = self.master_lights.z[i];
+                let pos = visibility::get_grid_pos(lx, ly, lz, use_y_axis);
+
+                let dx = lx - cam_x;
+                let dy = ly - cam_y;
+                let dz = lz - cam_z;
+                let dist = (dx * dx + dy * dy + dz * dz).sqrt();
+
+                if visible_cells.contains(&pos) && dist <= radius {
+                    self.lights.active[i] = self.master_lights.active[i];
+                } else {
+                    self.lights.active[i] = 0.0;
+                }
+            } else {
+                self.lights.active[i] = 0.0;
+            }
+        }
     }
 }
 
@@ -366,6 +527,7 @@ mod tests {
     #[test]
     fn test_engine_state_getters_and_roundtrip() {
         let mut state = EngineState::new();
+        state.set_ambient_light(1.0);
 
         // Actors
         assert!(!state.actors_x_ptr().is_null());
@@ -409,7 +571,7 @@ mod tests {
         }
 
         // Ambient Light
-        assert_eq!(state.ambient_light(), 0.0);
+        assert_eq!(state.ambient_light(), 1.0);
         state.set_ambient_light(0.8);
         assert_eq!(state.ambient_light(), 0.8);
 
@@ -441,5 +603,94 @@ mod tests {
         assert_eq!(state.sight_radius(), 0.0);
         state.set_ambient_light(1.0);
         assert_eq!(state.sight_radius(), visibility::DEFAULT_MAX_DRAW_DISTANCE);
+    }
+
+    #[test]
+    fn test_shadowcasting_occlusion_and_sight_radius_fixtures() {
+        let mut state = EngineState::new();
+        // Set camera at (0, 0, 0)
+        state.set_camera(0.0, 0.0, 0.0, 0.0, 0.0);
+        // Ambient light 0.1 -> sight_radius = 3.2m
+        state.set_ambient_light(0.1);
+        assert_eq!(state.sight_radius(), 3.2);
+
+        // Build room tiles along Z axis:
+        // Tile 0: (0, 0, 1) - near side floor (unoccluded, dist 1.0 <= 3.2) -> visible
+        // Tile 1: (0, 0, 2) - solid wall (unoccluded, dist 2.0 <= 3.2, solid = 1.0) -> visible
+        // Tile 2: (0, 0, 3) - behind wall (occluded by solid wall at z=2) -> excluded
+        // Tile 3: (0, 0, 10) - unoccluded direction, but beyond sight radius (dist 10.0 > 3.2) -> excluded
+        // Tile 4: (2, 0, 0) - side floor (unoccluded, dist 2.0 <= 3.2) -> visible
+        state.set_tile(0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0);
+        state.set_tile(1, 0.0, 0.0, 2.0, 2.0, 0.0, 1.0); // Solid wall at z=2
+        state.set_tile(2, 0.0, 0.0, 3.0, 1.0, 0.0, 0.0);
+        state.set_tile(3, 0.0, 0.0, 10.0, 1.0, 0.0, 0.0);
+        state.set_tile(4, 2.0, 0.0, 0.0, 1.0, 0.0, 0.0);
+
+        // Actors:
+        // Actor 0: (0, 0, 1) - near side -> visible
+        // Actor 1: (0, 0, 3) - behind wall -> occluded (active cleared)
+        // Actor 2: (0, 0, 10) - beyond sight radius -> out of sight (active cleared)
+        state.set_actor(0, 0.0, 0.0, 1.0, 0.0, 1.0, 1.0);
+        state.set_actor(1, 0.0, 0.0, 3.0, 0.0, 1.0, 1.0);
+        state.set_actor(2, 0.0, 0.0, 10.0, 0.0, 1.0, 1.0);
+
+        // Lights:
+        // Light 0: (2, 0, 0) - unoccluded -> visible
+        // Light 1: (0, 0, 3) - behind wall -> occluded (active cleared)
+        state.set_light(0, 2.0, 0.0, 0.0, 1.0, 1.0, 1.0, 5.0, 1.0);
+        state.set_light(1, 0.0, 0.0, 3.0, 1.0, 1.0, 1.0, 5.0, 1.0);
+
+        // Check tile buffer:
+        // Visible tiles: (0,0,1), (0,0,2), (2,0,0) -> count = 3
+        assert_eq!(state.tiles_count(), 3);
+        let mut visible_z = Vec::new();
+        unsafe {
+            for i in 0..state.tiles_count() {
+                visible_z.push((*state.tiles_z_ptr().add(i) * 10.0).round() as i32);
+            }
+        }
+        // Tile behind wall (z=3) and beyond radius (z=10) are NOT in visible set
+        assert!(!visible_z.contains(&30));
+        assert!(!visible_z.contains(&100));
+
+        // Check actors:
+        // Actor 0 (z=1) is active
+        unsafe {
+            assert_eq!(*state.actors_active_ptr().add(0), 1.0);
+            // Actor 1 (z=3, occluded) has active cleared (0.0)
+            assert_eq!(*state.actors_active_ptr().add(1), 0.0);
+            // Actor 2 (z=10, out of radius) has active cleared (0.0)
+            assert_eq!(*state.actors_active_ptr().add(2), 0.0);
+        }
+        assert_eq!(state.actors_count(), 1);
+
+        // Check lights:
+        unsafe {
+            assert_eq!(*state.lights_active_ptr().add(0), 1.0);
+            assert_eq!(*state.lights_active_ptr().add(1), 0.0);
+        }
+        assert_eq!(state.lights_count(), 1);
+    }
+
+    #[test]
+    fn test_visibility_runs_every_frame_on_movement() {
+        let mut state = EngineState::new();
+        state.set_ambient_light(1.0); // Full sight radius
+
+        // Set up wall at (0, 0, 2) and tile behind wall at (0, 0, 3)
+        state.set_tile(0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0);
+        state.set_tile(1, 0.0, 0.0, 2.0, 2.0, 0.0, 1.0); // Wall
+        state.set_tile(2, 0.0, 0.0, 3.0, 1.0, 0.0, 0.0); // Behind wall
+
+        // Frame 1: player at (0, 0, 0)
+        state.set_camera(0.0, 0.0, 0.0, 0.0, 0.0);
+        assert_eq!(state.tiles_count(), 2); // Only (0,0,1) and (0,0,2) visible
+
+        // Frame 2: player moves around wall to (2, 0, 3) via tick
+        state.set_camera(2.0, 0.0, 3.0, 0.0, 0.0);
+        state.tick(0.016);
+
+        // Now from (2, 0, 3), tile (0, 0, 3) is unoccluded and visible!
+        assert_eq!(state.tiles_count(), 3);
     }
 }

@@ -23,12 +23,12 @@ Data is split by update frequency, not bundled into one blob:
 
 | Buffer | Updates | Max entries |
 |--------|---------|-------------|
-| Tile geometry | Once per room load / on room change | 1024 visible tiles |
+| Tile geometry | Recomputed every frame; updated when visible set changes | 1024 visible tiles |
 | Actors | Every frame | 64 actors |
 | Lights | Every frame | 32 lights |
 | Camera / player pose | Every frame | 1 (single struct, not an array) |
 
-Static geometry is pushed once per room rather than every frame — it does not change mid-room, so re-sending it every tick wastes bandwidth for no benefit. Actors, lights, and camera pose are live simulation state and are re-read every frame.
+Static geometry for the room is loaded into `engine-core`; the per-frame visibility cull filters this to the visible tile set, updating the tile buffer whenever the visible set changes frame-to-frame. Actors, lights, and camera pose are live simulation state and are re-read every frame.
 
 ## Numeric Format — f32
 

@@ -1,12 +1,12 @@
 ---
 task: "22"
 slug: shadowcasting-visibility-cull
-status: pending
+status: done
 depends-on: ["20", "21"]
 blocked-by: ""
 assigned-to: ""
 created: 2025-06-16
-outcome: ""
+outcome: "Implemented 8-octant recursive shadowcasting algorithm in engine-core. Gated TilesBuffer count and ActorsBuffer/LightsBuffer active flags based on tile occlusion and dynamic sight radius. Updated wasm-bridge.md tile buffer update cadence."
 ---
 
 # Recursive Shadowcasting Visibility Cull

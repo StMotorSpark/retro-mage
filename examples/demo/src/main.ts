@@ -37,6 +37,7 @@ async function main(): Promise<void> {
   // Populate a small hardcoded room scene into engine-core buffers
   // Camera pose at (0, 1.5, 3.5) looking into room along -Z
   engineState.set_camera(0, 1.5, 3.5, 0, 0);
+  engineState.set_ambient_light(1.0);
 
   // Floor grid (5x5 tiles)
   let tileIdx = 0;
