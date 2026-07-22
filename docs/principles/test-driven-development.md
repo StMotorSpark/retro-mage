@@ -41,7 +41,7 @@ When a slice involves a connector point (WASM buffer schema, normalized input ev
 ## Test Runners
 
 - `engine-core`: Rust's built-in `cargo test`, run via `wasm-pack test` where WASM-specific behavior needs browser/Node WASM runtime coverage, plain `cargo test` for pure Rust logic.
-- `render` and `input`: a JS/TS test runner colocated with each package's existing `tsc`-based build tooling (exact runner choice — e.g. Vitest — is decided when the first real test is written, not speculatively configured ahead of need).
+- `render` and `input`: Vitest runs unit tests colocated with each package's code in `.test.ts` files.
 
 ## Related Docs
 

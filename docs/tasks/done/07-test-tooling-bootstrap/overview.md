@@ -1,12 +1,12 @@
 ---
 task: "07"
 slug: test-tooling-bootstrap
-status: pending
+status: done
 depends-on: []
 blocked-by: ""
 assigned-to: ""
 created: 2025-06-15
-outcome: ""
+outcome: "Configured Vitest as test runner for render and input packages with smoke tests. Added test script to engine-core (cargo test) and root package.json (pnpm -r run test). Updated test-driven-development.md."
 ---
 
 # Test Tooling Bootstrap
