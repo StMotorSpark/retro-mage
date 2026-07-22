@@ -1,4 +1,4 @@
-import type { ActorsView, CameraView, LightsView, TilesView, WorldStateViews } from './types.js';
+import type { WorldStateViews } from './types.js';
 import { readActorsView, type ActorsEngineState } from './actors.js';
 import { readLightsView, type LightsEngineState } from './lights.js';
 import { readTilesView, type TilesEngineState } from './tiles.js';
