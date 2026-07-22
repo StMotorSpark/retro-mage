@@ -2,6 +2,7 @@ import init, { EngineState } from 'engine-core';
 import { createRenderer, WorldStateReader } from 'render';
 import { createInputSource, FACE1 } from 'input';
 import { PerfOverlay } from './perf-overlay.js';
+import { TextureQuadDemo } from './texture-demo.js';
 
 /**
  * Demo app: thin glue proving engine-core (WASM sim), render (WebGL2), and
@@ -19,6 +20,14 @@ async function main(): Promise<void> {
   if (!canvas || !overlay) {
     throw new Error('Expected #scene canvas and #input-overlay elements in index.html.');
   }
+
+  const gl = canvas.getContext('webgl2');
+  if (!gl) {
+    throw new Error('WebGL2 context not supported.');
+  }
+
+  const textureDemo = new TextureQuadDemo(gl);
+  textureDemo.loadTexture('/assets/textures/wall.ktx2');
 
   // engine-core ships as a wasm-bindgen `web` target module — must init before use.
   const wasmOutput = await init();
@@ -51,8 +60,11 @@ async function main(): Promise<void> {
   // Set up world state reader over WASM memory
   const reader = new WorldStateReader(engineState, wasmOutput.memory);
 
-  // Pass reader view getter to the render loop
-  const renderer = createRenderer(canvas, () => reader.read());
+  // Pass reader view getter and frame hook to the render loop
+  const renderer = createRenderer(canvas, {
+    getViews: () => reader.read(),
+    onFrame: () => textureDemo.render(),
+  });
   // Override the touch look sensitivity default (3) up to 5 for this demo's feel.
   const inputSource = createInputSource(overlay, { touch: { lookSensitivity: 5 } });
   const perfOverlay = new PerfOverlay();

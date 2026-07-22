@@ -1,12 +1,12 @@
 ---
 task: "17"
 slug: texture-compression-vite-plugin
-status: pending
+status: done
 depends-on: []
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-24
-outcome: ""
+outcome: "Scaffolded packages/vite-plugin-ktx2, registered plugin in examples/demo/vite.config.ts, verified build emits dist/assets/textures/wall.ktx2 (without source PNG), dev server serves raw PNG, demo scene renders textured preview quad."
 ---
 
 # Texture Compression Vite Plugin
@@ -28,11 +28,11 @@ Build a real Vite plugin that automates PNG → KTX2/UASTC texture compression a
 
 ## Definition of Done
 
-- [ ] `pnpm --filter examples/demo build` produces `.ktx2` file(s) in the build output for the configured texture source folder, and does NOT include the raw source PNG(s) in that output
-- [ ] `pnpm --filter examples/demo dev` serves the raw PNG unchanged (confirm via browser network tab — request resolves to the `.png`, not a `.ktx2`)
-- [ ] The demo scene visibly renders at least one texture that traveled through the compressed pipeline (visual confirmation in a running build, screenshot or description in task outcome)
-- [ ] `packages/vite-plugin-ktx2` has a README explaining configuration and usage for a consuming game repo
-- [ ] Plugin config for the glob/pattern and encode options is documented, not hardcoded to only match `examples/demo`'s specific folder path (a different consuming repo must be able to point it at its own texture folder)
+- [x] `pnpm --filter examples/demo build` produces `.ktx2` file(s) in the build output for the configured texture source folder, and does NOT include the raw source PNG(s) in that output
+- [x] `pnpm --filter examples/demo dev` serves the raw PNG unchanged (confirm via browser network tab — request resolves to the `.png`, not a `.ktx2`)
+- [x] The demo scene visibly renders at least one texture that traveled through the compressed pipeline (visual confirmation in a running build, screenshot or description in task outcome)
+- [x] `packages/vite-plugin-ktx2` has a README explaining configuration and usage for a consuming game repo
+- [x] Plugin config for the glob/pattern and encode options is documented, not hardcoded to only match `examples/demo`'s specific folder path (a different consuming repo must be able to point it at its own texture folder)
 
 ## Out of Scope
 
