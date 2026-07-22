@@ -1,12 +1,12 @@
 ---
 task: "02"
 slug: engine-core-skeleton
-status: pending
+status: done
 depends-on: ["01"]
 blocked-by: ""
 assigned-to: ""
 created: 2025-06-01
-outcome: ""
+outcome: "Created packages/engine-core Rust crate (cdylib+rlib) with wasm-bindgen placeholder EngineState (new/tick/tick_count getter) and empty world.rs module stub. Installed rustup+wasm32-unknown-unknown target+wasm-pack locally (none were present). wasm-pack build --target web --out-dir pkg produces .wasm, JS glue, and .d.ts. package.json wires main/module/types to pkg/ output and exposes pnpm build script; pnpm --filter engine-core build works from repo root. Verified round-trip with a throwaway scratch-verify.mjs (imported pkg, called tick() twice, checked tick_count) then deleted it per Out of Scope/DoD. Added .gitignore for target/ and pkg/ (build artifacts, not committed)."
 ---
 
 # Engine Core Skeleton (Rust/WASM)

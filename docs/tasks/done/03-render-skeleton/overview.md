@@ -1,12 +1,12 @@
 ---
 task: "03"
 slug: render-skeleton
-status: pending
+status: done
 depends-on: ["01"]
 blocked-by: ""
 assigned-to: ""
 created: 2025-06-01
-outcome: ""
+outcome: "Created packages/render with context.ts (WebGL2 bootstrap, throws on null context), loop.ts (rAF-driven start/stop clearing to solid color), and empty lighting/skybox/sprites/world-tiles slice folders each with a placeholder index.ts. createRenderer(canvas) in src/index.ts composes context+loop. pnpm --filter render build passes typecheck with no errors."
 ---
 
 # Render Package Skeleton (WebGL2)

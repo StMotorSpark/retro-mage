@@ -1,12 +1,12 @@
 ---
 task: "04"
 slug: input-skeleton
-status: pending
+status: done
 depends-on: ["01"]
 blocked-by: ""
 assigned-to: ""
 created: 2025-06-01
-outcome: ""
+outcome: "Implemented packages/input with gamepad and touch slices merged behind createInputSource(container). Gamepad polls navigator.getGamepads() per getState() call with deadzone applied; touch renders a plain-DOM thumbstick overlay with drag-to-vector mapping. Gamepad takes precedence when connected. Typechecks and builds clean via tsc."
 ---
 
 # Input Package Skeleton

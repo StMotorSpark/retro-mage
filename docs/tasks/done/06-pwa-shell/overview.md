@@ -1,12 +1,12 @@
 ---
 task: "06"
 slug: pwa-shell
-status: pending
+status: done
 depends-on: ["05"]
 blocked-by: ""
 assigned-to: ""
 created: 2025-06-01
-outcome: ""
+outcome: "Added hand-authored manifest.webmanifest + placeholder PNG icons, wired via index.html link/meta tags. Used vite-plugin-pwa (generateSW strategy) instead of hand-written sw.js so precache list stays in sync with hashed build output automatically; disabled its auto-register/manifest injection and registered /sw.js manually from src/main.ts to keep control explicit. Build verified: sw.js precaches index.html, JS bundle, WASM binary, and icons, with a navigation-route fallback to index.html for offline shell reloads."
 ---
 
 # PWA Shell (Stage 1 Installability)
