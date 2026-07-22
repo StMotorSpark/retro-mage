@@ -15,7 +15,7 @@ const LOOK_MAX_RADIUS = 60;
 // held stick's continuous -1..1 range, so boost sensitivity to feel
 // comparable in the shared `look` field's consumer (examples/demo's
 // LOOK_SPEED * dt integration).
-const TOUCH_LOOK_SENSITIVITY = 300;
+const TOUCH_LOOK_SENSITIVITY = 3;
 
 interface ButtonConfig {
   slot: ButtonSlot;
