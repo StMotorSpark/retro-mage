@@ -7,8 +7,11 @@ pub mod input;
 pub mod lights;
 pub mod room;
 pub mod seam;
+pub mod streaming_config;
 pub mod tiles;
 pub mod visibility;
+
+pub use streaming_config::StreamingConfig;
 
 use std::collections::HashMap;
 use actors::{ActorsBuffer, MAX_ACTORS};
@@ -201,6 +204,39 @@ impl EngineState {
         self.seam_manager.register_seam(seam);
     }
 
+    /// Get current overall streaming configuration.
+    pub fn streaming_config(&self) -> StreamingConfig {
+        StreamingConfig {
+            outdoor_load_radius: self.chunk_streamer.load_radius(),
+            outdoor_evict_radius: self.chunk_streamer.evict_radius(),
+            indoor_hop_depth: self.indoor_streamer.hop_depth(),
+            seam_trigger_distance: self.seam_manager.seam_trigger_distance(),
+        }
+    }
+
+    /// Set overall streaming configuration.
+    pub fn set_streaming_config(&mut self, config: StreamingConfig) {
+        self.set_outdoor_load_radius(config.outdoor_load_radius);
+        self.set_outdoor_evict_radius(config.outdoor_evict_radius);
+        self.set_indoor_hop_depth(config.indoor_hop_depth);
+        self.set_seam_trigger_distance(config.seam_trigger_distance);
+    }
+
+    /// Validate current streaming configuration against max sight distance constraint.
+    pub fn validate_streaming_config(&self) -> Vec<String> {
+        self.streaming_config()
+            .validate_against_sight_distance(self.max_sight_distance)
+    }
+
+    fn check_and_log_dev_warnings(&self) {
+        #[cfg(debug_assertions)]
+        {
+            for warning in self.validate_streaming_config() {
+                eprintln!("[DEV WARNING] {}", warning);
+            }
+        }
+    }
+
     /// Seam trigger distance in tiles.
     pub fn seam_trigger_distance(&self) -> f32 {
         self.seam_manager.seam_trigger_distance()
@@ -209,6 +245,7 @@ impl EngineState {
     /// Set seam trigger distance in tiles.
     pub fn set_seam_trigger_distance(&mut self, dist: f32) {
         self.seam_manager.set_seam_trigger_distance(dist);
+        self.check_and_log_dev_warnings();
     }
 
     /// Seam crossing threshold in tiles.
@@ -234,6 +271,7 @@ impl EngineState {
             self.camera.y[0],
             &mut self.chunk_provider,
         );
+        self.check_and_log_dev_warnings();
     }
 
     /// Outdoor chunk evict radius (chunks).
@@ -249,6 +287,7 @@ impl EngineState {
             self.camera.y[0],
             &mut self.chunk_provider,
         );
+        self.check_and_log_dev_warnings();
     }
 
     /// Maximum resident outdoor chunks count limit (hard cap).
@@ -284,8 +323,10 @@ impl EngineState {
     /// Set indoor room hop depth.
     pub fn set_indoor_hop_depth(&mut self, depth: u32) {
         self.indoor_streamer.set_hop_depth(depth);
+        self.indoor_streamer.set_evict_hop_depth(depth);
         self.indoor_streamer
             .update_for_current_room(&mut self.room_graph);
+        self.check_and_log_dev_warnings();
     }
 
     /// Indoor room evict hop depth (graph hops).
@@ -374,6 +415,7 @@ impl EngineState {
     pub fn set_max_sight_distance(&mut self, dist: f32) {
         self.max_sight_distance = dist;
         self.recompute_visibility();
+        self.check_and_log_dev_warnings();
     }
 
     /// Cull precision distance threshold beyond which occlusion drops to distance-only.
@@ -1174,5 +1216,100 @@ mod tests {
         assert!(state.is_room_resident(10));
         assert!(state.is_room_resident(12));
         assert!(!state.is_room_resident(13));
+    }
+
+    #[test]
+    fn test_streaming_config_runtime_tuning_and_behavior_changes() {
+        let mut state = EngineState::new();
+
+        // 1. Initial default streaming config values
+        let default_config = state.streaming_config();
+        assert_eq!(default_config.outdoor_load_radius, 2);
+        assert_eq!(default_config.outdoor_evict_radius, 3);
+        assert_eq!(default_config.indoor_hop_depth, 1);
+        assert_eq!(default_config.seam_trigger_distance, 5.0);
+
+        // 2. Set streaming config via struct (load radius 1, evict radius 1)
+        let new_config = StreamingConfig::new(1, 1, 2, 10.0);
+        state.set_streaming_config(new_config);
+        assert_eq!(state.streaming_config(), new_config);
+        assert_eq!(state.outdoor_load_radius(), 1);
+        assert_eq!(state.outdoor_evict_radius(), 1);
+        assert_eq!(state.indoor_hop_depth(), 2);
+        assert_eq!(state.seam_trigger_distance(), 10.0);
+
+        // 3. Confirm behavior change: moving to far-away position with load radius 1 loads 9 chunks (3x3) instead of 25 (5x5)
+        state.set_player_pos(320.0, 320.0);
+        assert_eq!(state.resident_chunk_count(), 9);
+
+        // 4. Confirm behavior change: indoor hop depth 2 includes 2-hop room neighbors
+        state.add_room_to_graph(1, "Room 1");
+        state.add_room_to_graph(2, "Room 2");
+        state.add_room_to_graph(3, "Room 3");
+        state.add_room_edge(1, 2);
+        state.add_room_edge(2, 3);
+        state.set_indoor_current_room(1);
+
+        // With hop depth 2, Room 3 (2 hops away) IS resident
+        assert!(state.is_room_resident(1));
+        assert!(state.is_room_resident(2));
+        assert!(state.is_room_resident(3));
+
+        // Lower hop depth to 1: Room 3 (2 hops away) should no longer be resident
+        state.set_indoor_hop_depth(1);
+        assert!(state.is_room_resident(1));
+        assert!(state.is_room_resident(2));
+        assert!(!state.is_room_resident(3));
+    }
+
+    #[test]
+    fn test_streaming_config_per_level_override_independence() {
+        let mut level1 = EngineState::new();
+        let mut level2 = EngineState::new();
+
+        level1.set_streaming_config(StreamingConfig::new(1, 2, 2, 15.0));
+        level2.set_streaming_config(StreamingConfig::new(4, 5, 1, 40.0));
+
+        assert_eq!(level1.outdoor_load_radius(), 1);
+        assert_eq!(level1.indoor_hop_depth(), 2);
+        assert_eq!(level1.seam_trigger_distance(), 15.0);
+
+        assert_eq!(level2.outdoor_load_radius(), 4);
+        assert_eq!(level2.indoor_hop_depth(), 1);
+        assert_eq!(level2.seam_trigger_distance(), 40.0);
+    }
+
+    #[test]
+    fn test_streaming_config_sight_distance_validation_warnings() {
+        let mut state = EngineState::new();
+        state.set_max_sight_distance(32.0);
+
+        // Outdoor load radius 0 chunks = 0 tiles < 32.0 sight distance -> warning!
+        state.set_outdoor_load_radius(0);
+        let warnings = state.validate_streaming_config();
+        assert!(!warnings.is_empty());
+        assert!(warnings.iter().any(|w| w.contains("Outdoor load radius")));
+
+        // Seam trigger distance 5.0 tiles < 32.0 sight distance -> warning!
+        state.set_outdoor_load_radius(2); // 64 tiles >= 32.0
+        state.set_seam_trigger_distance(5.0); // 5.0 tiles < 32.0
+        let warnings = state.validate_streaming_config();
+        assert!(!warnings.is_empty());
+        assert!(warnings.iter().any(|w| w.contains("Seam trigger distance")));
+
+        // Valid configuration: load radius 2 (64 tiles) and seam trigger distance 32.0 tiles >= 32.0 sight distance
+        state.set_seam_trigger_distance(32.0);
+        let warnings = state.validate_streaming_config();
+        assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn test_streaming_config_internal_state_unexposed() {
+        let config = StreamingConfig::default();
+        // StreamingConfig exposes strictly outdoor_load_radius, outdoor_evict_radius, indoor_hop_depth, seam_trigger_distance
+        assert_eq!(config.outdoor_load_radius, 2);
+        assert_eq!(config.outdoor_evict_radius, 3);
+        assert_eq!(config.indoor_hop_depth, 1);
+        assert_eq!(config.seam_trigger_distance, 5.0);
     }
 }

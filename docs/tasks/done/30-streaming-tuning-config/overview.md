@@ -1,12 +1,12 @@
 ---
 task: "30"
 slug: streaming-tuning-config
-status: pending
+status: done
 depends-on: ["27", "28", "29"]
 blocked-by: ""
 assigned-to: ""
 created: 2025-06-17
-outcome: ""
+outcome: "Exposed StreamingConfig struct and EngineState getters/setters for outdoor_load_radius, outdoor_evict_radius, indoor_hop_depth, and seam_trigger_distance. Configured values dynamically drive engine streaming behavior per level/context without exposing internal LRU/resident-set state. Added dev-mode validation warning when load radius or seam trigger distance is less than max sight distance. Covered by Rust unit tests."
 ---
 
 # World Streaming Tuning Config
