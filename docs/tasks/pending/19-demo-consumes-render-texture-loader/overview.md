@@ -1,9 +1,9 @@
 ---
 task: "19"
 slug: demo-consumes-render-texture-loader
-status: parked
+status: pending
 depends-on: ["18"]
-blocked-by: "task:18"
+blocked-by: ""
 assigned-to: ""
 created: 2026-07-25
 outcome: ""
