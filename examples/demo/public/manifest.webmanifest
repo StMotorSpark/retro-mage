@@ -1,0 +1,21 @@
+{
+  "name": "Retro Mage — Demo",
+  "short_name": "Retro Mage",
+  "description": "Retro Mage engine demo — phone-first WASM/WebGL2 dungeon crawler shell.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#141420",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

@@ -44,3 +44,14 @@ main().catch((err) => {
   // eslint-disable-next-line no-console
   console.error('Demo failed to start:', err);
 });
+
+// Register the generated service worker so the app shell (JS, WASM, CSS, HTML)
+// installs to the home screen and reloads without a network round-trip.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((err) => {
+      // eslint-disable-next-line no-console
+      console.error('Service worker registration failed:', err);
+    });
+  });
+}
