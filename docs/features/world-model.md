@@ -6,6 +6,7 @@ relates-to:
   - "[Rendering](../architecture/rendering.md)"
   - "[Tech Stack](../architecture/tech-stack.md)"
   - "[Visibility](../architecture/visibility.md)"
+  - "[World Streaming](../architecture/world-streaming.md)"
 ---
 
 # World Model
@@ -33,3 +34,4 @@ The world model supports simulation depth beyond pure navigation and combat — 
 - [Rendering](../architecture/rendering.md) — how this world model is drawn, including the tile/polygon hybrid and chunked outdoor rendering
 - [Tech Stack](../architecture/tech-stack.md) — the fixed-point math and Rust/WASM core this world model runs on
 - [Visibility](../architecture/visibility.md) — the occlusion/sight-radius cull and seamless indoor/outdoor streaming handoff built on this world model
+- [World Streaming](../architecture/world-streaming.md) — the chunk/room streaming mechanics for the outdoor terrain and indoor rooms described here

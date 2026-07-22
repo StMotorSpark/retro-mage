@@ -79,6 +79,19 @@ This buffer's exact field set is expected to grow once the [Visibility Algorithm
 
 Global ambient light scalar for the loaded space (`f32`, 0.0 = pitch black interior, 1.0 = full outdoor daylight), accessed via `ambient_light() -> f32` and modified via `set_ambient_light(level: f32)`.
 
+### Outdoor Chunk Transport (Asynchronous / Out-of-Band)
+
+Outdoor terrain chunks adhere to the fixed 32×32 `ChunkData` contract in `engine-core`:
+- `chunk_x`, `chunk_y`: `i32` chunk grid coordinates
+- `tiles`: `[u16; 1024]` (32×32 tile IDs)
+- `heights`: `[f32; 1024]` (32×32 tile heights)
+- `solid`: `[u8; 1024]` (32×32 solidity flags)
+- `entities`: `Vec<EntityPlacement>` (x, y, z floats, entity_type u32, rotation float)
+
+Unlike per-frame render buffers (`actors`, `lights`, `tiles`), chunk loading operates out-of-band relative to the per-frame render loop. Applications implement the `ChunkProvider` interface (`request_chunk(chunk_x, chunk_y) -> ChunkResult`).
+
+For synchronous or Rust-native sources (e.g. procedural terrain generation), `request_chunk` returns `ChunkResult::Ready(ChunkData)` immediately. For asynchronous JS/I/O sources, `request_chunk` returns `ChunkResult::Pending` while the host application asynchronously loads or generates chunk payload bytes. Once available, host JS passes chunk data into `engine-core` out-of-band, moving the chunk into `engine-core`'s resident chunk cache. Resident chunk data is then consumed by visibility culling to feed the per-frame `tiles` buffer read by `render`.
+
 
 ## Memory Access Pattern
 

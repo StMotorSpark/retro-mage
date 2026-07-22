@@ -2,10 +2,16 @@
 
 pub mod actors;
 pub mod camera;
+pub mod chunk;
 pub mod input;
 pub mod lights;
+pub mod room;
+pub mod seam;
+pub mod streaming_config;
 pub mod tiles;
 pub mod visibility;
+
+pub use streaming_config::StreamingConfig;
 
 use std::collections::HashMap;
 use actors::{ActorsBuffer, MAX_ACTORS};
@@ -30,12 +36,28 @@ pub struct EngineState {
     master_actors: ActorsBuffer,
     master_lights: LightsBuffer,
     master_tiles: TilesBuffer,
+    chunk_streamer: chunk::OutdoorChunkStreamer,
+    chunk_provider: chunk::FlatChunkProvider,
+    indoor_streamer: room::IndoorRoomStreamer,
+    room_graph: room::RoomGraph,
+    seam_manager: seam::WorldSeamManager,
 }
 
 #[wasm_bindgen]
 impl EngineState {
     #[wasm_bindgen(constructor)]
     pub fn new() -> EngineState {
+        let camera = CameraBuffer::new();
+        let mut streamer = chunk::OutdoorChunkStreamer::default();
+        let mut provider = chunk::FlatChunkProvider::default();
+        streamer.update_for_player_pos(camera.x[0], camera.y[0], &mut provider);
+
+        let mut room_graph = room::RoomGraph::new();
+        let mut indoor_streamer = room::IndoorRoomStreamer::default();
+        indoor_streamer.update_for_current_room(&mut room_graph);
+
+        let seam_manager = seam::WorldSeamManager::new(seam::ActiveWorldStructure::Outdoor);
+
         EngineState {
             tick_count: 0.0,
             ambient_light: 0.0,
@@ -45,10 +67,15 @@ impl EngineState {
             actors: ActorsBuffer::new(),
             lights: LightsBuffer::new(),
             tiles: TilesBuffer::new(),
-            camera: CameraBuffer::new(),
+            camera,
             master_actors: ActorsBuffer::new(),
             master_lights: LightsBuffer::new(),
             master_tiles: TilesBuffer::new(),
+            chunk_streamer: streamer,
+            chunk_provider: provider,
+            indoor_streamer,
+            room_graph,
+            seam_manager,
         }
     }
 
@@ -77,7 +104,289 @@ impl EngineState {
     /// Advance the engine simulation tick by `dt` seconds and recompute visibility.
     pub fn tick(&mut self, dt: f64) {
         self.tick_count += dt;
+
+        let mut px = self.camera.x[0];
+        let mut py = self.camera.y[0];
+
+        self.seam_manager.update_and_check_crossing(
+            &mut px,
+            &mut py,
+            &mut self.indoor_streamer,
+            &mut self.room_graph,
+            &mut self.chunk_streamer,
+            &mut self.chunk_provider,
+        );
+
+        self.camera.x[0] = px;
+        self.camera.y[0] = py;
+
+        if self.seam_manager.active_structure() == seam::ActiveWorldStructure::Outdoor {
+            self.chunk_streamer.update_for_player_pos(
+                px,
+                py,
+                &mut self.chunk_provider,
+            );
+        } else {
+            self.indoor_streamer
+                .update_for_current_room(&mut self.room_graph);
+        }
+
         self.recompute_visibility();
+    }
+
+    /// Current active driving world structure (0 = Indoor, 1 = Outdoor).
+    pub fn active_world_structure(&self) -> u32 {
+        match self.seam_manager.active_structure() {
+            seam::ActiveWorldStructure::Indoor => 0,
+            seam::ActiveWorldStructure::Outdoor => 1,
+        }
+    }
+
+    /// Set active driving world structure (0 = Indoor, 1 = Outdoor).
+    pub fn set_active_world_structure(&mut self, structure: u32) {
+        let active = if structure == 0 {
+            seam::ActiveWorldStructure::Indoor
+        } else {
+            seam::ActiveWorldStructure::Outdoor
+        };
+        self.seam_manager.set_active_structure(active);
+    }
+
+    /// Player X coordinate in active structure's coordinate space.
+    pub fn player_x(&self) -> f32 {
+        self.camera.x[0]
+    }
+
+    /// Player Y coordinate in active structure's coordinate space.
+    pub fn player_y(&self) -> f32 {
+        self.camera.y[0]
+    }
+
+    /// Set player position in active structure's coordinate space.
+    pub fn set_player_pos(&mut self, x: f32, y: f32) {
+        self.camera.x[0] = x;
+        self.camera.y[0] = y;
+        match self.seam_manager.active_structure() {
+            seam::ActiveWorldStructure::Outdoor => {
+                self.chunk_streamer
+                    .update_for_player_pos(x, y, &mut self.chunk_provider);
+            }
+            seam::ActiveWorldStructure::Indoor => {
+                self.indoor_streamer
+                    .update_for_current_room(&mut self.room_graph);
+            }
+        }
+    }
+
+    /// Register a seam in the engine.
+    pub fn register_seam(
+        &mut self,
+        seam_id: u32,
+        room_id: u32,
+        room_tile_x: f32,
+        room_tile_y: f32,
+        outdoor_tile_x: f32,
+        outdoor_tile_y: f32,
+        offset_x: f32,
+        offset_y: f32,
+        rotation_rad: f32,
+    ) {
+        let transform = seam::SeamTransform::new(offset_x, offset_y, rotation_rad);
+        let seam = seam::Seam::new(
+            seam_id,
+            room_id,
+            room_tile_x,
+            room_tile_y,
+            outdoor_tile_x,
+            outdoor_tile_y,
+            transform,
+        );
+        self.seam_manager.register_seam(seam);
+    }
+
+    /// Get current overall streaming configuration.
+    pub fn streaming_config(&self) -> StreamingConfig {
+        StreamingConfig {
+            outdoor_load_radius: self.chunk_streamer.load_radius(),
+            outdoor_evict_radius: self.chunk_streamer.evict_radius(),
+            indoor_hop_depth: self.indoor_streamer.hop_depth(),
+            seam_trigger_distance: self.seam_manager.seam_trigger_distance(),
+        }
+    }
+
+    /// Set overall streaming configuration.
+    pub fn set_streaming_config(&mut self, config: StreamingConfig) {
+        self.set_outdoor_load_radius(config.outdoor_load_radius);
+        self.set_outdoor_evict_radius(config.outdoor_evict_radius);
+        self.set_indoor_hop_depth(config.indoor_hop_depth);
+        self.set_seam_trigger_distance(config.seam_trigger_distance);
+    }
+
+    /// Validate current streaming configuration against max sight distance constraint.
+    pub fn validate_streaming_config(&self) -> Vec<String> {
+        self.streaming_config()
+            .validate_against_sight_distance(self.max_sight_distance)
+    }
+
+    fn check_and_log_dev_warnings(&self) {
+        #[cfg(debug_assertions)]
+        {
+            for warning in self.validate_streaming_config() {
+                eprintln!("[DEV WARNING] {}", warning);
+            }
+        }
+    }
+
+    /// Seam trigger distance in tiles.
+    pub fn seam_trigger_distance(&self) -> f32 {
+        self.seam_manager.seam_trigger_distance()
+    }
+
+    /// Set seam trigger distance in tiles.
+    pub fn set_seam_trigger_distance(&mut self, dist: f32) {
+        self.seam_manager.set_seam_trigger_distance(dist);
+        self.check_and_log_dev_warnings();
+    }
+
+    /// Seam crossing threshold in tiles.
+    pub fn seam_crossing_threshold(&self) -> f32 {
+        self.seam_manager.crossing_threshold()
+    }
+
+    /// Set seam crossing threshold in tiles.
+    pub fn set_seam_crossing_threshold(&mut self, dist: f32) {
+        self.seam_manager.set_crossing_threshold(dist);
+    }
+
+    /// Outdoor chunk load radius (chunks).
+    pub fn outdoor_load_radius(&self) -> i32 {
+        self.chunk_streamer.load_radius()
+    }
+
+    /// Set outdoor chunk load radius (chunks).
+    pub fn set_outdoor_load_radius(&mut self, radius: i32) {
+        self.chunk_streamer.set_load_radius(radius);
+        self.chunk_streamer.update_for_player_pos(
+            self.camera.x[0],
+            self.camera.y[0],
+            &mut self.chunk_provider,
+        );
+        self.check_and_log_dev_warnings();
+    }
+
+    /// Outdoor chunk evict radius (chunks).
+    pub fn outdoor_evict_radius(&self) -> i32 {
+        self.chunk_streamer.evict_radius()
+    }
+
+    /// Set outdoor chunk evict radius (chunks).
+    pub fn set_outdoor_evict_radius(&mut self, radius: i32) {
+        self.chunk_streamer.set_evict_radius(radius);
+        self.chunk_streamer.update_for_player_pos(
+            self.camera.x[0],
+            self.camera.y[0],
+            &mut self.chunk_provider,
+        );
+        self.check_and_log_dev_warnings();
+    }
+
+    /// Maximum resident outdoor chunks count limit (hard cap).
+    pub fn outdoor_max_resident_chunks(&self) -> usize {
+        self.chunk_streamer.max_resident_chunks()
+    }
+
+    /// Set maximum resident outdoor chunks count limit (hard cap).
+    pub fn set_outdoor_max_resident_chunks(&mut self, max: usize) {
+        self.chunk_streamer.set_max_resident_chunks(max);
+        self.chunk_streamer.update_for_player_pos(
+            self.camera.x[0],
+            self.camera.y[0],
+            &mut self.chunk_provider,
+        );
+    }
+
+    /// Number of currently resident outdoor chunks.
+    pub fn resident_chunk_count(&self) -> usize {
+        self.chunk_streamer.resident_chunk_count()
+    }
+
+    /// Check if outdoor chunk at (chunk_x, chunk_y) is resident.
+    pub fn is_chunk_resident(&self, chunk_x: i32, chunk_y: i32) -> bool {
+        self.chunk_streamer.is_chunk_resident(chunk_x, chunk_y)
+    }
+
+    /// Indoor room hop depth (graph hops).
+    pub fn indoor_hop_depth(&self) -> u32 {
+        self.indoor_streamer.hop_depth()
+    }
+
+    /// Set indoor room hop depth.
+    pub fn set_indoor_hop_depth(&mut self, depth: u32) {
+        self.indoor_streamer.set_hop_depth(depth);
+        self.indoor_streamer.set_evict_hop_depth(depth);
+        self.indoor_streamer
+            .update_for_current_room(&mut self.room_graph);
+        self.check_and_log_dev_warnings();
+    }
+
+    /// Indoor room evict hop depth (graph hops).
+    pub fn indoor_evict_hop_depth(&self) -> u32 {
+        self.indoor_streamer.evict_hop_depth()
+    }
+
+    /// Set indoor room evict hop depth.
+    pub fn set_indoor_evict_hop_depth(&mut self, depth: u32) {
+        self.indoor_streamer.set_evict_hop_depth(depth);
+        self.indoor_streamer
+            .update_for_current_room(&mut self.room_graph);
+    }
+
+    /// Maximum resident indoor rooms count limit (hard cap).
+    pub fn indoor_max_resident_rooms(&self) -> usize {
+        self.indoor_streamer.max_resident_rooms()
+    }
+
+    /// Set maximum resident indoor rooms count limit (hard cap).
+    pub fn set_indoor_max_resident_rooms(&mut self, max: usize) {
+        self.indoor_streamer.set_max_resident_rooms(max);
+        self.indoor_streamer
+            .update_for_current_room(&mut self.room_graph);
+    }
+
+    /// Number of currently resident indoor rooms.
+    pub fn resident_room_count(&self) -> usize {
+        self.indoor_streamer.resident_room_count()
+    }
+
+    /// Check if indoor room with room_id is resident.
+    pub fn is_room_resident(&self, room_id: u32) -> bool {
+        self.indoor_streamer.is_room_resident(room_id)
+    }
+
+    /// Current active indoor room ID.
+    pub fn indoor_current_room_id(&self) -> u32 {
+        self.indoor_streamer.current_room_id()
+    }
+
+    /// Set current active indoor room ID and update resident room set.
+    pub fn set_indoor_current_room(&mut self, room_id: u32) {
+        self.indoor_streamer
+            .set_current_room(room_id, &mut self.room_graph);
+    }
+
+    /// Add a room node to internal engine room graph.
+    pub fn add_room_to_graph(&mut self, room_id: u32, name: &str) {
+        self.room_graph
+            .add_room(room::RoomNode::new(room_id, name));
+        self.indoor_streamer
+            .update_for_current_room(&mut self.room_graph);
+    }
+
+    /// Add a bidirectional edge between two rooms in engine room graph.
+    pub fn add_room_edge(&mut self, room1: u32, room2: u32) {
+        self.room_graph.add_edge(room1, room2);
+        self.indoor_streamer
+            .update_for_current_room(&mut self.room_graph);
     }
 
     /// Accumulated tick time count in seconds.
@@ -106,6 +415,7 @@ impl EngineState {
     pub fn set_max_sight_distance(&mut self, dist: f32) {
         self.max_sight_distance = dist;
         self.recompute_visibility();
+        self.check_and_log_dev_warnings();
     }
 
     /// Cull precision distance threshold beyond which occlusion drops to distance-only.
@@ -391,6 +701,7 @@ impl EngineState {
 
     pub fn set_camera(&mut self, x: f32, y: f32, z: f32, yaw: f32, pitch: f32) {
         self.camera.set_camera(x, y, z, yaw, pitch);
+        self.chunk_streamer.update_for_player_pos(x, y, &mut self.chunk_provider);
         self.recompute_visibility();
     }
 
@@ -861,5 +1172,144 @@ mod tests {
         assert!(!visible_z.contains(&2));
         // Tile at z=4 is INCLUDED by distance-only inclusion (dist 4.0 > 2.5 threshold, <= 32.0 sight radius)
         assert!(visible_z.contains(&4));
+    }
+
+    #[test]
+    fn test_engine_state_outdoor_chunk_streaming() {
+        let mut state = EngineState::new();
+        // Initial state at (0,0): 25 resident chunks (load_radius 2)
+        assert_eq!(state.outdoor_load_radius(), 2);
+        assert_eq!(state.outdoor_evict_radius(), 3);
+        assert_eq!(state.resident_chunk_count(), 25);
+        assert!(state.is_chunk_resident(0, 0));
+        assert!(state.is_chunk_resident(-2, 2));
+
+        // Move camera to (64.0, 0.0) -> chunk (2, 0)
+        state.set_camera(64.0, 0.0, 0.0, 0.0, 0.0);
+        assert!(state.is_chunk_resident(2, 0));
+        assert!(state.is_chunk_resident(4, 0)); // inside load radius 2 of (2,0)
+        assert!(!state.is_chunk_resident(-2, 0)); // evicted, dist 4 > evict radius 3
+    }
+
+    #[test]
+    fn test_engine_state_indoor_room_streaming() {
+        let mut state = EngineState::new();
+        state.add_room_to_graph(10, "Entrance");
+        state.add_room_to_graph(11, "Hallway");
+        state.add_room_to_graph(12, "Armory");
+        state.add_room_to_graph(13, "Dungeon");
+
+        state.add_room_edge(10, 11);
+        state.add_room_edge(11, 12);
+        state.add_room_edge(12, 13);
+
+        state.set_indoor_current_room(10);
+        assert_eq!(state.indoor_hop_depth(), 1);
+        assert!(state.is_room_resident(10));
+        assert!(state.is_room_resident(11));
+        assert!(!state.is_room_resident(12));
+        assert!(!state.is_room_resident(13));
+
+        // Move to Room 11
+        state.set_indoor_current_room(11);
+        assert!(state.is_room_resident(11));
+        assert!(state.is_room_resident(10));
+        assert!(state.is_room_resident(12));
+        assert!(!state.is_room_resident(13));
+    }
+
+    #[test]
+    fn test_streaming_config_runtime_tuning_and_behavior_changes() {
+        let mut state = EngineState::new();
+
+        // 1. Initial default streaming config values
+        let default_config = state.streaming_config();
+        assert_eq!(default_config.outdoor_load_radius, 2);
+        assert_eq!(default_config.outdoor_evict_radius, 3);
+        assert_eq!(default_config.indoor_hop_depth, 1);
+        assert_eq!(default_config.seam_trigger_distance, 5.0);
+
+        // 2. Set streaming config via struct (load radius 1, evict radius 1)
+        let new_config = StreamingConfig::new(1, 1, 2, 10.0);
+        state.set_streaming_config(new_config);
+        assert_eq!(state.streaming_config(), new_config);
+        assert_eq!(state.outdoor_load_radius(), 1);
+        assert_eq!(state.outdoor_evict_radius(), 1);
+        assert_eq!(state.indoor_hop_depth(), 2);
+        assert_eq!(state.seam_trigger_distance(), 10.0);
+
+        // 3. Confirm behavior change: moving to far-away position with load radius 1 loads 9 chunks (3x3) instead of 25 (5x5)
+        state.set_player_pos(320.0, 320.0);
+        assert_eq!(state.resident_chunk_count(), 9);
+
+        // 4. Confirm behavior change: indoor hop depth 2 includes 2-hop room neighbors
+        state.add_room_to_graph(1, "Room 1");
+        state.add_room_to_graph(2, "Room 2");
+        state.add_room_to_graph(3, "Room 3");
+        state.add_room_edge(1, 2);
+        state.add_room_edge(2, 3);
+        state.set_indoor_current_room(1);
+
+        // With hop depth 2, Room 3 (2 hops away) IS resident
+        assert!(state.is_room_resident(1));
+        assert!(state.is_room_resident(2));
+        assert!(state.is_room_resident(3));
+
+        // Lower hop depth to 1: Room 3 (2 hops away) should no longer be resident
+        state.set_indoor_hop_depth(1);
+        assert!(state.is_room_resident(1));
+        assert!(state.is_room_resident(2));
+        assert!(!state.is_room_resident(3));
+    }
+
+    #[test]
+    fn test_streaming_config_per_level_override_independence() {
+        let mut level1 = EngineState::new();
+        let mut level2 = EngineState::new();
+
+        level1.set_streaming_config(StreamingConfig::new(1, 2, 2, 15.0));
+        level2.set_streaming_config(StreamingConfig::new(4, 5, 1, 40.0));
+
+        assert_eq!(level1.outdoor_load_radius(), 1);
+        assert_eq!(level1.indoor_hop_depth(), 2);
+        assert_eq!(level1.seam_trigger_distance(), 15.0);
+
+        assert_eq!(level2.outdoor_load_radius(), 4);
+        assert_eq!(level2.indoor_hop_depth(), 1);
+        assert_eq!(level2.seam_trigger_distance(), 40.0);
+    }
+
+    #[test]
+    fn test_streaming_config_sight_distance_validation_warnings() {
+        let mut state = EngineState::new();
+        state.set_max_sight_distance(32.0);
+
+        // Outdoor load radius 0 chunks = 0 tiles < 32.0 sight distance -> warning!
+        state.set_outdoor_load_radius(0);
+        let warnings = state.validate_streaming_config();
+        assert!(!warnings.is_empty());
+        assert!(warnings.iter().any(|w| w.contains("Outdoor load radius")));
+
+        // Seam trigger distance 5.0 tiles < 32.0 sight distance -> warning!
+        state.set_outdoor_load_radius(2); // 64 tiles >= 32.0
+        state.set_seam_trigger_distance(5.0); // 5.0 tiles < 32.0
+        let warnings = state.validate_streaming_config();
+        assert!(!warnings.is_empty());
+        assert!(warnings.iter().any(|w| w.contains("Seam trigger distance")));
+
+        // Valid configuration: load radius 2 (64 tiles) and seam trigger distance 32.0 tiles >= 32.0 sight distance
+        state.set_seam_trigger_distance(32.0);
+        let warnings = state.validate_streaming_config();
+        assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn test_streaming_config_internal_state_unexposed() {
+        let config = StreamingConfig::default();
+        // StreamingConfig exposes strictly outdoor_load_radius, outdoor_evict_radius, indoor_hop_depth, seam_trigger_distance
+        assert_eq!(config.outdoor_load_radius, 2);
+        assert_eq!(config.outdoor_evict_radius, 3);
+        assert_eq!(config.indoor_hop_depth, 1);
+        assert_eq!(config.seam_trigger_distance, 5.0);
     }
 }

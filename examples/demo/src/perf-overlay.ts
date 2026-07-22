@@ -5,17 +5,27 @@ export interface VisibilityStats {
   ambientLight: number;
   tilesCount: number;
   actorsCount: number;
+  activeWorldStructure?: string;
+  currentRoomId?: number;
+  residentRoomsCount?: number;
+  residentChunksCount?: number;
+  seamTriggerDistance?: number;
+  outdoorLoadRadius?: number;
+  indoorHopDepth?: number;
 }
 
 export interface VisibilityOverlayCallbacks {
   onAdjustMaxSight: (delta: number) => void;
   onAdjustCullPrecision: (delta: number) => void;
   onAdjustAmbientLight: (delta: number) => void;
+  onAdjustSeamTrigger?: (delta: number) => void;
+  onAdjustOutdoorLoadRadius?: (delta: number) => void;
+  onAdjustIndoorHopDepth?: (delta: number) => void;
 }
 
 /**
  * Minimal DOM-based performance and visibility overlay showing FPS, sight radius,
- * rendered buffer counts, and interactive controls to adjust visibility tuning knobs live.
+ * rendered buffer counts, streaming state, and interactive controls to adjust visibility & streaming tuning knobs live.
  */
 export class PerfOverlay {
   private element: HTMLElement;
@@ -130,6 +140,36 @@ export class PerfOverlay {
         ),
       );
 
+      if (callbacks.onAdjustSeamTrigger) {
+        controlsContainer.appendChild(
+          createControlRow(
+            'Seam Trigger',
+            () => callbacks.onAdjustSeamTrigger!(-1),
+            () => callbacks.onAdjustSeamTrigger!(1),
+          ),
+        );
+      }
+
+      if (callbacks.onAdjustOutdoorLoadRadius) {
+        controlsContainer.appendChild(
+          createControlRow(
+            'Load Radius',
+            () => callbacks.onAdjustOutdoorLoadRadius!(-1),
+            () => callbacks.onAdjustOutdoorLoadRadius!(1),
+          ),
+        );
+      }
+
+      if (callbacks.onAdjustIndoorHopDepth) {
+        controlsContainer.appendChild(
+          createControlRow(
+            'Hop Depth',
+            () => callbacks.onAdjustIndoorHopDepth!(-1),
+            () => callbacks.onAdjustIndoorHopDepth!(1),
+          ),
+        );
+      }
+
       this.element.appendChild(controlsContainer);
     }
 
@@ -154,6 +194,18 @@ export class PerfOverlay {
         text += `\nMax Sight: ${stats.maxSightDistance.toFixed(1)} | Cull Prec: ${stats.cullPrecisionDistance.toFixed(1)}`;
         text += `\nAmbient Light: ${stats.ambientLight.toFixed(2)}`;
         text += `\nRendered Tiles: ${stats.tilesCount} | Actors: ${stats.actorsCount}`;
+        if (stats.activeWorldStructure !== undefined) {
+          text += `\nWorld Structure: ${stats.activeWorldStructure}`;
+        }
+        if (stats.currentRoomId !== undefined) {
+          text += ` | Room ID: ${stats.currentRoomId}`;
+        }
+        if (stats.residentRoomsCount !== undefined && stats.residentChunksCount !== undefined) {
+          text += `\nResident Rooms: ${stats.residentRoomsCount} | Chunks: ${stats.residentChunksCount}`;
+        }
+        if (stats.seamTriggerDistance !== undefined) {
+          text += `\nSeam Trigger: ${stats.seamTriggerDistance.toFixed(1)} | Load Rad: ${stats.outdoorLoadRadius ?? '--'} | Hop Depth: ${stats.indoorHopDepth ?? '--'}`;
+        }
       }
 
       this.statsTextElement.textContent = text;
@@ -169,4 +221,5 @@ export class PerfOverlay {
     return this.visible;
   }
 }
+
 

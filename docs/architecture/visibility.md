@@ -6,6 +6,7 @@ relates-to:
   - "[Rendering](./rendering.md)"
   - "[World Model](../features/world-model.md)"
   - "[WASM Bridge](./wasm-bridge.md)"
+  - "[World Streaming](./world-streaming.md)"
 ---
 
 # Visibility
@@ -65,3 +66,4 @@ Visibility recomputes every frame, matching the real-time (not turn-based) movem
 - [Rendering](./rendering.md) — the painter's-algorithm draw order and LUT lighting this visibility cull feeds into
 - [World Model](../features/world-model.md) — the seamless indoor/outdoor world and real-time movement this visibility system is designed around
 - [WASM Bridge](./wasm-bridge.md) — the per-frame buffer contract that will carry the visible-tile/actor set this cull produces
+- [World Streaming](./world-streaming.md) — the chunk/room streaming mechanics behind this doc's "two data structures, invisible handoff" decision
