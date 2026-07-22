@@ -14,6 +14,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
+    "@types/node": "^22.10.0",
+    "engine-core": "workspace:*",
     "typescript": "^5.6.3",
     "vitest": "^2.1.9"
   }

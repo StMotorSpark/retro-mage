@@ -1,12 +1,12 @@
 ---
 task: "09"
 slug: render-buffer-reader
-status: pending
+status: done
 depends-on: ["07", "08"]
 blocked-by: ""
 assigned-to: ""
 created: 2025-06-15
-outcome: ""
+outcome: "Implemented render-side WASM buffer reader slice (packages/render/src/world-state/) for actors, lights, tiles, and camera views over engine-core linear memory. Includes growth-safe defensive re-wrapping to reuse Float32Array views in steady state (zero per-frame heap allocations) and Vitest unit tests verifying WASM boundary round-trips."
 ---
 
 # Render Buffer Reader

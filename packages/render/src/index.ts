@@ -23,3 +23,5 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer {
     stop: loop.stop,
   };
 }
+
+export * from './world-state/index.js';
