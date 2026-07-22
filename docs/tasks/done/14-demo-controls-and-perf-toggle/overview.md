@@ -1,12 +1,12 @@
 ---
 task: "14"
 slug: demo-controls-and-perf-toggle
-status: pending
+status: done
 depends-on: ["13"]
 blocked-by: ""
 assigned-to: ""
 created: 2025-07-22
-outcome: ""
+outcome: "Wired InputState move/look vectors to ground-plane camera translation and yaw/pitch rotation per frame in demo main.ts. Added PerfOverlay showing rolling FPS/frame time, toggled on face1 edge press."
 ---
 
 # Demo Controls and Perf Overlay Toggle
