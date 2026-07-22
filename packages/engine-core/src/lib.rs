@@ -5,6 +5,7 @@ pub mod camera;
 pub mod input;
 pub mod lights;
 pub mod tiles;
+pub mod visibility;
 
 use actors::{ActorsBuffer, MAX_ACTORS};
 use camera::{CameraBuffer, MAX_CAMERA};
@@ -333,6 +334,23 @@ impl EngineState {
     pub fn set_camera(&mut self, x: f32, y: f32, z: f32, yaw: f32, pitch: f32) {
         self.camera.set_camera(x, y, z, yaw, pitch);
     }
+
+    // ==========================================
+    // Sight Radius
+    // ==========================================
+
+    /// Calculate current effective sight radius based on ambient light level,
+    /// camera position, and active lights buffer.
+    pub fn sight_radius(&self) -> f32 {
+        visibility::compute_sight_radius(
+            self.ambient_light,
+            self.camera.x[0],
+            self.camera.y[0],
+            self.camera.z[0],
+            &self.lights,
+            visibility::DEFAULT_MAX_DRAW_DISTANCE,
+        )
+    }
 }
 
 impl Default for EngineState {
@@ -417,5 +435,11 @@ mod tests {
         assert_eq!(state.input.vertical, 1.0);
         assert_eq!(state.input.buttons, 0b1010);
         assert_eq!(state.input.buttons_pressed, 0b0010);
+
+        // Sight Radius
+        state.set_ambient_light(0.0);
+        assert_eq!(state.sight_radius(), 0.0);
+        state.set_ambient_light(1.0);
+        assert_eq!(state.sight_radius(), visibility::DEFAULT_MAX_DRAW_DISTANCE);
     }
 }

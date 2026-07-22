@@ -1,12 +1,12 @@
 ---
 task: "21"
 slug: sight-radius-calculation
-status: pending
+status: done
 depends-on: ["20"]
 blocked-by: ""
 assigned-to: ""
 created: 2025-06-16
-outcome: ""
+outcome: "Implemented compute_sight_radius in visibility.rs module and sight_radius method on EngineState. Calculates base radius from ambient light plus dynamic light contribution (intensity - distance falloff), bounded by DEFAULT_MAX_DRAW_DISTANCE (32.0). Fully tested with Rust unit tests."
 ---
 
 # Sight Radius Calculation
