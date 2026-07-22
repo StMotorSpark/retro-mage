@@ -7,6 +7,7 @@ relates-to:
   - "[Repo Structure](./repo-structure.md)"
   - "[World Model](../features/world-model.md)"
   - "[WASM Bridge](./wasm-bridge.md)"
+  - "[Known Gaps](../research/known-gaps.md)"
 ---
 
 # Rendering
@@ -41,6 +42,21 @@ Lighting is computed via lighting lookup tables rather than per-pixel physically
 
 Draw distance is longer than the reference era's engines allowed, giving the world a modern sense of scale while retaining the retro tile/sprite/LUT visual language. Longer draw distance is supported by the low-poly geometry budget and LUT-based lighting keeping per-pixel cost low even at range.
 
+## Internal Render Resolution and Upscaling
+
+The 3D view renders to an offscreen framebuffer at a capped internal resolution, then upscales that framebuffer to the device's actual canvas backing store via a fullscreen-quad blit pass using linear filtering. This is a deliberate middle ground between two rejected approaches: rendering natively at full device pixel ratio (no perf headroom on phone GPUs once LUT lighting and painter's-algorithm overdraw are in the frame) and the fixed-low-res-plus-chunky-upscale look of some reference-era engines (fights the longer-draw-distance, modern-scale goal this project pairs with the retro technique).
+
+The internal resolution cap is a **static** decision made once at context/viewport setup, not an adaptive per-frame resolution scaler. There is no runtime feedback loop that lowers resolution mid-session in response to measured frame time. If a device falls below the performance target at the chosen cap, it simply runs below target — a future adaptive-scaling gap can be opened later if that's ever needed, but it is explicitly out of scope now.
+
+- **Two resolution domains**: canvas CSS size tracks the full device viewport (so UI/HUD reads crisp and at true modern scale); the 3D framebuffer renders at a separate, smaller capped resolution.
+- **Cap rule**: internal resolution is derived from canvas CSS size times a capped device-pixel-ratio multiplier (not the device's full DPR), further bounded by a hard maximum pixel budget so large high-density screens don't exceed it either. The concrete cap value is a benchmarked number (see Performance Target below), not a guess — it is set by measuring real frame cost on the reference device, not derived from this doc alone.
+- **Upscale filtering is linear, not nearest-neighbor.** This project's retro reference (Ultima Underworld-, Elder Scrolls Arena-era first-person dungeon/outdoor crawlers) is treated as a rendering *technique* reference — tile/polygon hybrid geometry, sprite actors, LUT lighting, painter's algorithm — not a pixelated-nostalgia aesthetic. Nearest-neighbor upscaling (visible pixel grid, deliberately chunky look) is explicitly rejected as the look target.
+- **HUD and touch controls render outside the capped 3D framebuffer**, composited over the upscaled 3D layer at native canvas resolution, so on-screen controls and text stay sharp regardless of the 3D internal resolution cap.
+
+### Performance Target
+
+The engine targets a **flat minimum of 60 FPS** on the iPhone 16-class reference device (see [Tech Stack](./tech-stack.md)), with higher framerates welcomed but not specifically pursued. This is a fixed target, not a scaling range — the internal resolution cap is chosen so this device clears 60 FPS with headroom, rather than the engine adjusting resolution to chase a variable target at runtime.
+
 ## Outdoor Rendering
 
 Outdoor areas extend the same rendering pipeline with additions specific to open-sky environments:
@@ -51,6 +67,7 @@ Outdoor areas extend the same rendering pipeline with additions specific to open
 
 ## Related Docs
 
+- [Known Gaps](../research/known-gaps.md) — the internal render resolution decision recorded here resolves that doc's open question; the exact pixel-budget cap number still needs a benchmark pass
 - [Tech Stack](./tech-stack.md) — the WebGL2/WebGPU and Rust/WASM stack this pipeline runs on
 - [Repo Structure](./repo-structure.md) — how rendering feature slices are organized inside the `render` package
 - [World Model](../features/world-model.md) — the dungeon and outdoor world structure this pipeline renders

@@ -44,12 +44,12 @@ Texture, tile, and sprite file formats, folder conventions, how Vite ingests sta
 - Blocks: any task that adds real game assets rather than placeholder geometry
 - Relates to: [Tech Stack](../architecture/tech-stack.md), [Rendering](../architecture/rendering.md)
 
-### Internal Render Resolution / Upscaling
+### Internal Render Resolution Pixel Budget
 
-Some reference-era engines render the 3D view at a fixed, low internal resolution and upscale to the device's actual screen size, rather than rendering natively at device resolution. Retro Mage has not decided whether the renderer follows this fixed-resolution-plus-upscale approach, renders natively at device pixel ratio, or does something in between (e.g. a capped/scaled internal resolution on high-DPI phones for performance headroom). This is a rendering-aesthetic and performance decision, not just a technical one — [Rendering](../architecture/rendering.md)'s "longer draw distance / modern scale" goal reads differently at native resolution versus chunky low-res-and-upscaled.
+[Rendering](../architecture/rendering.md) now resolves the approach: a capped internal 3D framebuffer resolution, upscaled via linear filtering, chosen once statically rather than adjusted adaptively at runtime, targeting a flat minimum of 60 FPS on the iPhone 16-class reference device. What remains open is the **concrete cap number** — the actual internal resolution / device-pixel-ratio multiplier / max pixel budget — which must come from benchmarking real frame cost on reference hardware, not from a docs conversation alone.
 
-- Blocks: `render`'s `context.ts` canvas/viewport setup — first-touch risk, since whoever writes the initial WebGL context sizing will otherwise decide this silently
-- Sequencing: decide before or immediately alongside the first real `render` context-setup task, and before the **Example Demo Scope** decision below (demo scope assumptions about "how it looks" depend on this). Independent of the WASM Bridge, Visibility Algorithm, and Asset Pipeline gaps — does not block or get blocked by them, but should be settled before the first pixels render so it isn't retrofitted after a rendering approach is already assumed in code
+- Blocks: `render`'s `context.ts` framebuffer/viewport setup finishing with a real number instead of a placeholder
+- Sequencing: run the benchmark pass (see Rendering doc) before or alongside the first real `context.ts` implementation task that wires up the offscreen framebuffer and blit pass
 - Relates to: [Rendering](../architecture/rendering.md), [Tech Stack](../architecture/tech-stack.md)
 
 ### Example Demo Scope
