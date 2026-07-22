@@ -33,9 +33,11 @@ Lighting lookup tables are specified conceptually in [Rendering](../architecture
 
 ### Asset Pipeline
 
-Texture compression format is resolved — see [Asset Pipeline](../architecture/asset-pipeline.md). Still undecided: the Vite plugin that automates PNG → KTX2 compression at build time (the resolved spike did this by hand), tile/sprite source folder conventions per consuming game, and the outdoor chunk file format.
+Texture compression format is resolved — see [Asset Pipeline](../architecture/asset-pipeline.md). Still undecided: tile/sprite source folder conventions per consuming game, and the outdoor chunk file format.
 
-- Blocks: any task that adds real game assets rather than placeholder geometry, or automates the compression step
+**`packages/render` does not yet own texture transcode/upload.** `docs/architecture/asset-pipeline.md` defines the target state as `render` owning KTX2 transcode, GPU upload, and the uncompressed-fallback path — but task:17 (Vite plugin build automation) demonstrates the pipeline by wiring transcode/upload code directly into `examples/demo` instead, since no texture-loading module exists in `render` yet. Moving this logic into `packages/render` as a proper public API, and implementing the uncompressed-RGBA32 fallback path for devices without a compressed-texture extension, are both still open.
+
+- Blocks: any task that adds real game assets rather than placeholder geometry, or has `packages/render` (rather than a consuming app) load textures directly
 - Relates to: [Asset Pipeline](../architecture/asset-pipeline.md), [Tech Stack](../architecture/tech-stack.md), [Rendering](../architecture/rendering.md)
 
 ### Example Demo Scope
