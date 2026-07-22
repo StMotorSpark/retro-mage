@@ -1,12 +1,12 @@
 ---
 task: "10"
 slug: wire-world-state-into-render-loop
-status: pending
+status: done
 depends-on: ["08", "09"]
 blocked-by: ""
 assigned-to: ""
 created: 2025-06-15
-outcome: ""
+outcome: "Wired WASM engine-core world-state buffer views into render loop. Implemented tile (flat-shaded quads/cubes) and actor sprite (flat-colored quads) placeholder renderers with camera perspective and view transforms. Updated examples/demo to populate hardcoded engine state and drive render loop from WASM memory views."
 ---
 
 # Wire World-State Into Render Loop
