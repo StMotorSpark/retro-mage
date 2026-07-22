@@ -1,12 +1,12 @@
 ---
 task: "16"
 slug: texture-compression-spike
-status: parked
+status: done
 depends-on: []
-blocked-by: "human: physical iPhone Safari visual verification needed"
+blocked-by: ""
 assigned-to: ""
 created: 2026-07-23
-outcome: ""
+outcome: "KTX2/UASTC confirmed viable on desktop Chrome and physical iPhone Safari (WEBGL_compressed_texture_astc exposed, no errors, correct visual render). Two gotchas found + solved: Zstd supercompression breaks transcode (must ship plain UASTC, no supercompression); incomplete mip chain upload samples as black (mip strategy needs real solution before re-enabling). See RESULTS.md. Recommendation: proceed to build production Vite plugin pipeline.
 ---
 
 # Texture Compression Spike (KTX2/UASTC on iPhone Safari)

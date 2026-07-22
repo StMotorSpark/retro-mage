@@ -1,6 +1,6 @@
 ---
 task: "16"
-status: desktop-verified, iphone-pending-human
+status: done
 ---
 
 # Texture Compression Spike — Results
@@ -118,42 +118,34 @@ than trusting the transcoder's reported per-level width/height verbatim,
 or falling back to `gl.generateMipmap` after uploading only the base
 level for the uncompressed-fallback path).
 
-## iPhone Safari verification — NOT YET DONE (requires physical device)
+## iPhone Safari verification — PASS (human-confirmed, physical device)
 
-Per task scope, physical iPhone testing requires the device owner, not the
-worker agent. **This is the one remaining unchecked item before this spike
-can be called fully complete.**
+Tested by device owner over LAN (`pnpm --filter spike-ktx2 dev -- --host`),
+physical iPhone Safari, on-screen debug log inspected directly (no remote
+Web Inspector needed — log surfaced everything necessary).
 
-To run:
-
-1. `pnpm --filter spike-ktx2 dev -- --host`
-2. Find host LAN IP (`ipconfig getifaddr en0` on macOS)
-3. On the iPhone, open `http://<lan-ip>:5173/` in Safari
-4. Read the on-screen debug log (top of page) for:
-   - WebGL2 context creation success/failure
-   - Which compressed-texture extensions Safari's WebGL2 context exposes
-     (expected candidate on Apple hardware: `WEBGL_compressed_texture_astc`,
-     since Apple GPUs are ASTC-native)
-   - Any `FAIL` lines or `window.onerror` / `unhandledrejection` entries
-     (these get logged on-screen even without a remote-debug connection)
-5. Visually inspect both quads for black squares, garbling, or
-   correct-looking wall/floor imagery
-6. If a Mac + Lightning/USB-C cable is available, connect Safari's Web
-   Inspector (Develop menu → device name → page) for full console/network
-   access instead of relying on the on-screen log alone
+- WebGL2 context created successfully (renderer string: WebKit/WebGL,
+  confirming the real WebKit WebGL2 backend, not a software fallback)
+- Safari exposed `WEBGL_compressed_texture_astc` — the expected extension
+  on Apple GPUs (ASTC-native hardware)
+- No console errors, no `FAIL` lines, no `window.onerror` /
+  `unhandledrejection` entries in the on-screen log
+- Both textures (wall, floor) rendered correctly, visually confirmed —
+  no black squares, no garbling
 
 ## Recommendation
 
-**Conditionally proceed with KTX2/UASTC**, pending the iPhone Safari check
-above. Desktop-side, the format and transcode pipeline work correctly with
-real visual output once the two gotchas above are worked around. Key
-carry-forward items for a production pipeline follow-up task:
+**Proceed with KTX2/UASTC** as the engine's texture compression format.
+Both desktop and physical iPhone Safari transcode and render correctly,
+with real visual output, once the two gotchas below are worked around. Key
+carry-forward items for the production pipeline follow-up task:
 
-1. Confirm iPhone Safari exposes a usable compressed-texture extension for
-   the transcoded format (most likely `WEBGL_compressed_texture_astc` on
-   Apple GPUs) — if none is exposed, the transcoder's uncompressed RGBA32
-   fallback path still works (confirmed above) but loses the memory/
-   bandwidth benefit that is the whole point of this format.
+1. Safari on Apple hardware exposes `WEBGL_compressed_texture_astc` —
+   confirmed on real device. The uncompressed RGBA32 fallback path
+   (confirmed working in this spike) should still ship as a safety net for
+   any device/browser combination that doesn't expose a compressed-texture
+   extension, but ASTC is the expected common case for the reference
+   device class.
 2. Do **not** enable Zstandard supercompression on UASTC KTX2 files unless
    the specific transcoder library chosen for production is verified to
    support it — plain (no supercompression) UASTC is the safer default.
