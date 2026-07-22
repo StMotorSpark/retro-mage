@@ -8,6 +8,7 @@ relates-to:
   - "[Agent Development Principles](../principles/agent-dev-principles.md)"
   - "[WASM Bridge](./wasm-bridge.md)"
   - "[Input Event Schema](./input-schema.md)"
+  - "[Asset Pipeline](./asset-pipeline.md)"
 ---
 
 # Tech Stack
@@ -53,3 +54,4 @@ Performance validation happens against **iPhone 16e** hardware as the reference 
 - [Agent Development Principles](../principles/agent-dev-principles.md) — why Rust and vertical-slice organization are chosen for agent-driven development
 - [WASM Bridge](./wasm-bridge.md) — the concrete data contract crossing the Rust/WASM ↔ TypeScript boundary this stack defines
 - [Input Event Schema](./input-schema.md) — the normalized event shape the input layer produces
+- [Asset Pipeline](./asset-pipeline.md) — the texture compression/build pipeline built on this stack's Vite tooling
