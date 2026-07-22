@@ -147,21 +147,18 @@ export function createTouchSource(container: HTMLElement): TouchSource {
   rootElement.appendChild(lookZone);
 
   let activeLookTouchId: number | null = null;
-  let lookOriginX = 0;
-  let lookOriginY = 0;
-
-  function resetLook(): void {
-    state.look.x = 0;
-    state.look.y = 0;
-  }
+  let lookLastX = 0;
+  let lookLastY = 0;
+  let pendingLookDx = 0;
+  let pendingLookDy = 0;
 
   function handleLookTouchStart(event: TouchEvent): void {
     if (activeLookTouchId !== null) return;
     const touch = event.changedTouches[0];
     if (!touch) return;
     activeLookTouchId = touch.identifier;
-    lookOriginX = touch.clientX;
-    lookOriginY = touch.clientY;
+    lookLastX = touch.clientX;
+    lookLastY = touch.clientY;
   }
 
   function handleLookTouchMove(event: TouchEvent): void {
@@ -169,8 +166,12 @@ export function createTouchSource(container: HTMLElement): TouchSource {
     const touch = Array.from(event.changedTouches).find((t) => t.identifier === activeLookTouchId);
     if (!touch) return;
 
-    let dx = touch.clientX - lookOriginX;
-    let dy = touch.clientY - lookOriginY;
+    let dx = touch.clientX - lookLastX;
+    let dy = touch.clientY - lookLastY;
+    lookLastX = touch.clientX;
+    lookLastY = touch.clientY;
+
+    // Cap a single event's delta so a fast flick can't spike the look value.
     const distance = Math.sqrt(dx * dx + dy * dy);
     if (distance > LOOK_MAX_RADIUS) {
       const scale = LOOK_MAX_RADIUS / distance;
@@ -178,15 +179,14 @@ export function createTouchSource(container: HTMLElement): TouchSource {
       dy *= scale;
     }
 
-    state.look.x = dx / LOOK_MAX_RADIUS;
-    state.look.y = dy / LOOK_MAX_RADIUS;
+    pendingLookDx += dx;
+    pendingLookDy += dy;
   }
 
   function handleLookTouchEnd(event: TouchEvent): void {
     const touch = Array.from(event.changedTouches).find((t) => t.identifier === activeLookTouchId);
     if (!touch) return;
     activeLookTouchId = null;
-    resetLook();
   }
 
   lookZone.addEventListener('touchstart', handleLookTouchStart);
@@ -253,9 +253,19 @@ export function createTouchSource(container: HTMLElement): TouchSource {
       state.buttonsPressed = activeButtonsMask & ~prevButtons;
       prevButtons = activeButtonsMask;
 
+      // Drain this frame's accumulated look delta — consumed-once so the
+      // camera stops turning the instant the finger stops moving, even if
+      // still held down (drag-delta feel, not a persistent stick offset).
+      // Y is inverted relative to raw swipe direction: swiping up should
+      // look down (natural drag-to-look), not up.
+      const lookX = pendingLookDx / LOOK_MAX_RADIUS;
+      const lookY = -(pendingLookDy / LOOK_MAX_RADIUS);
+      pendingLookDx = 0;
+      pendingLookDy = 0;
+
       return {
         move: { ...state.move },
-        look: { ...state.look },
+        look: { x: lookX, y: lookY },
         vertical: 0,
         buttons: state.buttons,
         buttonsPressed: state.buttonsPressed,
@@ -276,6 +286,8 @@ export function createTouchSource(container: HTMLElement): TouchSource {
       rootElement.remove();
       prevButtons = 0;
       activeButtonsMask = 0;
+      pendingLookDx = 0;
+      pendingLookDy = 0;
     },
   };
 }

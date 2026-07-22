@@ -65,7 +65,9 @@ export function createGamepadSource(): GamepadSource {
       state.move.x = applyDeadzone(pad.axes[0] ?? 0);
       state.move.y = applyDeadzone(pad.axes[1] ?? 0);
 
-      state.look.x = applyDeadzone(pad.axes[2] ?? 0);
+      // Right stick X is inverted relative to expected turn direction on
+      // standard gamepads — negate so pushing right turns the camera right.
+      state.look.x = -applyDeadzone(pad.axes[2] ?? 0);
       state.look.y = applyDeadzone(pad.axes[3] ?? 0);
 
       let currentButtons = 0;
