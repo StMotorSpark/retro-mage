@@ -65,4 +65,4 @@ For full rationale and architecture details, see [`docs/architecture/asset-pipel
 
 - **Supercompression**: Disabled by default (`needSupercompression: false`). Basis Universal transcoders are not guaranteed to correctly decompress Zstandard-wrapped UASTC payloads, which can cause textures to silently render as solid black.
 - **Mipmaps**: While mipmap levels are generated during build-time compression, runtime rendering in `packages/render` currently uploads the base mip level with `LINEAR` filtering to avoid incomplete mipmap chain sampling bugs under ASTC block alignment.
-- **Fallback Path**: The uncompressed RGBA32 fallback path for WebGL2 contexts lacking compressed texture extensions is a known gap documented in `docs/research/known-gaps.md`.
+- **Fallback Path**: The uncompressed RGBA32 fallback path for WebGL2 contexts lacking compressed texture extensions is handled at runtime by `loadKtx2Texture` in `packages/render`.
