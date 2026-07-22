@@ -6,6 +6,7 @@ relates-to:
   - "[Tech Stack](./tech-stack.md)"
   - "[Rendering](./rendering.md)"
   - "[Repo Structure](./repo-structure.md)"
+  - "[Visibility](./visibility.md)"
 ---
 
 # WASM ↔ JS Bridge
@@ -92,3 +93,4 @@ This document is the single source of truth for buffer layout. Changes to a buff
 - [Rendering](./rendering.md) — the rendering pipeline that consumes these buffers, and the fixed-point math guidance this bridge's f32 wire format sits alongside
 - [Repo Structure](./repo-structure.md) — the `engine-core`/`render` package split this bridge crosses
 - [Input Event Schema](./input-schema.md) — the reverse-direction, `input` → `engine-core` schema, which deliberately crosses this same WASM boundary via a per-frame function call rather than a buffer
+- [Visibility](./visibility.md) — the visibility cull that determines which tiles/actors this bridge's buffers need to carry each frame

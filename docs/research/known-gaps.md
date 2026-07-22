@@ -8,6 +8,7 @@ relates-to:
   - "[Repo Structure](../architecture/repo-structure.md)"
   - "[WASM Bridge](../architecture/wasm-bridge.md)"
   - "[Input Event Schema](../architecture/input-schema.md)"
+  - "[Visibility](../architecture/visibility.md)"
   - "[Test-Driven Development](../principles/test-driven-development.md)"
 ---
 
@@ -16,13 +17,6 @@ relates-to:
 This doc tracks design questions the current docs leave open — decisions not yet made, called out so future work doesn't silently assume an answer. Entries are added as new gaps surface and removed (or resolved into the relevant design doc) once answered. This doc does not describe target state itself; it points at where target state is still undecided.
 
 ## Open Questions
-
-### Visibility Algorithm
-
-[Rendering](../architecture/rendering.md) defers this explicitly. Indoor dungeon visibility could use portal culling, BSP, or a simpler radius/line-of-sight cull; outdoor visibility needs a chunk-distance approach. No algorithm is chosen yet.
-
-- Blocks: `world-tiles` and outdoor chunk rendering tasks
-- Relates to: [Rendering](../architecture/rendering.md), [World Model](../features/world-model.md)
 
 ### LUT Format and Generation
 
@@ -35,7 +29,7 @@ Lighting lookup tables are specified conceptually in [Rendering](../architecture
 
 Texture compression format, transcode/upload ownership, fallback behavior, and mipmap handling are resolved and implemented — see [Asset Pipeline](../architecture/asset-pipeline.md). `packages/render` owns KTX2 transcode/upload via its `loadKtx2Texture` function (bytes-in, ASTC-probe fallback, block-aligned mip upload, throw-on-failure), and `examples/demo` consumes it directly rather than transcoding inline.
 
-Still undecided: tile/sprite source folder conventions per consuming game, and the outdoor chunk file format (the latter deferred until the visibility algorithm gap below is resolved, since chunk file shape depends on the chunking scheme visibility settles on).
+Still undecided: tile/sprite source folder conventions per consuming game, and the outdoor chunk file format.
 
 - Blocks: any task that adds real game assets rather than placeholder geometry
 - Relates to: [Asset Pipeline](../architecture/asset-pipeline.md), [Tech Stack](../architecture/tech-stack.md), [Rendering](../architecture/rendering.md)
@@ -56,4 +50,5 @@ The exact content of the `examples/demo` minimal dungeon (room count, enemy spri
 - [WASM Bridge](../architecture/wasm-bridge.md) — resolves the WASM ↔ JS bridge shape gap
 - [Input Event Schema](../architecture/input-schema.md) — resolves the normalized input event shape gap
 - [Asset Pipeline](../architecture/asset-pipeline.md) — resolves the texture compression format gap
+- [Visibility](../architecture/visibility.md) — resolves the visibility algorithm gap
 - [Test-Driven Development](../principles/test-driven-development.md) — the testing discipline applied to future gap resolutions
