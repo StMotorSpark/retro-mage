@@ -7,6 +7,7 @@ relates-to:
   - "[Agent Development Principles](../principles/agent-dev-principles.md)"
   - "[Rendering](./rendering.md)"
   - "[WASM Bridge](./wasm-bridge.md)"
+  - "[Asset Pipeline](./asset-pipeline.md)"
 ---
 
 # Repo Structure
@@ -65,3 +66,4 @@ A separate game repo built on Retro Mage depends on `engine-core`, `render`, and
 - [Agent Development Principles](../principles/agent-dev-principles.md) — the vertical-slice rule this layout follows
 - [Rendering](./rendering.md) — the feature slices inside the `render` package
 - [WASM Bridge](./wasm-bridge.md) — the read-only data contract between the `engine-core` and `render` packages
+- [Asset Pipeline](./asset-pipeline.md) — the engine-package-vs-consuming-game responsibility split this pipeline follows

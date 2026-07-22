@@ -8,6 +8,7 @@ relates-to:
   - "[World Model](../features/world-model.md)"
   - "[WASM Bridge](./wasm-bridge.md)"
   - "[Known Gaps](../research/known-gaps.md)"
+  - "[Asset Pipeline](./asset-pipeline.md)"
 ---
 
 # Rendering
@@ -75,3 +76,4 @@ Outdoor areas extend the same rendering pipeline with additions specific to open
 - [Repo Structure](./repo-structure.md) — how rendering feature slices are organized inside the `render` package
 - [World Model](../features/world-model.md) — the dungeon and outdoor world structure this pipeline renders
 - [WASM Bridge](./wasm-bridge.md) — the per-frame data contract this pipeline reads from `engine-core`
+- [Asset Pipeline](./asset-pipeline.md) — the texture format this pipeline's texture-loading path consumes

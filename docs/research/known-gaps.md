@@ -33,10 +33,10 @@ Lighting lookup tables are specified conceptually in [Rendering](../architecture
 
 ### Asset Pipeline
 
-Texture, tile, and sprite file formats, folder conventions, how Vite ingests static assets, and the outdoor chunk file format are all undecided.
+Texture compression format is resolved — see [Asset Pipeline](../architecture/asset-pipeline.md). Still undecided: the Vite plugin that automates PNG → KTX2 compression at build time (the resolved spike did this by hand), tile/sprite source folder conventions per consuming game, and the outdoor chunk file format.
 
-- Blocks: any task that adds real game assets rather than placeholder geometry
-- Relates to: [Tech Stack](../architecture/tech-stack.md), [Rendering](../architecture/rendering.md)
+- Blocks: any task that adds real game assets rather than placeholder geometry, or automates the compression step
+- Relates to: [Asset Pipeline](../architecture/asset-pipeline.md), [Tech Stack](../architecture/tech-stack.md), [Rendering](../architecture/rendering.md)
 
 ### Example Demo Scope
 
@@ -53,4 +53,5 @@ The exact content of the `examples/demo` minimal dungeon (room count, enemy spri
 - [World Model](../features/world-model.md)
 - [WASM Bridge](../architecture/wasm-bridge.md) — resolves the WASM ↔ JS bridge shape gap
 - [Input Event Schema](../architecture/input-schema.md) — resolves the normalized input event shape gap
+- [Asset Pipeline](../architecture/asset-pipeline.md) — resolves the texture compression format gap
 - [Test-Driven Development](../principles/test-driven-development.md) — the testing discipline applied to future gap resolutions

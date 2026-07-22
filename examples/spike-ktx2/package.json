@@ -1,0 +1,20 @@
+{
+  "name": "spike-ktx2",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "compress": "node scripts/compress.mjs"
+  },
+  "dependencies": {
+    "@loaders.gl/core": "^4.4.3",
+    "@loaders.gl/textures": "^4.4.3"
+  },
+  "devDependencies": {
+    "ktx2-encoder": "^0.6.0",
+    "sharp": "^0.33.5",
+    "vite": "^5.4.11"
+  }
+}
