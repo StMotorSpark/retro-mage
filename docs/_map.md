@@ -37,7 +37,9 @@ Each entry links to a design doc and includes the doc's one-line summary. Docs d
 
 > Findings, experiments, model evaluations, prototyping notes.
 
-_No research docs yet._
+| Doc | Summary |
+|-----|---------|
+| [`docs/research/known-gaps.md`](./research/known-gaps.md) | Tracks unresolved design questions that block specific implementation tasks, to be resolved in future design conversations as work reaches them. |
 
 ---
 
