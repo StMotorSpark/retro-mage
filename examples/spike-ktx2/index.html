@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>KTX2/UASTC Spike (Non-Canonical)</title>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        width: 100%;
+        overflow: hidden;
+        background: #111;
+        font-family: monospace;
+      }
+      #gl {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      #log {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        max-height: 45%;
+        overflow-y: auto;
+        background: rgba(0, 0, 0, 0.85);
+        color: #0f6;
+        font-size: 12px;
+        line-height: 1.4;
+        padding: 8px;
+        white-space: pre-wrap;
+        z-index: 10;
+      }
+      #log .err { color: #f55; }
+    </style>
+  </head>
+  <body>
+    <canvas id="gl" width="1024" height="512"></canvas>
+    <div id="log"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
