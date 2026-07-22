@@ -65,7 +65,7 @@ describe('world-state reader', () => {
     const { engine, memory } = setupWasmEngine();
 
     expect(engine.tiles_count()).toBe(0);
-    engine.set_tile(0, 100.0, 0.0, 200.0, 12.0, 3.0);
+    engine.set_tile(0, 100.0, 0.0, 200.0, 12.0, 3.0, 0.0);
 
     const tilesView = readTilesView(engine, memory);
     expect(tilesView.count).toBe(1);

@@ -1,12 +1,12 @@
 ---
 task: "20"
 slug: tile-solidity-ambient-light
-status: pending
+status: done
 depends-on: []
 blocked-by: ""
 assigned-to: ""
 created: 2025-06-16
-outcome: ""
+outcome: "Added solid f32 field to TilesBuffer and set_tile, tiles_solid_ptr/count getters on EngineState, and ambient_light getter/setter scalar on EngineState defaulting to 0.0. Updated wasm-bridge schema doc and all set_tile callsites."
 ---
 
 # Tile Solidity + Ambient Light Data Model

@@ -63,6 +63,7 @@ Each buffer is Struct-of-Arrays (SoA): one flat array per field, not an array of
 | `x`, `y`, `z` | `f32` | Tile-space or world-space position (grid-aligned) |
 | `tile_id` | `f32` | Identifies texture/tile type |
 | `variant` | `f32` | Rotation/flip variant, if needed |
+| `solid` | `f32` | `0`/`1` — whether tile blocks sight (walls, closed doors) vs. lets sight pass (floors, ceilings, open doorways, vertical gaps) |
 
 This buffer's exact field set is expected to grow once the [Visibility Algorithm](../research/known-gaps.md) and [Asset Pipeline](../research/known-gaps.md) gaps are resolved — the shape above covers only what's needed to draw a flat, textured tile floor/wall/ceiling.
 
@@ -72,6 +73,11 @@ This buffer's exact field set is expected to grow once the [Visibility Algorithm
 |-------|------|-------|
 | `x`, `y`, `z` | `f32` | Position |
 | `yaw`, `pitch` | `f32` | Orientation |
+
+### Ambient Light (single scalar, not an array)
+
+Global ambient light scalar for the loaded space (`f32`, 0.0 = pitch black interior, 1.0 = full outdoor daylight), accessed via `ambient_light() -> f32` and modified via `set_ambient_light(level: f32)`.
+
 
 ## Memory Access Pattern
 

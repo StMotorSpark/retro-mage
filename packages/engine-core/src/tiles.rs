@@ -9,6 +9,7 @@ pub struct TilesBuffer {
     pub z: [f32; MAX_TILES],
     pub tile_id: [f32; MAX_TILES],
     pub variant: [f32; MAX_TILES],
+    pub solid: [f32; MAX_TILES],
     pub count: usize,
 }
 
@@ -20,6 +21,7 @@ impl TilesBuffer {
             z: [0.0; MAX_TILES],
             tile_id: [0.0; MAX_TILES],
             variant: [0.0; MAX_TILES],
+            solid: [0.0; MAX_TILES],
             count: 0,
         }
     }
@@ -32,6 +34,7 @@ impl TilesBuffer {
         z: f32,
         tile_id: f32,
         variant: f32,
+        solid: f32,
     ) -> bool {
         if index >= MAX_TILES {
             return false;
@@ -41,6 +44,7 @@ impl TilesBuffer {
         self.z[index] = z;
         self.tile_id[index] = tile_id;
         self.variant[index] = variant;
+        self.solid[index] = solid;
         if index >= self.count {
             self.count = index + 1;
         }
@@ -74,26 +78,29 @@ mod tests {
         assert_eq!(buffer.z.len(), MAX_TILES);
         assert_eq!(buffer.tile_id.len(), MAX_TILES);
         assert_eq!(buffer.variant.len(), MAX_TILES);
+        assert_eq!(buffer.solid.len(), MAX_TILES);
         assert_eq!(MAX_TILES, 1024);
     }
 
     #[test]
     fn test_tiles_buffer_write_read_roundtrip() {
         let mut buffer = TilesBuffer::new();
-        let ok = buffer.set_tile(0, 1.0, 0.0, -1.0, 12.0, 3.0);
+        assert_eq!(buffer.solid[0], 0.0);
+        let ok = buffer.set_tile(0, 1.0, 0.0, -1.0, 12.0, 3.0, 1.0);
         assert!(ok);
         assert_eq!(buffer.x[0], 1.0);
         assert_eq!(buffer.y[0], 0.0);
         assert_eq!(buffer.z[0], -1.0);
         assert_eq!(buffer.tile_id[0], 12.0);
         assert_eq!(buffer.variant[0], 3.0);
+        assert_eq!(buffer.solid[0], 1.0);
         assert_eq!(buffer.count, 1);
     }
 
     #[test]
     fn test_tiles_buffer_out_of_bounds() {
         let mut buffer = TilesBuffer::new();
-        let ok = buffer.set_tile(1024, 0.0, 0.0, 0.0, 1.0, 0.0);
+        let ok = buffer.set_tile(1024, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0);
         assert!(!ok);
     }
 }

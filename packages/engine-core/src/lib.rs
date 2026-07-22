@@ -17,6 +17,7 @@ use wasm_bindgen::prelude::*;
 #[wasm_bindgen]
 pub struct EngineState {
     tick_count: f64,
+    ambient_light: f32,
     input: InputState,
     actors: ActorsBuffer,
     lights: LightsBuffer,
@@ -30,6 +31,7 @@ impl EngineState {
     pub fn new() -> EngineState {
         EngineState {
             tick_count: 0.0,
+            ambient_light: 0.0,
             input: InputState::default(),
             actors: ActorsBuffer::new(),
             lights: LightsBuffer::new(),
@@ -69,6 +71,16 @@ impl EngineState {
     #[wasm_bindgen(getter)]
     pub fn tick_count(&self) -> f64 {
         self.tick_count
+    }
+
+    /// Global ambient light scalar for the loaded space (0.0 = dark, 1.0 = full daylight).
+    pub fn ambient_light(&self) -> f32 {
+        self.ambient_light
+    }
+
+    /// Set the global ambient light scalar for the loaded space.
+    pub fn set_ambient_light(&mut self, level: f32) {
+        self.ambient_light = level;
     }
 
     // ==========================================
@@ -254,6 +266,13 @@ impl EngineState {
         MAX_TILES
     }
 
+    pub fn tiles_solid_ptr(&self) -> *const f32 {
+        self.tiles.solid.as_ptr()
+    }
+    pub fn tiles_solid_count(&self) -> usize {
+        MAX_TILES
+    }
+
     pub fn tiles_count(&self) -> usize {
         self.tiles.count
     }
@@ -266,8 +285,10 @@ impl EngineState {
         z: f32,
         tile_id: f32,
         variant: f32,
+        solid: f32,
     ) -> bool {
-        self.tiles.set_tile(index, x, y, z, tile_id, variant)
+        self.tiles
+            .set_tile(index, x, y, z, tile_id, variant, solid)
     }
 
     // ==========================================
@@ -358,13 +379,21 @@ mod tests {
         // Tiles
         assert!(!state.tiles_x_ptr().is_null());
         assert_eq!(state.tiles_x_count(), 1024);
+        assert!(!state.tiles_solid_ptr().is_null());
+        assert_eq!(state.tiles_solid_count(), 1024);
         assert_eq!(state.tiles_count(), 0);
-        state.set_tile(0, 10.0, 0.0, 20.0, 2.0, 1.0);
+        state.set_tile(0, 10.0, 0.0, 20.0, 2.0, 1.0, 1.0);
         assert_eq!(state.tiles_count(), 1);
         unsafe {
             assert_eq!(*state.tiles_x_ptr(), 10.0);
             assert_eq!(*state.tiles_tile_id_ptr(), 2.0);
+            assert_eq!(*state.tiles_solid_ptr(), 1.0);
         }
+
+        // Ambient Light
+        assert_eq!(state.ambient_light(), 0.0);
+        state.set_ambient_light(0.8);
+        assert_eq!(state.ambient_light(), 0.8);
 
         // Camera
         assert!(!state.camera_x_ptr().is_null());
