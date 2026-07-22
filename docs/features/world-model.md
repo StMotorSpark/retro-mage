@@ -5,6 +5,7 @@ summary: Retro Mage represents the game world as a grid-ish, real-time dungeon-c
 relates-to:
   - "[Rendering](../architecture/rendering.md)"
   - "[Tech Stack](../architecture/tech-stack.md)"
+  - "[Visibility](../architecture/visibility.md)"
 ---
 
 # World Model
@@ -21,7 +22,7 @@ Indoor dungeon space is grid-aligned by default — tiles for floors, ceilings, 
 
 ## Outdoor Space — Chunked Terrain
 
-Outdoor space extends the world beyond the dungeon grid into open terrain, represented in chunks so that streaming, rendering, and memory cost scale with the chunks currently relevant to the player rather than the entire outdoor map. Outdoor chunks connect to indoor dungeon spaces as entry and exit points between the two representations.
+Outdoor space extends the world beyond the dungeon grid into open terrain, represented in chunks so that streaming, rendering, and memory cost scale with the chunks currently relevant to the player rather than the entire outdoor map. Outdoor chunks connect to indoor dungeon spaces as entry and exit points between the two representations, and that connection is seamless — a player crosses between indoor and outdoor data without a load screen or discrete level transition, per [Visibility](../architecture/visibility.md).
 
 ## Simulation Depth
 
@@ -31,3 +32,4 @@ The world model supports simulation depth beyond pure navigation and combat — 
 
 - [Rendering](../architecture/rendering.md) — how this world model is drawn, including the tile/polygon hybrid and chunked outdoor rendering
 - [Tech Stack](../architecture/tech-stack.md) — the fixed-point math and Rust/WASM core this world model runs on
+- [Visibility](../architecture/visibility.md) — the occlusion/sight-radius cull and seamless indoor/outdoor streaming handoff built on this world model

@@ -34,28 +34,66 @@ async function main(): Promise<void> {
 
   const engineState = new EngineState();
 
-  // Populate a small hardcoded room scene into engine-core buffers
-  // Camera pose at (0, 1.5, 3.5) looking into room along -Z
-  engineState.set_camera(0, 1.5, 3.5, 0, 0);
+  // Populate multi-room, multi-floor proof scene into engine-core buffers
+  // Camera starting pose at (0, 0, 4) looking down -Z into starting room
+  engineState.set_camera(0, 0, 4, 0, 0);
+  engineState.set_ambient_light(0.0);
+  engineState.set_max_sight_distance(32.0);
+  engineState.set_cull_precision_distance(32.0);
 
-  // Floor grid (5x5 tiles)
   let tileIdx = 0;
-  for (let x = -2; x <= 2; x++) {
-    for (let z = -4; z <= 0; z++) {
-      engineState.set_tile(tileIdx++, x, 0, z, 1, 0);
+
+  // 1. Starting room floor grid (y = 0.0): x in [-3, 3], z in [1, 5]
+  for (let x = -3; x <= 3; x++) {
+    for (let z = 1; z <= 5; z++) {
+      if (x === 2 && z === 2) {
+        // Balcony / stairwell vertical opening connecting to floor 1
+        engineState.set_tile(tileIdx++, 2, 0, 2, 2, 0, 0, 1.0);
+      } else {
+        engineState.set_tile(tileIdx++, x, 0, z, 1, 0, 0, 0);
+      }
     }
   }
 
-  // Wall blocks
-  engineState.set_tile(tileIdx++, -2, 1, -4, 2, 0);
-  engineState.set_tile(tileIdx++, 2, 1, -4, 2, 0);
-  engineState.set_tile(tileIdx++, 0, 1, -4, 3, 0);
+  // 2. Solid wall at z = 0 extending x in [-2, 2] (occludes room behind it)
+  for (let x = -2; x <= 2; x++) {
+    engineState.set_tile(tileIdx++, x, 0, 0, 1, 0, 1.0, 0);
+  }
 
-  // One active actor in front of camera
-  engineState.set_actor(0, 0, 0, -2, 0, 1, 1);
+  // 3. Occluded room behind solid wall (y = 0.0): x in [-2, 2], z in [-3, -1]
+  for (let x = -2; x <= 2; x++) {
+    for (let z = -3; z <= -1; z++) {
+      engineState.set_tile(tileIdx++, x, 0, z, 1, 0, 0, 0);
+    }
+  }
 
-  // One point light source
-  engineState.set_light(0, 0, 2.5, -2, 1.0, 0.8, 0.4, 3.0, 1);
+  // 4. Dark side corridor (y = 0.0): x in [-5, -3], z in [-4, -1]
+  for (let x = -5; x <= -3; x++) {
+    for (let z = -4; z <= -1; z++) {
+      engineState.set_tile(tileIdx++, x, 0, z, 1, 0, 0, 0);
+    }
+  }
+
+  // 5. Upper floor (y = 1.0) connected via vertical opening (2, 0, 2)
+  engineState.set_tile(tileIdx++, 1, 1, 2, 3, 0, 0, 0);
+  engineState.set_tile(tileIdx++, 2, 1, 2, 3, 0, 0, 0);
+  engineState.set_tile(tileIdx++, 3, 1, 2, 3, 0, 0, 0);
+  engineState.set_tile(tileIdx++, 2, 1, 1, 3, 0, 0, 0);
+  engineState.set_tile(tileIdx++, 3, 1, 1, 3, 0, 0, 0);
+
+  // Actors:
+  // Actor 0: near player start (1, 0, 3)
+  engineState.set_actor(0, 1, 0, 3, 0, 1, 1);
+  // Actor 1: behind solid wall (0, 0, -2) - occluded until player moves around wall
+  engineState.set_actor(1, 0, 0, -2, 0, 1, 1);
+  // Actor 2: on upper floor (2, 1, 1) - visible through vertical opening
+  engineState.set_actor(2, 2, 1, 1, 0, 1, 1);
+
+  // Light sources:
+  // Light 0: bright starting torch near player (0, 1, 4)
+  engineState.set_light(0, 0, 1, 4, 1.0, 0.8, 0.4, 6.0, 1);
+  // Light 1: dim torch in dark side corridor (-4, 1, -3)
+  engineState.set_light(1, -4, 1, -3, 0.3, 0.5, 1.0, 2.5, 1);
 
   // Set up world state reader over WASM memory
   const reader = new WorldStateReader(engineState, wasmOutput.memory);
@@ -67,7 +105,23 @@ async function main(): Promise<void> {
   });
   // Override the touch look sensitivity default (3) up to 5 for this demo's feel.
   const inputSource = createInputSource(overlay, { touch: { lookSensitivity: 5 } });
-  const perfOverlay = new PerfOverlay();
+  const perfOverlay = new PerfOverlay({
+    onAdjustMaxSight: (delta: number) => {
+      const cur = engineState.max_sight_distance();
+      const next = Math.max(1, Math.min(64, cur + delta));
+      engineState.set_max_sight_distance(next);
+    },
+    onAdjustCullPrecision: (delta: number) => {
+      const cur = engineState.cull_precision_distance();
+      const next = Math.max(1, Math.min(64, cur + delta));
+      engineState.set_cull_precision_distance(next);
+    },
+    onAdjustAmbientLight: (delta: number) => {
+      const cur = engineState.ambient_light();
+      const next = Math.max(0, Math.min(1, cur + delta));
+      engineState.set_ambient_light(next);
+    },
+  });
 
   renderer.start();
 
@@ -124,11 +178,21 @@ async function main(): Promise<void> {
     const strafeScalar = inputState.move.x * MOVE_SPEED * dt;
 
     const newX = curX + fwdScalar * forwardX + strafeScalar * rightX;
+    const newY = curY + inputState.vertical * MOVE_SPEED * dt;
     const newZ = curZ + fwdScalar * forwardZ + strafeScalar * rightZ;
 
-    engineState.set_camera(newX, curY, newZ, newYaw, newPitch);
+    engineState.set_camera(newX, newY, newZ, newYaw, newPitch);
 
     engineState.tick(dt);
+
+    perfOverlay.update(dtMs, time, {
+      sightRadius: engineState.sight_radius(),
+      maxSightDistance: engineState.max_sight_distance(),
+      cullPrecisionDistance: engineState.cull_precision_distance(),
+      ambientLight: engineState.ambient_light(),
+      tilesCount: engineState.tiles_count(),
+      actorsCount: engineState.actors_count(),
+    });
 
     requestAnimationFrame(frame);
   };

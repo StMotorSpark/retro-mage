@@ -199,7 +199,7 @@ describe('render', () => {
       const mockViews: WorldStateViews = {
         actors: { x: new Float32Array([0]), y: new Float32Array([0]), z: new Float32Array([-2]), facing: new Float32Array([0]), sprite_id: new Float32Array([1]), active: new Float32Array([1]), count: 1 },
         lights: { x: new Float32Array([0]), y: new Float32Array([0]), z: new Float32Array([0]), r: new Float32Array([1]), g: new Float32Array([1]), b: new Float32Array([1]), intensity: new Float32Array([1]), active: new Float32Array([1]), count: 1 },
-        tiles: { x: new Float32Array([0]), y: new Float32Array([0]), z: new Float32Array([-1]), tile_id: new Float32Array([1]), variant: new Float32Array([0]), count: 1 },
+        tiles: { x: new Float32Array([0]), y: new Float32Array([0]), z: new Float32Array([-1]), tile_id: new Float32Array([1]), variant: new Float32Array([0]), solid: new Float32Array([0]), vertical_opening: new Float32Array([0]), count: 1 },
         camera: { x: new Float32Array([0]), y: new Float32Array([1.5]), z: new Float32Array([3.5]), yaw: new Float32Array([0]), pitch: new Float32Array([0]), count: 1 },
       };
 

@@ -6,6 +6,7 @@ relates-to:
   - "[Tech Stack](./tech-stack.md)"
   - "[Rendering](./rendering.md)"
   - "[Repo Structure](./repo-structure.md)"
+  - "[Visibility](./visibility.md)"
 ---
 
 # WASM ↔ JS Bridge
@@ -22,12 +23,12 @@ Data is split by update frequency, not bundled into one blob:
 
 | Buffer | Updates | Max entries |
 |--------|---------|-------------|
-| Tile geometry | Once per room load / on room change | 1024 visible tiles |
+| Tile geometry | Recomputed every frame; updated when visible set changes | 1024 visible tiles |
 | Actors | Every frame | 64 actors |
 | Lights | Every frame | 32 lights |
 | Camera / player pose | Every frame | 1 (single struct, not an array) |
 
-Static geometry is pushed once per room rather than every frame — it does not change mid-room, so re-sending it every tick wastes bandwidth for no benefit. Actors, lights, and camera pose are live simulation state and are re-read every frame.
+Static geometry for the room is loaded into `engine-core`; the per-frame visibility cull filters this to the visible tile set, updating the tile buffer whenever the visible set changes frame-to-frame. Actors, lights, and camera pose are live simulation state and are re-read every frame.
 
 ## Numeric Format — f32
 
@@ -62,6 +63,8 @@ Each buffer is Struct-of-Arrays (SoA): one flat array per field, not an array of
 | `x`, `y`, `z` | `f32` | Tile-space or world-space position (grid-aligned) |
 | `tile_id` | `f32` | Identifies texture/tile type |
 | `variant` | `f32` | Rotation/flip variant, if needed |
+| `solid` | `f32` | `0`/`1` — whether tile blocks sight (walls, closed doors) vs. lets sight pass (floors, ceilings, open doorways, vertical gaps) |
+| `vertical_opening` | `f32` | `0`/`1` — whether tile allows sight between Z-levels (stairwell gap, balcony edge, open floor cutout) |
 
 This buffer's exact field set is expected to grow once the [Visibility Algorithm](../research/known-gaps.md) and [Asset Pipeline](../research/known-gaps.md) gaps are resolved — the shape above covers only what's needed to draw a flat, textured tile floor/wall/ceiling.
 
@@ -71,6 +74,11 @@ This buffer's exact field set is expected to grow once the [Visibility Algorithm
 |-------|------|-------|
 | `x`, `y`, `z` | `f32` | Position |
 | `yaw`, `pitch` | `f32` | Orientation |
+
+### Ambient Light (single scalar, not an array)
+
+Global ambient light scalar for the loaded space (`f32`, 0.0 = pitch black interior, 1.0 = full outdoor daylight), accessed via `ambient_light() -> f32` and modified via `set_ambient_light(level: f32)`.
+
 
 ## Memory Access Pattern
 
@@ -92,3 +100,4 @@ This document is the single source of truth for buffer layout. Changes to a buff
 - [Rendering](./rendering.md) — the rendering pipeline that consumes these buffers, and the fixed-point math guidance this bridge's f32 wire format sits alongside
 - [Repo Structure](./repo-structure.md) — the `engine-core`/`render` package split this bridge crosses
 - [Input Event Schema](./input-schema.md) — the reverse-direction, `input` → `engine-core` schema, which deliberately crosses this same WASM boundary via a per-frame function call rather than a buffer
+- [Visibility](./visibility.md) — the visibility cull that determines which tiles/actors this bridge's buffers need to carry each frame

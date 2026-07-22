@@ -15,6 +15,7 @@ function setupWasmEngine() {
   const wasmBytes = fs.readFileSync(wasmPath);
   const initOutput = initSync({ module: wasmBytes });
   const engine = new EngineState();
+  engine.set_ambient_light(1.0);
   return { engine, memory: initOutput.memory };
 }
 
@@ -23,20 +24,20 @@ describe('world-state reader', () => {
     const { engine, memory } = setupWasmEngine();
 
     expect(engine.actors_count()).toBe(0);
-    engine.set_actor(0, 10.5, 20.25, -5.0, 1.57, 42.0, 1.0);
-    engine.set_actor(1, 1.0, 2.0, 3.0, 0.0, 7.0, 1.0);
+    engine.set_actor(0, 10.5, 0.0, -5.0, 1.57, 42.0, 1.0);
+    engine.set_actor(1, 1.0, 0.0, 3.0, 0.0, 7.0, 1.0);
 
     const actorsView = readActorsView(engine, memory);
     expect(actorsView.count).toBe(2);
     expect(actorsView.x[0]).toBeCloseTo(10.5);
-    expect(actorsView.y[0]).toBeCloseTo(20.25);
+    expect(actorsView.y[0]).toBeCloseTo(0.0);
     expect(actorsView.z[0]).toBeCloseTo(-5.0);
     expect(actorsView.facing[0]).toBeCloseTo(1.57);
     expect(actorsView.sprite_id[0]).toBeCloseTo(42.0);
     expect(actorsView.active[0]).toBe(1.0);
 
     expect(actorsView.x[1]).toBeCloseTo(1.0);
-    expect(actorsView.y[1]).toBeCloseTo(2.0);
+    expect(actorsView.y[1]).toBeCloseTo(0.0);
     expect(actorsView.z[1]).toBeCloseTo(3.0);
     expect(actorsView.facing[1]).toBeCloseTo(0.0);
     expect(actorsView.sprite_id[1]).toBeCloseTo(7.0);
@@ -47,12 +48,12 @@ describe('world-state reader', () => {
     const { engine, memory } = setupWasmEngine();
 
     expect(engine.lights_count()).toBe(0);
-    engine.set_light(0, 5.0, 6.0, 7.0, 1.0, 0.5, 0.25, 3.5, 1.0);
+    engine.set_light(0, 5.0, 0.0, 7.0, 1.0, 0.5, 0.25, 3.5, 1.0);
 
     const lightsView = readLightsView(engine, memory);
     expect(lightsView.count).toBe(1);
     expect(lightsView.x[0]).toBeCloseTo(5.0);
-    expect(lightsView.y[0]).toBeCloseTo(6.0);
+    expect(lightsView.y[0]).toBeCloseTo(0.0);
     expect(lightsView.z[0]).toBeCloseTo(7.0);
     expect(lightsView.r[0]).toBeCloseTo(1.0);
     expect(lightsView.g[0]).toBeCloseTo(0.5);
@@ -65,7 +66,8 @@ describe('world-state reader', () => {
     const { engine, memory } = setupWasmEngine();
 
     expect(engine.tiles_count()).toBe(0);
-    engine.set_tile(0, 100.0, 0.0, 200.0, 12.0, 3.0);
+    engine.set_camera(100.0, 0.0, 200.0, 0.0, 0.0);
+    engine.set_tile(0, 100.0, 0.0, 200.0, 12.0, 3.0, 1.0, 0.0);
 
     const tilesView = readTilesView(engine, memory);
     expect(tilesView.count).toBe(1);
@@ -74,6 +76,8 @@ describe('world-state reader', () => {
     expect(tilesView.z[0]).toBeCloseTo(200.0);
     expect(tilesView.tile_id[0]).toBeCloseTo(12.0);
     expect(tilesView.variant[0]).toBeCloseTo(3.0);
+    expect(tilesView.solid[0]).toBeCloseTo(1.0);
+    expect(tilesView.vertical_opening[0]).toBeCloseTo(0.0);
   });
 
   it('reads camera buffer view with real WASM round-trip values', () => {
