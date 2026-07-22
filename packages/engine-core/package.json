@@ -1,0 +1,13 @@
+{
+  "name": "engine-core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "pkg/engine_core.js",
+  "module": "pkg/engine_core.js",
+  "types": "pkg/engine_core.d.ts",
+  "files": ["pkg"],
+  "scripts": {
+    "build": "wasm-pack build --target web --out-dir pkg"
+  }
+}
