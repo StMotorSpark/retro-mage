@@ -1,12 +1,12 @@
 ---
 task: "24"
 slug: visibility-tuning-config
-status: pending
+status: done
 depends-on: ["21", "22"]
 blocked-by: ""
 assigned-to: ""
 created: 2025-06-16
-outcome: ""
+outcome: "Exposed max_sight_distance and cull_precision_distance setters/getters on EngineState, defaulting to DEFAULT_MAX_DRAW_DISTANCE (32.0). Updated compute_sight_radius and compute_visible_grid_cells_3d to apply distance-only inclusion beyond cull_precision_distance threshold while preserving exact shadowcasting occlusion within threshold."
 ---
 
 # App-Tunable Visibility Config

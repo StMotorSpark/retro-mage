@@ -20,6 +20,8 @@ use wasm_bindgen::prelude::*;
 pub struct EngineState {
     tick_count: f64,
     ambient_light: f32,
+    max_sight_distance: f32,
+    cull_precision_distance: f32,
     input: InputState,
     actors: ActorsBuffer,
     lights: LightsBuffer,
@@ -37,6 +39,8 @@ impl EngineState {
         EngineState {
             tick_count: 0.0,
             ambient_light: 0.0,
+            max_sight_distance: visibility::DEFAULT_MAX_DRAW_DISTANCE,
+            cull_precision_distance: visibility::DEFAULT_MAX_DRAW_DISTANCE,
             input: InputState::default(),
             actors: ActorsBuffer::new(),
             lights: LightsBuffer::new(),
@@ -90,6 +94,28 @@ impl EngineState {
     /// Set the global ambient light scalar for the loaded space.
     pub fn set_ambient_light(&mut self, level: f32) {
         self.ambient_light = level;
+        self.recompute_visibility();
+    }
+
+    /// Maximum sight distance for the loaded space.
+    pub fn max_sight_distance(&self) -> f32 {
+        self.max_sight_distance
+    }
+
+    /// Set maximum sight distance for the loaded space.
+    pub fn set_max_sight_distance(&mut self, dist: f32) {
+        self.max_sight_distance = dist;
+        self.recompute_visibility();
+    }
+
+    /// Cull precision distance threshold beyond which occlusion drops to distance-only.
+    pub fn cull_precision_distance(&self) -> f32 {
+        self.cull_precision_distance
+    }
+
+    /// Set cull precision distance threshold.
+    pub fn set_cull_precision_distance(&mut self, dist: f32) {
+        self.cull_precision_distance = dist;
         self.recompute_visibility();
     }
 
@@ -381,7 +407,7 @@ impl EngineState {
             self.camera.y[0],
             self.camera.z[0],
             &self.master_lights,
-            visibility::DEFAULT_MAX_DRAW_DISTANCE,
+            self.max_sight_distance,
         )
     }
 
@@ -425,6 +451,7 @@ impl EngineState {
             cam_y,
             cam_z,
             radius,
+            self.cull_precision_distance,
             &grid_solids,
             &grid_openings,
             use_y_axis,
@@ -772,5 +799,67 @@ mod tests {
         for y in visible_y_lower {
             assert_eq!(y, 0); // No upper floor (y=1) leakage!
         }
+    }
+
+    #[test]
+    fn test_max_sight_distance_tuning() {
+        let mut state = EngineState::new();
+
+        // Default max sight distance is DEFAULT_MAX_DRAW_DISTANCE (32.0)
+        assert_eq!(state.max_sight_distance(), visibility::DEFAULT_MAX_DRAW_DISTANCE);
+        state.set_ambient_light(1.0);
+        assert_eq!(state.sight_radius(), 32.0);
+
+        // Lower max_sight_distance to 16.0
+        state.set_max_sight_distance(16.0);
+        assert_eq!(state.max_sight_distance(), 16.0);
+        assert_eq!(state.sight_radius(), 16.0);
+
+        // Ambient light 0.5 with max_sight_distance 10.0 -> sight_radius 5.0
+        state.set_ambient_light(0.5);
+        state.set_max_sight_distance(10.0);
+        assert_eq!(state.sight_radius(), 5.0);
+    }
+
+    #[test]
+    fn test_cull_precision_distance_tuning() {
+        let mut state = EngineState::new();
+        state.set_ambient_light(1.0); // Full sight radius (32.0)
+        state.set_camera(0.0, 0.0, 0.0, 0.0, 0.0);
+
+        // Default cull_precision_distance equals DEFAULT_MAX_DRAW_DISTANCE (32.0)
+        assert_eq!(state.cull_precision_distance(), visibility::DEFAULT_MAX_DRAW_DISTANCE);
+
+        // Fixture:
+        // Tile 0: (0, 0, 1) - solid wall at z=1 (dist 1.0)
+        // Tile 1: (0, 0, 2) - floor tile behind wall at z=1 (dist 2.0)
+        // Tile 2: (0, 0, 4) - floor tile further behind wall (dist 4.0)
+        state.set_tile(0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0); // Solid wall at z=1
+        state.set_tile(1, 0.0, 0.0, 2.0, 1.0, 0.0, 0.0, 0.0); // Behind wall (dist 2.0)
+        state.set_tile(2, 0.0, 0.0, 4.0, 1.0, 0.0, 0.0, 0.0); // Further behind wall (dist 4.0)
+
+        // 1. With default cull_precision_distance (32.0): exact occlusion everywhere
+        // Only wall at z=1 is visible; z=2 and z=4 are occluded.
+        assert_eq!(state.tiles_count(), 1);
+
+        // 2. Set cull_precision_distance to 2.5 (between z=2 and z=4):
+        // Within 2.5 threshold (dist <= 2.5): tile at z=2 (dist 2.0) is occluded by wall at z=1 -> EXCLUDED
+        // Beyond 2.5 threshold (dist > 2.5): tile at z=4 (dist 4.0 > 2.5) drops to distance-only -> INCLUDED!
+        state.set_cull_precision_distance(2.5);
+        assert_eq!(state.cull_precision_distance(), 2.5);
+
+        let mut visible_z = Vec::new();
+        unsafe {
+            for i in 0..state.tiles_count() {
+                visible_z.push((*state.tiles_z_ptr().add(i)).round() as i32);
+            }
+        }
+
+        // Wall at z=1 is visible (unoccluded, dist 1.0 <= 2.5)
+        assert!(visible_z.contains(&1));
+        // Tile at z=2 is EXCLUDED (occluded, dist 2.0 <= 2.5 threshold)
+        assert!(!visible_z.contains(&2));
+        // Tile at z=4 is INCLUDED by distance-only inclusion (dist 4.0 > 2.5 threshold, <= 32.0 sight radius)
+        assert!(visible_z.contains(&4));
     }
 }
