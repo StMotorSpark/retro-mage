@@ -34,16 +34,37 @@ async function main(): Promise<void> {
 
   const engineState = new EngineState();
 
-  // Populate multi-room, multi-floor proof scene into engine-core buffers
-  // Camera starting pose at (0, 0, 4) looking down -Z into starting room
+  // Populate multi-room, multi-floor, seam-connected streaming proof scene into engine-core
+  // Camera starting pose at (0, 0, 4) looking down -Z into starting room (Room 0)
   engineState.set_camera(0, 0, 4, 0, 0);
   engineState.set_ambient_light(0.0);
   engineState.set_max_sight_distance(32.0);
   engineState.set_cull_precision_distance(32.0);
 
+  // Configure world streaming tuning parameters (task:30)
+  // Load radius = 2 chunks, Evict radius = 3 chunks, Hop depth = 1 hop, Seam trigger = 32 tiles
+  engineState.set_outdoor_load_radius(2);
+  engineState.set_outdoor_evict_radius(3);
+  engineState.set_indoor_hop_depth(1);
+  engineState.set_seam_trigger_distance(32.0);
+  engineState.set_seam_crossing_threshold(1.5);
+
+  // Set up room graph (task:28)
+  // Room 0: Entry Hall (starting room)
+  // Room 1: Seam Tunnel (connected room containing seam exit to outdoor terrain)
+  engineState.add_room_to_graph(0, 'Entry Hall');
+  engineState.add_room_to_graph(1, 'Seam Tunnel');
+  engineState.add_room_edge(0, 1);
+  engineState.set_indoor_current_room(0);
+  engineState.set_active_world_structure(0); // 0 = Indoor, 1 = Outdoor
+
+  // Register Seam (task:29) mapping Room 1 local portal at (0, -8) to outdoor global (32, 32)
+  // Transform: offset_x = 32.0, offset_y = 40.0, rotation_rad = 0.0
+  engineState.register_seam(1, 1, 0.0, -8.0, 32.0, 32.0, 32.0, 40.0, 0.0);
+
   let tileIdx = 0;
 
-  // 1. Starting room floor grid (y = 0.0): x in [-3, 3], z in [1, 5]
+  // 1. Starting room (Room 0) floor grid (y = 0.0): x in [-3, 3], z in [1, 5]
   for (let x = -3; x <= 3; x++) {
     for (let z = 1; z <= 5; z++) {
       if (x === 2 && z === 2) {
@@ -55,15 +76,17 @@ async function main(): Promise<void> {
     }
   }
 
-  // 2. Solid wall at z = 0 extending x in [-2, 2] (occludes room behind it)
+  // 2. Solid wall at z = 0 extending x in [-2, 2] with doorway at x = 0 to Room 1
   for (let x = -2; x <= 2; x++) {
-    engineState.set_tile(tileIdx++, x, 0, 0, 1, 0, 1.0, 0);
+    if (x !== 0) {
+      engineState.set_tile(tileIdx++, x, 0, 0, 1, 0, 1.0, 0);
+    }
   }
 
-  // 3. Occluded room behind solid wall (y = 0.0): x in [-2, 2], z in [-3, -1]
+  // 3. Connected room (Room 1 - Seam Tunnel) (y = 0.0): x in [-2, 2], z in [-8, -1]
   for (let x = -2; x <= 2; x++) {
-    for (let z = -3; z <= -1; z++) {
-      engineState.set_tile(tileIdx++, x, 0, z, 1, 0, 0, 0);
+    for (let z = -8; z <= -1; z++) {
+      engineState.set_tile(tileIdx++, x, 0, z, 2, 0, 0, 0);
     }
   }
 
@@ -84,16 +107,16 @@ async function main(): Promise<void> {
   // Actors:
   // Actor 0: near player start (1, 0, 3)
   engineState.set_actor(0, 1, 0, 3, 0, 1, 1);
-  // Actor 1: behind solid wall (0, 0, -2) - occluded until player moves around wall
-  engineState.set_actor(1, 0, 0, -2, 0, 1, 1);
+  // Actor 1: behind solid wall (1, 0, -2) - occluded until player moves around wall
+  engineState.set_actor(1, 1, 0, -2, 0, 1, 1);
   // Actor 2: on upper floor (2, 1, 1) - visible through vertical opening
   engineState.set_actor(2, 2, 1, 1, 0, 1, 1);
 
   // Light sources:
   // Light 0: bright starting torch near player (0, 1, 4)
   engineState.set_light(0, 0, 1, 4, 1.0, 0.8, 0.4, 6.0, 1);
-  // Light 1: dim torch in dark side corridor (-4, 1, -3)
-  engineState.set_light(1, -4, 1, -3, 0.3, 0.5, 1.0, 2.5, 1);
+  // Light 1: corridor torch in Seam Tunnel (0, 1, -4)
+  engineState.set_light(1, 0, 1, -4, 0.4, 0.6, 1.0, 4.0, 1);
 
   // Set up world state reader over WASM memory
   const reader = new WorldStateReader(engineState, wasmOutput.memory);
@@ -120,6 +143,21 @@ async function main(): Promise<void> {
       const cur = engineState.ambient_light();
       const next = Math.max(0, Math.min(1, cur + delta));
       engineState.set_ambient_light(next);
+    },
+    onAdjustSeamTrigger: (delta: number) => {
+      const cur = engineState.seam_trigger_distance();
+      const next = Math.max(1, Math.min(64, cur + delta));
+      engineState.set_seam_trigger_distance(next);
+    },
+    onAdjustOutdoorLoadRadius: (delta: number) => {
+      const cur = engineState.outdoor_load_radius();
+      const next = Math.max(1, Math.min(8, cur + delta));
+      engineState.set_outdoor_load_radius(next);
+    },
+    onAdjustIndoorHopDepth: (delta: number) => {
+      const cur = engineState.indoor_hop_depth();
+      const next = Math.max(1, Math.min(5, cur + delta));
+      engineState.set_indoor_hop_depth(next);
     },
   });
 
@@ -185,6 +223,8 @@ async function main(): Promise<void> {
 
     engineState.tick(dt);
 
+    const activeStruct = engineState.active_world_structure();
+
     perfOverlay.update(dtMs, time, {
       sightRadius: engineState.sight_radius(),
       maxSightDistance: engineState.max_sight_distance(),
@@ -192,6 +232,13 @@ async function main(): Promise<void> {
       ambientLight: engineState.ambient_light(),
       tilesCount: engineState.tiles_count(),
       actorsCount: engineState.actors_count(),
+      activeWorldStructure: activeStruct === 0 ? 'Indoor' : 'Outdoor',
+      currentRoomId: engineState.indoor_current_room_id(),
+      residentRoomsCount: engineState.resident_room_count(),
+      residentChunksCount: engineState.resident_chunk_count(),
+      seamTriggerDistance: engineState.seam_trigger_distance(),
+      outdoorLoadRadius: engineState.outdoor_load_radius(),
+      indoorHopDepth: engineState.indoor_hop_depth(),
     });
 
     requestAnimationFrame(frame);

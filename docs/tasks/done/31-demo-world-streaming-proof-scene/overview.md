@@ -1,12 +1,12 @@
 ---
 task: "31"
 slug: demo-world-streaming-proof-scene
-status: pending
+status: done
 depends-on: ["30"]
 blocked-by: ""
 assigned-to: ""
 created: 2025-06-17
-outcome: ""
+outcome: "Extended examples/demo with end-to-end world streaming proof scene. Built multi-room indoor dungeon (Room 0 Entry Hall and Room 1 Seam Tunnel connected via room graph hop), registered a 2D rigid transform seam at (0, -8) mapping room coordinates to outdoor terrain at (32, 32), wired FlatChunkProvider outdoor data source, and configured streaming tuning params (load radius 2, evict radius 3, hop depth 1, seam trigger 32.0). Extended PerfOverlay with live world structure ('Indoor'/'Outdoor'), room ID, resident counts, and tuning controls. Verified walking player from indoor room through seam to 5x5 outdoor terrain chunks and back works symmetrically with zero load screens, freezes, or pop-in at normal frame rate. Verified pnpm test, pnpm typecheck, and pnpm --filter demo build."
 ---
 
 # Demo World Streaming Proof Scene
