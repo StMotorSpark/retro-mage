@@ -51,6 +51,7 @@ Each entry links to a design doc and includes the doc's one-line summary. Docs d
 | Doc | Summary |
 |-----|---------|
 | [`docs/principles/agent-dev-principles.md`](./principles/agent-dev-principles.md) | Code and docs are organized as discoverable vertical feature slices because agents, not humans, are the primary coding actor. |
+| [`docs/principles/test-driven-development.md`](./principles/test-driven-development.md) | Every slice and every boundary — especially loosely-coupled connector points like WASM buffer schemas — carries unit tests written alongside the code, because agents need fast, automated ground truth rather than manual verification. |
 
 See also [`AGENTS.md`](../AGENTS.md) for Filesystem as Memory principles.
 

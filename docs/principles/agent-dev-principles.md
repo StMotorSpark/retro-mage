@@ -6,6 +6,7 @@ relates-to:
   - "[Tech Stack](../architecture/tech-stack.md)"
   - "[Repo Structure](../architecture/repo-structure.md)"
   - "[Rendering](../architecture/rendering.md)"
+  - "[Test-Driven Development](../principles/test-driven-development.md)"
 ---
 
 # Agent Development Principles
@@ -65,3 +66,4 @@ The monorepo splits `engine-core` (Rust/WASM), `render` (TypeScript), and `input
 - [Tech Stack](../architecture/tech-stack.md) — technology choices this principle applies across
 - [Repo Structure](../architecture/repo-structure.md) — how packages and slices are laid out on disk
 - [Rendering](../architecture/rendering.md) — first concrete application of slice organization
+- [Test-Driven Development](../principles/test-driven-development.md) — the testing discipline that lives inside each vertical slice
