@@ -31,12 +31,19 @@ pub struct EngineState {
     master_actors: ActorsBuffer,
     master_lights: LightsBuffer,
     master_tiles: TilesBuffer,
+    chunk_streamer: chunk::OutdoorChunkStreamer,
+    chunk_provider: chunk::FlatChunkProvider,
 }
 
 #[wasm_bindgen]
 impl EngineState {
     #[wasm_bindgen(constructor)]
     pub fn new() -> EngineState {
+        let camera = CameraBuffer::new();
+        let mut streamer = chunk::OutdoorChunkStreamer::default();
+        let mut provider = chunk::FlatChunkProvider::default();
+        streamer.update_for_player_pos(camera.x[0], camera.y[0], &mut provider);
+
         EngineState {
             tick_count: 0.0,
             ambient_light: 0.0,
@@ -46,10 +53,12 @@ impl EngineState {
             actors: ActorsBuffer::new(),
             lights: LightsBuffer::new(),
             tiles: TilesBuffer::new(),
-            camera: CameraBuffer::new(),
+            camera,
             master_actors: ActorsBuffer::new(),
             master_lights: LightsBuffer::new(),
             master_tiles: TilesBuffer::new(),
+            chunk_streamer: streamer,
+            chunk_provider: provider,
         }
     }
 
@@ -78,7 +87,67 @@ impl EngineState {
     /// Advance the engine simulation tick by `dt` seconds and recompute visibility.
     pub fn tick(&mut self, dt: f64) {
         self.tick_count += dt;
+        self.chunk_streamer.update_for_player_pos(
+            self.camera.x[0],
+            self.camera.y[0],
+            &mut self.chunk_provider,
+        );
         self.recompute_visibility();
+    }
+
+    /// Outdoor chunk load radius (chunks).
+    pub fn outdoor_load_radius(&self) -> i32 {
+        self.chunk_streamer.load_radius()
+    }
+
+    /// Set outdoor chunk load radius (chunks).
+    pub fn set_outdoor_load_radius(&mut self, radius: i32) {
+        self.chunk_streamer.set_load_radius(radius);
+        self.chunk_streamer.update_for_player_pos(
+            self.camera.x[0],
+            self.camera.y[0],
+            &mut self.chunk_provider,
+        );
+    }
+
+    /// Outdoor chunk evict radius (chunks).
+    pub fn outdoor_evict_radius(&self) -> i32 {
+        self.chunk_streamer.evict_radius()
+    }
+
+    /// Set outdoor chunk evict radius (chunks).
+    pub fn set_outdoor_evict_radius(&mut self, radius: i32) {
+        self.chunk_streamer.set_evict_radius(radius);
+        self.chunk_streamer.update_for_player_pos(
+            self.camera.x[0],
+            self.camera.y[0],
+            &mut self.chunk_provider,
+        );
+    }
+
+    /// Maximum resident outdoor chunks count limit (hard cap).
+    pub fn outdoor_max_resident_chunks(&self) -> usize {
+        self.chunk_streamer.max_resident_chunks()
+    }
+
+    /// Set maximum resident outdoor chunks count limit (hard cap).
+    pub fn set_outdoor_max_resident_chunks(&mut self, max: usize) {
+        self.chunk_streamer.set_max_resident_chunks(max);
+        self.chunk_streamer.update_for_player_pos(
+            self.camera.x[0],
+            self.camera.y[0],
+            &mut self.chunk_provider,
+        );
+    }
+
+    /// Number of currently resident outdoor chunks.
+    pub fn resident_chunk_count(&self) -> usize {
+        self.chunk_streamer.resident_chunk_count()
+    }
+
+    /// Check if outdoor chunk at (chunk_x, chunk_y) is resident.
+    pub fn is_chunk_resident(&self, chunk_x: i32, chunk_y: i32) -> bool {
+        self.chunk_streamer.is_chunk_resident(chunk_x, chunk_y)
     }
 
     /// Accumulated tick time count in seconds.
@@ -392,6 +461,7 @@ impl EngineState {
 
     pub fn set_camera(&mut self, x: f32, y: f32, z: f32, yaw: f32, pitch: f32) {
         self.camera.set_camera(x, y, z, yaw, pitch);
+        self.chunk_streamer.update_for_player_pos(x, y, &mut self.chunk_provider);
         self.recompute_visibility();
     }
 
@@ -862,5 +932,22 @@ mod tests {
         assert!(!visible_z.contains(&2));
         // Tile at z=4 is INCLUDED by distance-only inclusion (dist 4.0 > 2.5 threshold, <= 32.0 sight radius)
         assert!(visible_z.contains(&4));
+    }
+
+    #[test]
+    fn test_engine_state_outdoor_chunk_streaming() {
+        let mut state = EngineState::new();
+        // Initial state at (0,0): 25 resident chunks (load_radius 2)
+        assert_eq!(state.outdoor_load_radius(), 2);
+        assert_eq!(state.outdoor_evict_radius(), 3);
+        assert_eq!(state.resident_chunk_count(), 25);
+        assert!(state.is_chunk_resident(0, 0));
+        assert!(state.is_chunk_resident(-2, 2));
+
+        // Move camera to (64.0, 0.0) -> chunk (2, 0)
+        state.set_camera(64.0, 0.0, 0.0, 0.0, 0.0);
+        assert!(state.is_chunk_resident(2, 0));
+        assert!(state.is_chunk_resident(4, 0)); // inside load radius 2 of (2,0)
+        assert!(!state.is_chunk_resident(-2, 0)); // evicted, dist 4 > evict radius 3
     }
 }

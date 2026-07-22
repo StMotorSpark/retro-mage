@@ -178,6 +178,212 @@ impl ChunkProvider for FlatChunkProvider {
     }
 }
 
+/// A resident outdoor chunk entry tracking chunk data and access order for LRU eviction.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ResidentChunk {
+    pub data: ChunkData,
+    pub last_accessed: u64,
+}
+
+/// Sane default radius for loading outdoor chunks (2 chunks = 5x5 window).
+pub const DEFAULT_LOAD_RADIUS: i32 = 2;
+/// Sane default radius for evicting outdoor chunks (3 chunks = 7x7 window).
+pub const DEFAULT_EVICT_RADIUS: i32 = 3;
+
+/// Streamer that manages a resident set of 32x32 outdoor chunks around the player.
+///
+/// Implements load logic within `load_radius`, distance eviction outside `evict_radius`,
+/// and an LRU fallback mechanism if `max_resident_chunks` is reached.
+#[derive(Debug, Clone)]
+pub struct OutdoorChunkStreamer {
+    pub load_radius: i32,
+    pub evict_radius: i32,
+    pub max_resident_chunks: usize,
+    resident_chunks: std::collections::HashMap<(i32, i32), ResidentChunk>,
+    access_counter: u64,
+}
+
+impl OutdoorChunkStreamer {
+    /// Create a new streamer with the specified load and evict radii.
+    /// Default `max_resident_chunks` is derived from `evict_radius`: (2 * evict_radius + 1)^2.
+    pub fn new(load_radius: i32, evict_radius: i32) -> Self {
+        let side = (2 * evict_radius + 1) as usize;
+        let max_resident = side * side;
+        Self {
+            load_radius,
+            evict_radius,
+            max_resident_chunks: max_resident,
+            resident_chunks: std::collections::HashMap::new(),
+            access_counter: 0,
+        }
+    }
+
+    /// Create a new streamer with custom load radius, evict radius, and hard cap on resident chunks.
+    pub fn new_with_cap(load_radius: i32, evict_radius: i32, max_resident_chunks: usize) -> Self {
+        Self {
+            load_radius,
+            evict_radius,
+            max_resident_chunks,
+            resident_chunks: std::collections::HashMap::new(),
+            access_counter: 0,
+        }
+    }
+
+    /// Convert world tile coordinate (x, y) into global chunk coordinate (chunk_x, chunk_y).
+    #[inline]
+    pub fn world_to_chunk_coord(x: f32, y: f32) -> (i32, i32) {
+        let chunk_x = (x / CHUNK_SIZE as f32).floor() as i32;
+        let chunk_y = (y / CHUNK_SIZE as f32).floor() as i32;
+        (chunk_x, chunk_y)
+    }
+
+    /// Get current load radius.
+    pub fn load_radius(&self) -> i32 {
+        self.load_radius
+    }
+
+    /// Set current load radius.
+    pub fn set_load_radius(&mut self, radius: i32) {
+        self.load_radius = radius;
+    }
+
+    /// Get current evict radius.
+    pub fn evict_radius(&self) -> i32 {
+        self.evict_radius
+    }
+
+    /// Set current evict radius.
+    pub fn set_evict_radius(&mut self, radius: i32) {
+        self.evict_radius = radius;
+    }
+
+    /// Get maximum resident chunks limit (hard cap).
+    pub fn max_resident_chunks(&self) -> usize {
+        self.max_resident_chunks
+    }
+
+    /// Set maximum resident chunks limit (hard cap).
+    pub fn set_max_resident_chunks(&mut self, max: usize) {
+        self.max_resident_chunks = max;
+    }
+
+    /// Number of currently resident chunks.
+    pub fn resident_chunk_count(&self) -> usize {
+        self.resident_chunks.len()
+    }
+
+    /// Check if chunk at (chunk_x, chunk_y) is resident.
+    pub fn is_chunk_resident(&self, chunk_x: i32, chunk_y: i32) -> bool {
+        self.resident_chunks.contains_key(&(chunk_x, chunk_y))
+    }
+
+    /// Get reference to resident chunk data at (chunk_x, chunk_y) if present.
+    pub fn get_chunk(&self, chunk_x: i32, chunk_y: i32) -> Option<&ChunkData> {
+        self.resident_chunks.get(&(chunk_x, chunk_y)).map(|rc| &rc.data)
+    }
+
+    /// Get list of all currently resident chunk coordinates.
+    pub fn resident_keys(&self) -> Vec<(i32, i32)> {
+        self.resident_chunks.keys().copied().collect()
+    }
+
+    /// Update resident set based on player's world position (x, y).
+    pub fn update_for_player_pos<P: ChunkProvider + ?Sized>(
+        &mut self,
+        player_x: f32,
+        player_y: f32,
+        provider: &mut P,
+    ) {
+        let (cx, cy) = Self::world_to_chunk_coord(player_x, player_y);
+        self.update_for_player_chunk(cx, cy, provider);
+    }
+
+    /// Update resident set based on player's global chunk coordinate (player_chunk_x, player_chunk_y).
+    pub fn update_for_player_chunk<P: ChunkProvider + ?Sized>(
+        &mut self,
+        player_chunk_x: i32,
+        player_chunk_y: i32,
+        provider: &mut P,
+    ) {
+        self.access_counter += 1;
+        let current_access = self.access_counter;
+
+        // 1. Load phase: request all chunks within load_radius
+        for dx in -self.load_radius..=self.load_radius {
+            for dy in -self.load_radius..=self.load_radius {
+                let cx = player_chunk_x + dx;
+                let cy = player_chunk_y + dy;
+
+                if let Some(resident) = self.resident_chunks.get_mut(&(cx, cy)) {
+                    resident.last_accessed = current_access;
+                } else {
+                    match provider.request_chunk(cx, cy) {
+                        ChunkResult::Ready(data) => {
+                            self.resident_chunks.insert(
+                                (cx, cy),
+                                ResidentChunk {
+                                    data,
+                                    last_accessed: current_access,
+                                },
+                            );
+                        }
+                        ChunkResult::Pending | ChunkResult::Failed(_) => {}
+                    }
+                }
+            }
+        }
+
+        // 2. Distance-based eviction: drop chunks where Chebyshev distance > evict_radius
+        let mut to_evict = Vec::new();
+        for (&(cx, cy), _) in self.resident_chunks.iter() {
+            let dist_x = (cx - player_chunk_x).abs();
+            let dist_y = (cy - player_chunk_y).abs();
+            let dist = dist_x.max(dist_y);
+            if dist > self.evict_radius {
+                to_evict.push((cx, cy));
+            }
+        }
+        for key in to_evict {
+            self.resident_chunks.remove(&key);
+        }
+
+        // 3. Hard cap + LRU fallback: if count > max_resident_chunks,
+        // evict least-recently-accessed chunks outside load_radius first.
+        if self.resident_chunks.len() > self.max_resident_chunks {
+            let mut candidates: Vec<((i32, i32), u64)> = self
+                .resident_chunks
+                .iter()
+                .filter_map(|(&(cx, cy), chunk)| {
+                    let dist_x = (cx - player_chunk_x).abs();
+                    let dist_y = (cy - player_chunk_y).abs();
+                    let dist = dist_x.max(dist_y);
+                    if dist > self.load_radius {
+                        Some(((cx, cy), chunk.last_accessed))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            // Sort candidates ascending by last_accessed (least recently accessed first)
+            candidates.sort_by_key(|&(_, last_accessed)| last_accessed);
+
+            for (key, _) in candidates {
+                if self.resident_chunks.len() <= self.max_resident_chunks {
+                    break;
+                }
+                self.resident_chunks.remove(&key);
+            }
+        }
+    }
+}
+
+impl Default for OutdoorChunkStreamer {
+    fn default() -> Self {
+        Self::new(DEFAULT_LOAD_RADIUS, DEFAULT_EVICT_RADIUS)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -238,4 +444,128 @@ mod tests {
             _ => panic!("Expected ChunkResult::Ready"),
         }
     }
+
+    #[test]
+    fn test_world_to_chunk_coord() {
+        assert_eq!(OutdoorChunkStreamer::world_to_chunk_coord(0.0, 0.0), (0, 0));
+        assert_eq!(OutdoorChunkStreamer::world_to_chunk_coord(31.9, 31.9), (0, 0));
+        assert_eq!(OutdoorChunkStreamer::world_to_chunk_coord(32.0, 64.0), (1, 2));
+        assert_eq!(OutdoorChunkStreamer::world_to_chunk_coord(-0.1, -32.0), (-1, -1));
+        assert_eq!(OutdoorChunkStreamer::world_to_chunk_coord(-32.1, -64.1), (-2, -3));
+    }
+
+    #[test]
+    fn test_load_and_evict_radii_getters_setters() {
+        let mut streamer = OutdoorChunkStreamer::new(2, 4);
+        assert_eq!(streamer.load_radius(), 2);
+        assert_eq!(streamer.evict_radius(), 4);
+        assert_eq!(streamer.max_resident_chunks(), 81); // (2*4+1)^2
+
+        streamer.set_load_radius(3);
+        streamer.set_evict_radius(5);
+        streamer.set_max_resident_chunks(100);
+
+        assert_eq!(streamer.load_radius(), 3);
+        assert_eq!(streamer.evict_radius(), 5);
+        assert_eq!(streamer.max_resident_chunks(), 100);
+    }
+
+    #[test]
+    fn test_load_within_radius() {
+        let mut streamer = OutdoorChunkStreamer::new(2, 3);
+        let mut provider = FlatChunkProvider::default();
+
+        streamer.update_for_player_chunk(0, 0, &mut provider);
+
+        // Load radius = 2 => [-2..=2] x [-2..=2] = 25 chunks resident
+        assert_eq!(streamer.resident_chunk_count(), 25);
+        for cx in -2..=2 {
+            for cy in -2..=2 {
+                assert!(streamer.is_chunk_resident(cx, cy));
+                assert!(streamer.get_chunk(cx, cy).is_some());
+            }
+        }
+
+        // Chunks outside load radius should not be resident yet
+        assert!(!streamer.is_chunk_resident(3, 0));
+        assert!(!streamer.is_chunk_resident(0, -3));
+    }
+
+    #[test]
+    fn test_evict_outside_radius_and_hysteresis() {
+        let mut streamer = OutdoorChunkStreamer::new(2, 3);
+        let mut provider = FlatChunkProvider::default();
+
+        // 1. Player at (0, 0): load radius 2 loads [-2..=2] x [-2..=2]
+        streamer.update_for_player_chunk(0, 0, &mut provider);
+        assert_eq!(streamer.resident_chunk_count(), 25);
+
+        // 2. Player moves to (1, 0): loads [-1..=3] x [-2..=2]
+        // Chunks at x = -2 (distance 3 from x = 1) remain resident because 3 <= evict_radius(3)
+        streamer.update_for_player_chunk(1, 0, &mut provider);
+        assert!(streamer.is_chunk_resident(-2, 0));
+        assert!(streamer.is_chunk_resident(3, 0));
+        assert_eq!(streamer.resident_chunk_count(), 30); // 6 x 5 window
+
+        // 3. Player moves back to (0, 0): no thrashing, (-2, 0) was never evicted
+        streamer.update_for_player_chunk(0, 0, &mut provider);
+        assert!(streamer.is_chunk_resident(-2, 0));
+
+        // 4. Player moves far away to (4, 0): distance to (-2, 0) is |-2 - 4| = 6 > evict_radius(3)
+        streamer.update_for_player_chunk(4, 0, &mut provider);
+        assert!(!streamer.is_chunk_resident(-2, 0));
+        assert!(streamer.is_chunk_resident(4, 0));
+    }
+
+    #[test]
+    fn test_hard_cap_and_lru_fallback() {
+        // Construct streamer with load_radius 1, evict_radius 3, but artificial hard cap = 10
+        let mut streamer = OutdoorChunkStreamer::new_with_cap(1, 3, 10);
+        let mut provider = FlatChunkProvider::default();
+
+        // Step 1: Player at (0, 0) loads 3x3 = 9 chunks
+        streamer.update_for_player_chunk(0, 0, &mut provider);
+        assert_eq!(streamer.resident_chunk_count(), 9);
+
+        // Step 2: Player moves to (1, 0).
+        // Load radius 1 requires (2,-1), (2,0), (2,1).
+        // Total candidate resident chunks would be 12.
+        // Candidates outside load_radius 1 of (1,0) are (-1,-1), (-1,0), (-1,1) (accessed at tick 1).
+        // Cap is 10, so 2 oldest chunks are evicted via LRU fallback.
+        streamer.update_for_player_chunk(1, 0, &mut provider);
+        assert_eq!(streamer.resident_chunk_count(), 10);
+
+        // Chunks inside load radius 1 of (1, 0) MUST remain resident
+        for cx in 0..=2 {
+            for cy in -1..=1 {
+                assert!(
+                    streamer.is_chunk_resident(cx, cy),
+                    "Chunk ({}, {}) inside load radius should be resident",
+                    cx,
+                    cy
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_derived_count_budget_continuous_movement() {
+        let mut streamer = OutdoorChunkStreamer::new(2, 3);
+        let mut provider = FlatChunkProvider::default();
+
+        let budget = streamer.max_resident_chunks(); // 49 for evict_radius = 3
+
+        // Move player across 15 chunk steps along a line
+        for step in 0..15 {
+            streamer.update_for_player_chunk(step, step / 2, &mut provider);
+            assert!(
+                streamer.resident_chunk_count() <= budget,
+                "Step {}: resident count {} exceeded budget {}",
+                step,
+                streamer.resident_chunk_count(),
+                budget
+            );
+        }
+    }
 }
+

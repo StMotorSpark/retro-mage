@@ -1,12 +1,12 @@
 ---
 task: "27"
 slug: outdoor-chunk-streaming
-status: pending
+status: done
 depends-on: ["26"]
 blocked-by: ""
 assigned-to: ""
 created: 2025-06-17
-outcome: ""
+outcome: "Implemented OutdoorChunkStreamer in engine-core supporting load radius, evict radius distance hysteresis, hard cap, and LRU fallback eviction. Integrated with EngineState and validated with unit tests."
 ---
 
 # Outdoor Chunk Streaming (Load Radius / Evict Radius / LRU)
