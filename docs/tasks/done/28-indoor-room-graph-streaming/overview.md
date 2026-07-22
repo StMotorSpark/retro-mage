@@ -1,12 +1,12 @@
 ---
 task: "28"
 slug: indoor-room-graph-streaming
-status: pending
+status: done
 depends-on: []
 blocked-by: ""
 assigned-to: ""
 created: 2025-06-17
-outcome: ""
+outcome: "Implemented indoor room graph topology and hop-depth room streaming in packages/engine-core. Added RoomNode, RoomGraph, RoomProvider, and IndoorRoomStreamer with hop-depth resident set computation and LRU-beyond-band fallback eviction. Integrated with EngineState and verified with cargo test and wasm-pack build."
 ---
 
 # Indoor Room Graph Streaming (Room-as-Chunk / Hop-Depth Load-Ahead)

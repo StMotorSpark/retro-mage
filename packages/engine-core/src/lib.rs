@@ -5,6 +5,7 @@ pub mod camera;
 pub mod chunk;
 pub mod input;
 pub mod lights;
+pub mod room;
 pub mod tiles;
 pub mod visibility;
 
@@ -33,6 +34,8 @@ pub struct EngineState {
     master_tiles: TilesBuffer,
     chunk_streamer: chunk::OutdoorChunkStreamer,
     chunk_provider: chunk::FlatChunkProvider,
+    indoor_streamer: room::IndoorRoomStreamer,
+    room_graph: room::RoomGraph,
 }
 
 #[wasm_bindgen]
@@ -43,6 +46,10 @@ impl EngineState {
         let mut streamer = chunk::OutdoorChunkStreamer::default();
         let mut provider = chunk::FlatChunkProvider::default();
         streamer.update_for_player_pos(camera.x[0], camera.y[0], &mut provider);
+
+        let mut room_graph = room::RoomGraph::new();
+        let mut indoor_streamer = room::IndoorRoomStreamer::default();
+        indoor_streamer.update_for_current_room(&mut room_graph);
 
         EngineState {
             tick_count: 0.0,
@@ -59,6 +66,8 @@ impl EngineState {
             master_tiles: TilesBuffer::new(),
             chunk_streamer: streamer,
             chunk_provider: provider,
+            indoor_streamer,
+            room_graph,
         }
     }
 
@@ -148,6 +157,78 @@ impl EngineState {
     /// Check if outdoor chunk at (chunk_x, chunk_y) is resident.
     pub fn is_chunk_resident(&self, chunk_x: i32, chunk_y: i32) -> bool {
         self.chunk_streamer.is_chunk_resident(chunk_x, chunk_y)
+    }
+
+    /// Indoor room hop depth (graph hops).
+    pub fn indoor_hop_depth(&self) -> u32 {
+        self.indoor_streamer.hop_depth()
+    }
+
+    /// Set indoor room hop depth.
+    pub fn set_indoor_hop_depth(&mut self, depth: u32) {
+        self.indoor_streamer.set_hop_depth(depth);
+        self.indoor_streamer
+            .update_for_current_room(&mut self.room_graph);
+    }
+
+    /// Indoor room evict hop depth (graph hops).
+    pub fn indoor_evict_hop_depth(&self) -> u32 {
+        self.indoor_streamer.evict_hop_depth()
+    }
+
+    /// Set indoor room evict hop depth.
+    pub fn set_indoor_evict_hop_depth(&mut self, depth: u32) {
+        self.indoor_streamer.set_evict_hop_depth(depth);
+        self.indoor_streamer
+            .update_for_current_room(&mut self.room_graph);
+    }
+
+    /// Maximum resident indoor rooms count limit (hard cap).
+    pub fn indoor_max_resident_rooms(&self) -> usize {
+        self.indoor_streamer.max_resident_rooms()
+    }
+
+    /// Set maximum resident indoor rooms count limit (hard cap).
+    pub fn set_indoor_max_resident_rooms(&mut self, max: usize) {
+        self.indoor_streamer.set_max_resident_rooms(max);
+        self.indoor_streamer
+            .update_for_current_room(&mut self.room_graph);
+    }
+
+    /// Number of currently resident indoor rooms.
+    pub fn resident_room_count(&self) -> usize {
+        self.indoor_streamer.resident_room_count()
+    }
+
+    /// Check if indoor room with room_id is resident.
+    pub fn is_room_resident(&self, room_id: u32) -> bool {
+        self.indoor_streamer.is_room_resident(room_id)
+    }
+
+    /// Current active indoor room ID.
+    pub fn indoor_current_room_id(&self) -> u32 {
+        self.indoor_streamer.current_room_id()
+    }
+
+    /// Set current active indoor room ID and update resident room set.
+    pub fn set_indoor_current_room(&mut self, room_id: u32) {
+        self.indoor_streamer
+            .set_current_room(room_id, &mut self.room_graph);
+    }
+
+    /// Add a room node to internal engine room graph.
+    pub fn add_room_to_graph(&mut self, room_id: u32, name: &str) {
+        self.room_graph
+            .add_room(room::RoomNode::new(room_id, name));
+        self.indoor_streamer
+            .update_for_current_room(&mut self.room_graph);
+    }
+
+    /// Add a bidirectional edge between two rooms in engine room graph.
+    pub fn add_room_edge(&mut self, room1: u32, room2: u32) {
+        self.room_graph.add_edge(room1, room2);
+        self.indoor_streamer
+            .update_for_current_room(&mut self.room_graph);
     }
 
     /// Accumulated tick time count in seconds.
@@ -949,5 +1030,32 @@ mod tests {
         assert!(state.is_chunk_resident(2, 0));
         assert!(state.is_chunk_resident(4, 0)); // inside load radius 2 of (2,0)
         assert!(!state.is_chunk_resident(-2, 0)); // evicted, dist 4 > evict radius 3
+    }
+
+    #[test]
+    fn test_engine_state_indoor_room_streaming() {
+        let mut state = EngineState::new();
+        state.add_room_to_graph(10, "Entrance");
+        state.add_room_to_graph(11, "Hallway");
+        state.add_room_to_graph(12, "Armory");
+        state.add_room_to_graph(13, "Dungeon");
+
+        state.add_room_edge(10, 11);
+        state.add_room_edge(11, 12);
+        state.add_room_edge(12, 13);
+
+        state.set_indoor_current_room(10);
+        assert_eq!(state.indoor_hop_depth(), 1);
+        assert!(state.is_room_resident(10));
+        assert!(state.is_room_resident(11));
+        assert!(!state.is_room_resident(12));
+        assert!(!state.is_room_resident(13));
+
+        // Move to Room 11
+        state.set_indoor_current_room(11);
+        assert!(state.is_room_resident(11));
+        assert!(state.is_room_resident(10));
+        assert!(state.is_room_resident(12));
+        assert!(!state.is_room_resident(13));
     }
 }
