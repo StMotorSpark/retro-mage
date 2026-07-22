@@ -9,6 +9,7 @@ relates-to:
   - "[WASM Bridge](../architecture/wasm-bridge.md)"
   - "[Input Event Schema](../architecture/input-schema.md)"
   - "[Visibility](../architecture/visibility.md)"
+  - "[World Streaming](../architecture/world-streaming.md)"
   - "[Test-Driven Development](../principles/test-driven-development.md)"
 ---
 
@@ -29,7 +30,7 @@ Lighting lookup tables are specified conceptually in [Rendering](../architecture
 
 Texture compression format, transcode/upload ownership, fallback behavior, and mipmap handling are resolved and implemented — see [Asset Pipeline](../architecture/asset-pipeline.md). `packages/render` owns KTX2 transcode/upload via its `loadKtx2Texture` function (bytes-in, ASTC-probe fallback, block-aligned mip upload, throw-on-failure), and `examples/demo` consumes it directly rather than transcoding inline.
 
-Still undecided: tile/sprite source folder conventions per consuming game, and the outdoor chunk file format.
+Still undecided: tile/sprite source folder conventions per consuming game. The outdoor chunk file format question is resolved in [World Streaming](../architecture/world-streaming.md) — the engine mandates a chunk data contract, not a file format, and leaves chunk data sourcing (prebaked, procedural, or hybrid) to the consuming application.
 
 - Blocks: any task that adds real game assets rather than placeholder geometry
 - Relates to: [Asset Pipeline](../architecture/asset-pipeline.md), [Tech Stack](../architecture/tech-stack.md), [Rendering](../architecture/rendering.md)
@@ -51,4 +52,5 @@ The exact content of the `examples/demo` minimal dungeon (room count, enemy spri
 - [Input Event Schema](../architecture/input-schema.md) — resolves the normalized input event shape gap
 - [Asset Pipeline](../architecture/asset-pipeline.md) — resolves the texture compression format gap
 - [Visibility](../architecture/visibility.md) — resolves the visibility algorithm gap
+- [World Streaming](../architecture/world-streaming.md) — resolves the outdoor chunk file format gap
 - [Test-Driven Development](../principles/test-driven-development.md) — the testing discipline applied to future gap resolutions
