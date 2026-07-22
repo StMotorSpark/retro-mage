@@ -2,6 +2,7 @@
 
 pub mod actors;
 pub mod camera;
+pub mod chunk;
 pub mod input;
 pub mod lights;
 pub mod tiles;

@@ -1,12 +1,12 @@
 ---
 task: "26"
 slug: outdoor-chunk-data-contract
-status: pending
+status: done
 depends-on: []
 blocked-by: ""
 assigned-to: ""
 created: 2025-06-17
-outcome: ""
+outcome: "Implemented engine-owned ChunkData struct (32x32 tiles, heights, solidity, entity placement list) and ChunkProvider trait with reference FlatChunkProvider in engine-core/src/chunk.rs. Updated docs/architecture/wasm-bridge.md with out-of-band async chunk transport and resolved open gaps in docs/research/known-gaps.md."
 ---
 
 # Outdoor Chunk Data Contract + ChunkProvider Interface
