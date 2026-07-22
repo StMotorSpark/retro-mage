@@ -6,6 +6,7 @@ relates-to:
   - "[Tech Stack](./tech-stack.md)"
   - "[Repo Structure](./repo-structure.md)"
   - "[World Model](../features/world-model.md)"
+  - "[WASM Bridge](./wasm-bridge.md)"
 ---
 
 # Rendering
@@ -53,3 +54,4 @@ Outdoor areas extend the same rendering pipeline with additions specific to open
 - [Tech Stack](./tech-stack.md) — the WebGL2/WebGPU and Rust/WASM stack this pipeline runs on
 - [Repo Structure](./repo-structure.md) — how rendering feature slices are organized inside the `render` package
 - [World Model](../features/world-model.md) — the dungeon and outdoor world structure this pipeline renders
+- [WASM Bridge](./wasm-bridge.md) — the per-frame data contract this pipeline reads from `engine-core`

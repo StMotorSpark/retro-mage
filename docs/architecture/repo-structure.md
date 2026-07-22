@@ -6,6 +6,7 @@ relates-to:
   - "[Tech Stack](./tech-stack.md)"
   - "[Agent Development Principles](../principles/agent-dev-principles.md)"
   - "[Rendering](./rendering.md)"
+  - "[WASM Bridge](./wasm-bridge.md)"
 ---
 
 # Repo Structure
@@ -63,3 +64,4 @@ A separate game repo built on Retro Mage depends on `engine-core`, `render`, and
 - [Tech Stack](./tech-stack.md) — the technologies each package is built with and why
 - [Agent Development Principles](../principles/agent-dev-principles.md) — the vertical-slice rule this layout follows
 - [Rendering](./rendering.md) — the feature slices inside the `render` package
+- [WASM Bridge](./wasm-bridge.md) — the read-only data contract between the `engine-core` and `render` packages
