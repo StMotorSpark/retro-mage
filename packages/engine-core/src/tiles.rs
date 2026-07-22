@@ -10,6 +10,7 @@ pub struct TilesBuffer {
     pub tile_id: [f32; MAX_TILES],
     pub variant: [f32; MAX_TILES],
     pub solid: [f32; MAX_TILES],
+    pub vertical_opening: [f32; MAX_TILES],
     pub count: usize,
 }
 
@@ -22,6 +23,7 @@ impl TilesBuffer {
             tile_id: [0.0; MAX_TILES],
             variant: [0.0; MAX_TILES],
             solid: [0.0; MAX_TILES],
+            vertical_opening: [0.0; MAX_TILES],
             count: 0,
         }
     }
@@ -35,6 +37,7 @@ impl TilesBuffer {
         tile_id: f32,
         variant: f32,
         solid: f32,
+        vertical_opening: f32,
     ) -> bool {
         if index >= MAX_TILES {
             return false;
@@ -45,6 +48,7 @@ impl TilesBuffer {
         self.tile_id[index] = tile_id;
         self.variant[index] = variant;
         self.solid[index] = solid;
+        self.vertical_opening[index] = vertical_opening;
         if index >= self.count {
             self.count = index + 1;
         }
@@ -79,6 +83,7 @@ mod tests {
         assert_eq!(buffer.tile_id.len(), MAX_TILES);
         assert_eq!(buffer.variant.len(), MAX_TILES);
         assert_eq!(buffer.solid.len(), MAX_TILES);
+        assert_eq!(buffer.vertical_opening.len(), MAX_TILES);
         assert_eq!(MAX_TILES, 1024);
     }
 
@@ -86,7 +91,8 @@ mod tests {
     fn test_tiles_buffer_write_read_roundtrip() {
         let mut buffer = TilesBuffer::new();
         assert_eq!(buffer.solid[0], 0.0);
-        let ok = buffer.set_tile(0, 1.0, 0.0, -1.0, 12.0, 3.0, 1.0);
+        assert_eq!(buffer.vertical_opening[0], 0.0);
+        let ok = buffer.set_tile(0, 1.0, 0.0, -1.0, 12.0, 3.0, 1.0, 1.0);
         assert!(ok);
         assert_eq!(buffer.x[0], 1.0);
         assert_eq!(buffer.y[0], 0.0);
@@ -94,13 +100,14 @@ mod tests {
         assert_eq!(buffer.tile_id[0], 12.0);
         assert_eq!(buffer.variant[0], 3.0);
         assert_eq!(buffer.solid[0], 1.0);
+        assert_eq!(buffer.vertical_opening[0], 1.0);
         assert_eq!(buffer.count, 1);
     }
 
     #[test]
     fn test_tiles_buffer_out_of_bounds() {
         let mut buffer = TilesBuffer::new();
-        let ok = buffer.set_tile(1024, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0);
+        let ok = buffer.set_tile(1024, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0);
         assert!(!ok);
     }
 }

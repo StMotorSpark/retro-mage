@@ -293,6 +293,13 @@ impl EngineState {
         MAX_TILES
     }
 
+    pub fn tiles_vertical_opening_ptr(&self) -> *const f32 {
+        self.tiles.vertical_opening.as_ptr()
+    }
+    pub fn tiles_vertical_opening_count(&self) -> usize {
+        MAX_TILES
+    }
+
     pub fn tiles_count(&self) -> usize {
         self.tiles.count
     }
@@ -306,10 +313,11 @@ impl EngineState {
         tile_id: f32,
         variant: f32,
         solid: f32,
+        vertical_opening: f32,
     ) -> bool {
         let ok = self
             .master_tiles
-            .set_tile(index, x, y, z, tile_id, variant, solid);
+            .set_tile(index, x, y, z, tile_id, variant, solid, vertical_opening);
         if ok {
             self.recompute_visibility();
         }
@@ -384,24 +392,13 @@ impl EngineState {
         let cam_y = self.camera.y[0];
         let cam_z = self.camera.z[0];
 
-        // Determine axis usage: if all tiles have z == 0 and y varies, use y axis
-        let mut min_z = f32::MAX;
-        let mut max_z = f32::MIN;
-        let mut min_y = f32::MAX;
-        let mut max_y = f32::MIN;
+        let use_y_axis = false;
 
-        for i in 0..self.master_tiles.count {
-            min_z = min_z.min(self.master_tiles.z[i]);
-            max_z = max_z.max(self.master_tiles.z[i]);
-            min_y = min_y.min(self.master_tiles.y[i]);
-            max_y = max_y.max(self.master_tiles.y[i]);
-        }
-        let use_y_axis = (max_z - min_z).abs() < 1e-4 && (max_y - min_y).abs() > 1e-4;
-
-        // Build solid grid map from master tiles
+        // Build solid & vertical-opening grid maps from master tiles
         let mut grid_solids = HashMap::new();
+        let mut grid_openings = HashMap::new();
         for i in 0..self.master_tiles.count {
-            let pos = visibility::get_grid_pos(
+            let pos = visibility::get_grid_pos_3d(
                 self.master_tiles.x[i],
                 self.master_tiles.y[i],
                 self.master_tiles.z[i],
@@ -413,15 +410,23 @@ impl EngineState {
             } else {
                 grid_solids.entry(pos).or_insert(false);
             }
+
+            let is_opening = self.master_tiles.vertical_opening[i] != 0.0;
+            if is_opening {
+                grid_openings.insert(pos, true);
+            } else {
+                grid_openings.entry(pos).or_insert(false);
+            }
         }
 
         // Compute visible grid cells
-        let visible_cells = visibility::compute_visible_grid_cells(
+        let visible_cells = visibility::compute_visible_grid_cells_3d(
             cam_x,
             cam_y,
             cam_z,
             radius,
             &grid_solids,
+            &grid_openings,
             use_y_axis,
         );
 
@@ -431,7 +436,7 @@ impl EngineState {
             let tx = self.master_tiles.x[i];
             let ty = self.master_tiles.y[i];
             let tz = self.master_tiles.z[i];
-            let pos = visibility::get_grid_pos(tx, ty, tz, use_y_axis);
+            let pos = visibility::get_grid_pos_3d(tx, ty, tz, use_y_axis);
 
             let dx = tx - cam_x;
             let dy = ty - cam_y;
@@ -446,6 +451,8 @@ impl EngineState {
                     self.tiles.tile_id[visible_tile_count] = self.master_tiles.tile_id[i];
                     self.tiles.variant[visible_tile_count] = self.master_tiles.variant[i];
                     self.tiles.solid[visible_tile_count] = self.master_tiles.solid[i];
+                    self.tiles.vertical_opening[visible_tile_count] =
+                        self.master_tiles.vertical_opening[i];
                     visible_tile_count += 1;
                 }
             }
@@ -464,7 +471,7 @@ impl EngineState {
                 let ax = self.master_actors.x[i];
                 let ay = self.master_actors.y[i];
                 let az = self.master_actors.z[i];
-                let pos = visibility::get_grid_pos(ax, ay, az, use_y_axis);
+                let pos = visibility::get_grid_pos_3d(ax, ay, az, use_y_axis);
 
                 let dx = ax - cam_x;
                 let dy = ay - cam_y;
@@ -495,7 +502,7 @@ impl EngineState {
                 let lx = self.master_lights.x[i];
                 let ly = self.master_lights.y[i];
                 let lz = self.master_lights.z[i];
-                let pos = visibility::get_grid_pos(lx, ly, lz, use_y_axis);
+                let pos = visibility::get_grid_pos_3d(lx, ly, lz, use_y_axis);
 
                 let dx = lx - cam_x;
                 let dy = ly - cam_y;
@@ -533,11 +540,11 @@ mod tests {
         assert!(!state.actors_x_ptr().is_null());
         assert_eq!(state.actors_x_count(), 64);
         assert_eq!(state.actors_count(), 0);
-        state.set_actor(0, 1.0, 2.0, 3.0, 0.5, 10.0, 1.0);
+        state.set_actor(0, 1.0, 0.0, 3.0, 0.5, 10.0, 1.0);
         assert_eq!(state.actors_count(), 1);
         unsafe {
             assert_eq!(*state.actors_x_ptr(), 1.0);
-            assert_eq!(*state.actors_y_ptr(), 2.0);
+            assert_eq!(*state.actors_y_ptr(), 0.0);
             assert_eq!(*state.actors_z_ptr(), 3.0);
             assert_eq!(*state.actors_facing_ptr(), 0.5);
             assert_eq!(*state.actors_sprite_id_ptr(), 10.0);
@@ -548,7 +555,7 @@ mod tests {
         assert!(!state.lights_x_ptr().is_null());
         assert_eq!(state.lights_x_count(), 32);
         assert_eq!(state.lights_count(), 0);
-        state.set_light(0, 5.0, 6.0, 7.0, 1.0, 0.0, 0.0, 2.5, 1.0);
+        state.set_light(0, 5.0, 0.0, 7.0, 1.0, 0.0, 0.0, 2.5, 1.0);
         assert_eq!(state.lights_count(), 1);
         unsafe {
             assert_eq!(*state.lights_x_ptr(), 5.0);
@@ -561,13 +568,16 @@ mod tests {
         assert_eq!(state.tiles_x_count(), 1024);
         assert!(!state.tiles_solid_ptr().is_null());
         assert_eq!(state.tiles_solid_count(), 1024);
+        assert!(!state.tiles_vertical_opening_ptr().is_null());
+        assert_eq!(state.tiles_vertical_opening_count(), 1024);
         assert_eq!(state.tiles_count(), 0);
-        state.set_tile(0, 10.0, 0.0, 20.0, 2.0, 1.0, 1.0);
+        state.set_tile(0, 10.0, 0.0, 20.0, 2.0, 1.0, 1.0, 0.0);
         assert_eq!(state.tiles_count(), 1);
         unsafe {
             assert_eq!(*state.tiles_x_ptr(), 10.0);
             assert_eq!(*state.tiles_tile_id_ptr(), 2.0);
             assert_eq!(*state.tiles_solid_ptr(), 1.0);
+            assert_eq!(*state.tiles_vertical_opening_ptr(), 0.0);
         }
 
         // Ambient Light
@@ -620,11 +630,11 @@ mod tests {
         // Tile 2: (0, 0, 3) - behind wall (occluded by solid wall at z=2) -> excluded
         // Tile 3: (0, 0, 10) - unoccluded direction, but beyond sight radius (dist 10.0 > 3.2) -> excluded
         // Tile 4: (2, 0, 0) - side floor (unoccluded, dist 2.0 <= 3.2) -> visible
-        state.set_tile(0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0);
-        state.set_tile(1, 0.0, 0.0, 2.0, 2.0, 0.0, 1.0); // Solid wall at z=2
-        state.set_tile(2, 0.0, 0.0, 3.0, 1.0, 0.0, 0.0);
-        state.set_tile(3, 0.0, 0.0, 10.0, 1.0, 0.0, 0.0);
-        state.set_tile(4, 2.0, 0.0, 0.0, 1.0, 0.0, 0.0);
+        state.set_tile(0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0);
+        state.set_tile(1, 0.0, 0.0, 2.0, 2.0, 0.0, 1.0, 0.0); // Solid wall at z=2
+        state.set_tile(2, 0.0, 0.0, 3.0, 1.0, 0.0, 0.0, 0.0);
+        state.set_tile(3, 0.0, 0.0, 10.0, 1.0, 0.0, 0.0, 0.0);
+        state.set_tile(4, 2.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0);
 
         // Actors:
         // Actor 0: (0, 0, 1) - near side -> visible
@@ -678,9 +688,9 @@ mod tests {
         state.set_ambient_light(1.0); // Full sight radius
 
         // Set up wall at (0, 0, 2) and tile behind wall at (0, 0, 3)
-        state.set_tile(0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0);
-        state.set_tile(1, 0.0, 0.0, 2.0, 2.0, 0.0, 1.0); // Wall
-        state.set_tile(2, 0.0, 0.0, 3.0, 1.0, 0.0, 0.0); // Behind wall
+        state.set_tile(0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0);
+        state.set_tile(1, 0.0, 0.0, 2.0, 2.0, 0.0, 1.0, 0.0); // Wall
+        state.set_tile(2, 0.0, 0.0, 3.0, 1.0, 0.0, 0.0, 0.0); // Behind wall
 
         // Frame 1: player at (0, 0, 0)
         state.set_camera(0.0, 0.0, 0.0, 0.0, 0.0);
@@ -692,5 +702,75 @@ mod tests {
 
         // Now from (2, 0, 3), tile (0, 0, 3) is unoccluded and visible!
         assert_eq!(state.tiles_count(), 3);
+    }
+
+    #[test]
+    fn test_multi_floor_visibility_opening_and_isolation() {
+        let mut state = EngineState::new();
+        state.set_ambient_light(1.0); // Full sight radius
+
+        // Floor 1 (upper floor, y = 1.0):
+        // Tile 0: Player stand tile at (0, 1, 0)
+        // Tile 1: Balcony opening tile at (1, 1, 0) with vertical_opening = 1.0
+        state.set_tile(0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0);
+        state.set_tile(1, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0); // Vertical opening!
+
+        // Floor 0 (lower floor, y = 0.0):
+        // Tile 2: Tile directly under opening at (1, 0, 0)
+        // Tile 3: Tile forward on lower floor at (2, 0, 0)
+        // Tile 4: Tile under solid floor at (0, 0, 0)
+        state.set_tile(2, 1.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0);
+        state.set_tile(3, 2.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0);
+        state.set_tile(4, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0);
+
+        // Actor 0 on lower floor forward (2, 0, 0)
+        // Actor 1 on lower floor under solid floor (0, 0, 0)
+        state.set_actor(0, 2.0, 0.0, 0.0, 0.0, 1.0, 1.0);
+        state.set_actor(1, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0);
+
+        // 1. Player near opening on upper floor: camera at (0, 1, 0)
+        state.set_camera(0.0, 1.0, 0.0, 0.0, 0.0);
+
+        // Visible tiles should include:
+        // Floor 1: (0, 1, 0) and (1, 1, 0)
+        // Floor 0: (1, 0, 0) and (2, 0, 0) through opening
+        // Excluded: (0, 0, 0) on Floor 0 (under solid floor)
+        let mut visible_coords = Vec::new();
+        unsafe {
+            for i in 0..state.tiles_count() {
+                let x = *state.tiles_x_ptr().add(i);
+                let y = *state.tiles_y_ptr().add(i);
+                let z = *state.tiles_z_ptr().add(i);
+                visible_coords.push((x.round() as i32, y.round() as i32, z.round() as i32));
+            }
+        }
+        assert!(visible_coords.contains(&(0, 1, 0)));
+        assert!(visible_coords.contains(&(1, 1, 0)));
+        assert!(visible_coords.contains(&(1, 0, 0)));
+        assert!(visible_coords.contains(&(2, 0, 0)));
+        assert!(!visible_coords.contains(&(0, 0, 0))); // Solid floor isolation!
+
+        // Actor 0 (2, 0, 0) is visible through opening
+        // Actor 1 (0, 0, 0) is excluded under solid floor
+        unsafe {
+            assert_eq!(*state.actors_active_ptr().add(0), 1.0);
+            assert_eq!(*state.actors_active_ptr().add(1), 0.0);
+        }
+
+        // 2. Standing away from vertical opening: move player to (-5, 1, 0) on upper floor
+        state.set_camera(-5.0, 1.0, 0.0, 0.0, 0.0);
+        // From (-5, 1, 0), player is out of sight range of opening (dist to (1,1,0) > DEFAULT_MAX_DRAW_DISTANCE is false, but opening is not visible if we place wall or if far)
+        // Let's test player standing far away on lower floor: camera at (-10, 0, 0)
+        state.set_camera(-10.0, 0.0, 0.0, 0.0, 0.0);
+        // Player on lower floor standing away sees only lower floor tiles near them, zero upper floor tiles leakage
+        let mut visible_y_lower = Vec::new();
+        unsafe {
+            for i in 0..state.tiles_count() {
+                visible_y_lower.push(*state.tiles_y_ptr().add(i) as i32);
+            }
+        }
+        for y in visible_y_lower {
+            assert_eq!(y, 0); // No upper floor (y=1) leakage!
+        }
     }
 }

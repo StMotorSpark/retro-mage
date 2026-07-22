@@ -1,12 +1,12 @@
 ---
 task: "23"
 slug: multi-floor-visibility
-status: pending
+status: done
 depends-on: ["22"]
 blocked-by: ""
 assigned-to: ""
 created: 2025-06-16
-outcome: ""
+outcome: "Implemented vertical_opening tile field on TilesBuffer and WASM bridge schema, extended 3D shadowcasting in engine-core to project sightlines across vertical openings to adjoining floors with directional filtering, preventing cross-floor leakage under solid floor geometry."
 ---
 
 # Multi-Floor Visibility

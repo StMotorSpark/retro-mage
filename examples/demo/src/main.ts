@@ -43,14 +43,14 @@ async function main(): Promise<void> {
   let tileIdx = 0;
   for (let x = -2; x <= 2; x++) {
     for (let z = -4; z <= 0; z++) {
-      engineState.set_tile(tileIdx++, x, 0, z, 1, 0, 0);
+      engineState.set_tile(tileIdx++, x, 0, z, 1, 0, 0, 0);
     }
   }
 
   // Wall blocks
-  engineState.set_tile(tileIdx++, -2, 1, -4, 2, 0, 1);
-  engineState.set_tile(tileIdx++, 2, 1, -4, 2, 0, 1);
-  engineState.set_tile(tileIdx++, 0, 1, -4, 3, 0, 1);
+  engineState.set_tile(tileIdx++, -2, 1, -4, 2, 0, 1, 0);
+  engineState.set_tile(tileIdx++, 2, 1, -4, 2, 0, 1, 0);
+  engineState.set_tile(tileIdx++, 0, 1, -4, 3, 0, 1, 0);
 
   // One active actor in front of camera
   engineState.set_actor(0, 0, 0, -2, 0, 1, 1);

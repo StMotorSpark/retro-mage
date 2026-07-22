@@ -11,6 +11,10 @@ export interface TilesEngineState {
   tiles_tile_id_count(): number;
   tiles_variant_ptr(): number;
   tiles_variant_count(): number;
+  tiles_solid_ptr(): number;
+  tiles_solid_count(): number;
+  tiles_vertical_opening_ptr(): number;
+  tiles_vertical_opening_count(): number;
   tiles_count(): number;
 }
 
@@ -41,6 +45,8 @@ export function readTilesView(
     z: new Float32Array(buffer, engine.tiles_z_ptr(), engine.tiles_z_count()),
     tile_id: new Float32Array(buffer, engine.tiles_tile_id_ptr(), engine.tiles_tile_id_count()),
     variant: new Float32Array(buffer, engine.tiles_variant_ptr(), engine.tiles_variant_count()),
+    solid: new Float32Array(buffer, engine.tiles_solid_ptr(), engine.tiles_solid_count()),
+    vertical_opening: new Float32Array(buffer, engine.tiles_vertical_opening_ptr(), engine.tiles_vertical_opening_count()),
     count,
   };
 }

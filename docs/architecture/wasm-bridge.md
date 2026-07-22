@@ -64,6 +64,7 @@ Each buffer is Struct-of-Arrays (SoA): one flat array per field, not an array of
 | `tile_id` | `f32` | Identifies texture/tile type |
 | `variant` | `f32` | Rotation/flip variant, if needed |
 | `solid` | `f32` | `0`/`1` — whether tile blocks sight (walls, closed doors) vs. lets sight pass (floors, ceilings, open doorways, vertical gaps) |
+| `vertical_opening` | `f32` | `0`/`1` — whether tile allows sight between Z-levels (stairwell gap, balcony edge, open floor cutout) |
 
 This buffer's exact field set is expected to grow once the [Visibility Algorithm](../research/known-gaps.md) and [Asset Pipeline](../research/known-gaps.md) gaps are resolved — the shape above covers only what's needed to draw a flat, textured tile floor/wall/ceiling.
 

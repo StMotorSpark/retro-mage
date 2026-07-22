@@ -47,13 +47,30 @@ pub struct GridPos {
     pub z: i32,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct GridPos3D {
+    pub x: i32,
+    pub z: i32,
+    pub elev: i32,
+}
+
 pub fn get_grid_pos(x: f32, y: f32, z: f32, use_y_axis: bool) -> GridPos {
     let gx = x.round() as i32;
     let gz = if use_y_axis { y.round() as i32 } else { z.round() as i32 };
     GridPos { x: gx, z: gz }
 }
 
-/// Compute set of visible grid cells from an origin given a sight radius and solid cell map.
+pub fn get_grid_pos_3d(x: f32, y: f32, z: f32, use_y_axis: bool) -> GridPos3D {
+    let gx = x.round() as i32;
+    let (gz, elev) = if use_y_axis {
+        (y.round() as i32, z.round() as i32)
+    } else {
+        (z.round() as i32, y.round() as i32)
+    };
+    GridPos3D { x: gx, z: gz, elev }
+}
+
+/// Compute set of visible grid cells from an origin given a sight radius and solid cell map (2D backward compatibility wrapper).
 pub fn compute_visible_grid_cells(
     origin_x: f32,
     origin_y: f32,
@@ -62,25 +79,73 @@ pub fn compute_visible_grid_cells(
     grid_solids: &HashMap<GridPos, bool>,
     use_y_axis: bool,
 ) -> HashSet<GridPos> {
+    let mut solids_3d = HashMap::new();
+    for (p, &s) in grid_solids {
+        solids_3d.insert(GridPos3D { x: p.x, z: p.z, elev: 0 }, s);
+    }
+    let openings_3d = HashMap::new();
+    let vis_3d = compute_visible_grid_cells_3d(
+        origin_x,
+        origin_y,
+        origin_z,
+        sight_radius,
+        &solids_3d,
+        &openings_3d,
+        use_y_axis,
+    );
+    vis_3d.into_iter().map(|p| GridPos { x: p.x, z: p.z }).collect()
+}
+
+// Vertical openings implicitly connect tiles at the same horizontal grid position
+// (x, z or x, y) across differing elevation levels (z or y). When a player's line of sight
+// passes through a tile marked as a vertical opening on the player's floor, sight extends
+// through that opening to the connected floor's tiles at the corresponding grid location,
+// projecting forward/sideways onto the adjoining floor while excluding tiles behind the opening
+// underneath solid floor boundaries.
+
+/// Compute set of visible 3D grid cells from an origin given a sight radius, solid cell map, and vertical openings map.
+pub fn compute_visible_grid_cells_3d(
+    origin_x: f32,
+    origin_y: f32,
+    origin_z: f32,
+    sight_radius: f32,
+    grid_solids: &HashMap<GridPos3D, bool>,
+    grid_openings: &HashMap<GridPos3D, bool>,
+    use_y_axis: bool,
+) -> HashSet<GridPos3D> {
     let mut visible = HashSet::new();
-    let p_grid = get_grid_pos(origin_x, origin_y, origin_z, use_y_axis);
+    let p_grid_3d = get_grid_pos_3d(origin_x, origin_y, origin_z, use_y_axis);
 
     if sight_radius < 0.0 {
         return visible;
     }
 
     // Origin tile is always visible
-    visible.insert(p_grid);
+    visible.insert(p_grid_3d);
 
     if sight_radius == 0.0 {
         return visible;
     }
 
+    // 1. Compute 2D shadowcasting on player's own elevation floor
+    let player_elev = p_grid_3d.elev;
+    let p_grid_2d = GridPos { x: p_grid_3d.x, z: p_grid_3d.z };
+
+    let mut floor_solids_2d = HashMap::new();
+    for (pos, &is_solid) in grid_solids.iter() {
+        if pos.elev == player_elev {
+            floor_solids_2d.insert(GridPos { x: pos.x, z: pos.z }, is_solid);
+        }
+    }
+
+    let mut visible_2d = HashSet::new();
+    visible_2d.insert(p_grid_2d);
+
     for octant in 0..8 {
         cast_light(
-            &mut visible,
-            grid_solids,
-            p_grid,
+            &mut visible_2d,
+            &floor_solids_2d,
+            p_grid_2d,
             sight_radius,
             1,
             0.0,
@@ -91,6 +156,109 @@ pub fn compute_visible_grid_cells(
             origin_z,
             use_y_axis,
         );
+    }
+
+    for pos2d in &visible_2d {
+        visible.insert(GridPos3D {
+            x: pos2d.x,
+            z: pos2d.z,
+            elev: player_elev,
+        });
+    }
+
+    // 2. Propagate sight across vertical openings to adjoining floors
+    let mut other_elevations = HashSet::new();
+    for pos in grid_solids.keys().chain(grid_openings.keys()) {
+        if pos.elev != player_elev {
+            other_elevations.insert(pos.elev);
+        }
+    }
+
+    for pos2d in visible_2d {
+        let opening_pos_3d = GridPos3D {
+            x: pos2d.x,
+            z: pos2d.z,
+            elev: player_elev,
+        };
+
+        if grid_openings.get(&opening_pos_3d).copied().unwrap_or(false) {
+            for &other_elev in &other_elevations {
+                let mut other_floor_solids = HashMap::new();
+                for (pos, &is_solid) in grid_solids.iter() {
+                    if pos.elev == other_elev {
+                        other_floor_solids.insert(GridPos { x: pos.x, z: pos.z }, is_solid);
+                    }
+                }
+
+                let opening_origin_2d = GridPos { x: pos2d.x, z: pos2d.z };
+                let mut other_visible_2d = HashSet::new();
+                other_visible_2d.insert(opening_origin_2d);
+
+                let (op_ox, op_oy, op_oz) = if use_y_axis {
+                    (pos2d.x as f32, pos2d.z as f32, other_elev as f32)
+                } else {
+                    (pos2d.x as f32, other_elev as f32, pos2d.z as f32)
+                };
+
+                for octant in 0..8 {
+                    cast_light(
+                        &mut other_visible_2d,
+                        &other_floor_solids,
+                        opening_origin_2d,
+                        sight_radius,
+                        1,
+                        0.0,
+                        1.0,
+                        octant,
+                        op_ox,
+                        op_oy,
+                        op_oz,
+                        use_y_axis,
+                    );
+                }
+
+                let px = p_grid_3d.x;
+                let pz = p_grid_3d.z;
+                let vx = pos2d.x;
+                let vz = pos2d.z;
+                let is_player_on_opening = (px == vx) && (pz == vz);
+
+                for candidate in other_visible_2d {
+                    let cx = candidate.x;
+                    let cz = candidate.z;
+
+                    let valid_direction = if is_player_on_opening {
+                        true
+                    } else {
+                        let v_dir_x = vx - px;
+                        let v_dir_z = vz - pz;
+                        let c_dir_x = cx - vx;
+                        let c_dir_z = cz - vz;
+                        (v_dir_x * c_dir_x + v_dir_z * c_dir_z) >= 0
+                    };
+
+                    if valid_direction {
+                        let (world_x, world_y, world_z) = if use_y_axis {
+                            (cx as f32, cz as f32, other_elev as f32)
+                        } else {
+                            (cx as f32, other_elev as f32, cz as f32)
+                        };
+                        let dx = world_x - origin_x;
+                        let dy = world_y - origin_y;
+                        let dz = world_z - origin_z;
+                        let dist = (dx * dx + dy * dy + dz * dz).sqrt();
+
+                        if dist <= sight_radius {
+                            visible.insert(GridPos3D {
+                                x: cx,
+                                z: cz,
+                                elev: other_elev,
+                            });
+                        }
+                    }
+                }
+            }
+        }
     }
 
     visible
