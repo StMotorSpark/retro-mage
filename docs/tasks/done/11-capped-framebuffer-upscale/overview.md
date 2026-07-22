@@ -1,12 +1,12 @@
 ---
 task: "11"
 slug: capped-framebuffer-upscale
-status: pending
+status: done
 depends-on: []
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-22
-outcome: ""
+outcome: "Implemented capped internal 3D framebuffer rendering and linear-filtered fullscreen quad upscale blit pass. Configurable via exported DEFAULT_RENDER_RESOLUTION_CONFIG and computeCappedResolution utility."
 ---
 
 # Capped Internal Framebuffer + Linear Upscale
