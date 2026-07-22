@@ -6,6 +6,7 @@ relates-to:
   - "[Tech Stack](../architecture/tech-stack.md)"
   - "[Rendering](../architecture/rendering.md)"
   - "[Repo Structure](../architecture/repo-structure.md)"
+  - "[WASM Bridge](../architecture/wasm-bridge.md)"
 ---
 
 # Known Gaps / Next Steps
@@ -13,13 +14,6 @@ relates-to:
 This doc tracks design questions the current docs leave open — decisions not yet made, called out so future work doesn't silently assume an answer. Entries are added as new gaps surface and removed (or resolved into the relevant design doc) once answered. This doc does not describe target state itself; it points at where target state is still undecided.
 
 ## Open Questions
-
-### WASM ↔ JS Bridge Shape
-
-What data crosses the WASM boundary each frame, and in what form — raw memory views of world state read directly by `render`, serialized structs via `wasm-bindgen`, or typed-array snapshots. Blocks writing concrete tasks for both `engine-core` and `render`, since both sides need to agree on the interface before either can be implemented.
-
-- Blocks: `engine-core` world-state export, `render` per-frame read path
-- Relates to: [Tech Stack](../architecture/tech-stack.md)
 
 ### Visibility Algorithm
 
@@ -62,3 +56,4 @@ The exact content of the `examples/demo` minimal dungeon (room count, enemy spri
 - [Rendering](../architecture/rendering.md)
 - [Repo Structure](../architecture/repo-structure.md)
 - [World Model](../features/world-model.md)
+- [WASM Bridge](../architecture/wasm-bridge.md) — resolves the WASM ↔ JS bridge shape gap

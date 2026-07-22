@@ -30,6 +30,7 @@ Each entry links to a design doc and includes the doc's one-line summary. Docs d
 | [`docs/architecture/rendering.md`](./architecture/rendering.md) | Retro Mage renders a tile/polygon hybrid world with sprite-based actors, painter's-algorithm sorting, and lookup-table lighting, extended with longer draw distances and dynamic outdoor rendering for a modern-scale retro look. |
 | [`docs/architecture/repo-structure.md`](./architecture/repo-structure.md) | Retro Mage is a pnpm monorepo where the engine ships as a consumable package, an example dungeon demonstrates it end to end, and every package is organized as vertical feature slices. |
 | [`docs/architecture/tech-stack.md`](./architecture/tech-stack.md) | Retro Mage runs as a phone-first browser engine built on a Rust/WASM core, WebGL2/WebGPU rendering, TypeScript input, Vite tooling, and staged PWA support. |
+| [`docs/architecture/wasm-bridge.md`](./architecture/wasm-bridge.md) | Retro Mage crosses the WASM boundary via fixed-size typed-array buffers that engine-core writes and render reads as zero-copy views into WASM linear memory. |
 
 ---
 
