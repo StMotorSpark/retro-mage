@@ -1,12 +1,12 @@
 ---
 task: "13"
 slug: input-schema-implementation
-status: pending
+status: done
 depends-on: ["04"]
 blocked-by: ""
 assigned-to: ""
 created: 2025-07-22
-outcome: ""
+outcome: "Implemented locked InputState schema matching docs/architecture/input-schema.md with move/look vectors, vertical axis, and 12-slot button bitmask (face1-4, dpadUp-Right, trigger1-4). Created src/buttons.ts bit constants. Updated gamepad and touch sources to handle look vectors and edge-triggered buttonsPressed. Added unit tests with happy-dom."
 ---
 
 # Input Schema Implementation

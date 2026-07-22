@@ -2,7 +2,8 @@ import { createGamepadSource } from './gamepad/index.js';
 import { createTouchSource } from './touch/index.js';
 import { createEmptyInputState, type InputState } from './types.js';
 
-export type { InputState } from './types.js';
+export { BUTTON_BITS, type ButtonSlot, FACE1, FACE2, FACE3, FACE4, DPAD_UP, DPAD_DOWN, DPAD_LEFT, DPAD_RIGHT, TRIGGER1, TRIGGER2, TRIGGER3, TRIGGER4 } from './buttons.js';
+export { createEmptyInputState, type InputState } from './types.js';
 
 export interface InputSource {
   getState(): InputState;

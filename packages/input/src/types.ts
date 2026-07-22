@@ -1,21 +1,29 @@
 /**
  * Normalized input event shape emitted by every input source (gamepad,
- * touch overlay, future keyboard/mouse) and consumed by anything reading
- * player intent.
+ * touch overlay, future keyboard/mouse) and consumed by engine-core / game logic.
  *
- * PLACEHOLDER: this shape is not final. The real event schema (move vector
- * representation, action button set, contextual button semantics) is an
- * open question tracked in docs/research/known-gaps.md under
- * "Input Event Schema". Do not treat `actions` keys as a stable contract.
+ * Locked schema per docs/architecture/input-schema.md.
  */
 export interface InputState {
-  /** Normalized movement vector, each axis in [-1, 1]. */
+  /** Ground-plane movement vector, each axis normalized in [-1, 1]. */
   move: { x: number; y: number };
-  /** Generic action-button bag; key set is a placeholder, not final. */
-  actions: Record<string, boolean>;
+  /** Camera look vector, each axis normalized in [-1, 1], separate from move. */
+  look: { x: number; y: number };
+  /** Reserved vertical axis (-1..1, default 0), not consumed by anything yet. */
+  vertical: number;
+  /** u32 bitmask of current held buttons across 12 generic slots. */
+  buttons: number;
+  /** u32 bitmask of edge-triggered pressed buttons (set only on initial press frame). */
+  buttonsPressed: number;
 }
 
-/** Returns a fresh InputState with no movement and no actions active. */
+/** Returns a fresh InputState with zeroed movement, look, vertical, and buttons. */
 export function createEmptyInputState(): InputState {
-  return { move: { x: 0, y: 0 }, actions: {} };
+  return {
+    move: { x: 0, y: 0 },
+    look: { x: 0, y: 0 },
+    vertical: 0,
+    buttons: 0,
+    buttonsPressed: 0,
+  };
 }
