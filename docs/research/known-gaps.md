@@ -24,13 +24,6 @@ This doc tracks design questions the current docs leave open — decisions not y
 - Blocks: `world-tiles` and outdoor chunk rendering tasks
 - Relates to: [Rendering](../architecture/rendering.md), [World Model](../features/world-model.md)
 
-### Input Transport Mechanism
-
-[Input Event Schema](../architecture/input-schema.md) fixes the normalized event shape `input` produces, but the exact mechanism carrying it across the WASM boundary — a dedicated writable buffer `input` writes and `engine-core` reads (the reverse direction of [WASM Bridge](../architecture/wasm-bridge.md)'s read-only contract), versus a per-frame function call — is undecided.
-
-- Blocks: `input` package tasks, `engine-core` input-consuming tasks
-- Relates to: [Input Event Schema](../architecture/input-schema.md), [WASM Bridge](../architecture/wasm-bridge.md)
-
 ### LUT Format and Generation
 
 Lighting lookup tables are specified conceptually in [Rendering](../architecture/rendering.md) but their dimensions, authoring method (baked offline vs. generated at runtime), and file format are undecided.
