@@ -15,7 +15,7 @@ Retro Mage is a retro-style 3D game engine targeting phone browsers, inspired by
 
 ## Overview
 
-The engine layers three technologies, each chosen for a specific role: a Rust/WASM core for simulation and math, a TypeScript rendering layer for GPU work, and a TypeScript input layer for cross-device controls. Vite drives the build. The target device is a modern phone browser (developed and validated against iPhone 16-class hardware), with the browser as the only distribution channel — no native wrapper, no app store, installable as a PWA.
+The engine layers three technologies, each chosen for a specific role: a Rust/WASM core for simulation and math, a TypeScript rendering layer for GPU work, and a TypeScript input layer for cross-device controls. Vite drives the build. The target device is a modern phone browser (developed and validated against iPhone 16e hardware), with the browser as the only distribution channel — no native wrapper, no app store, installable as a PWA.
 
 ## Core Engine — Rust compiled to WebAssembly
 
@@ -43,7 +43,7 @@ The engine targets phone browsers as the primary platform. It is installable as 
 - **Asset caching**: static game assets (textures, tile sets, audio) are cached with a cache-first strategy and versioned cache-busting, so repeat sessions avoid re-downloading unchanged assets.
 - **Full offline gameplay**: once asset budget and bundling strategy are proven out for a given game built on the engine, the full asset set is precached and gameplay runs with zero network dependency after first load. The engine core never assumes network availability mid-session — this stage is a caching strategy change, not an engine architecture change.
 
-Performance validation happens against iPhone 16-class hardware as the reference device — comfortably capable hardware that keeps the retro rendering techniques inexpensive, leaving headroom for the modern-scale additions (longer draw distance, dynamic lighting, outdoor rendering) layered on top.
+Performance validation happens against **iPhone 16e** hardware as the reference device — chosen deliberately as a lower-tier variant of the iPhone 16 line (binned/fewer-core GPU than the standard 16) rather than the top-of-line model, so validated performance numbers carry a built-in safety margin: content that hits target on 16e is expected to run with more headroom on the standard 16 and better. Comfortably capable hardware that keeps the retro rendering techniques inexpensive, leaving headroom for the modern-scale additions (longer draw distance, dynamic lighting, outdoor rendering) layered on top.
 
 ## Related Docs
 

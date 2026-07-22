@@ -44,14 +44,6 @@ Texture, tile, and sprite file formats, folder conventions, how Vite ingests sta
 - Blocks: any task that adds real game assets rather than placeholder geometry
 - Relates to: [Tech Stack](../architecture/tech-stack.md), [Rendering](../architecture/rendering.md)
 
-### Internal Render Resolution Pixel Budget
-
-[Rendering](../architecture/rendering.md) now resolves the approach: a capped internal 3D framebuffer resolution, upscaled via linear filtering, chosen once statically rather than adjusted adaptively at runtime, targeting a flat minimum of 60 FPS on the iPhone 16-class reference device. What remains open is the **concrete cap number** — the actual internal resolution / device-pixel-ratio multiplier / max pixel budget — which must come from benchmarking real frame cost on reference hardware, not from a docs conversation alone.
-
-- Blocks: `render`'s `context.ts` framebuffer/viewport setup finishing with a real number instead of a placeholder
-- Sequencing: run the benchmark pass (see Rendering doc) before or alongside the first real `context.ts` implementation task that wires up the offscreen framebuffer and blit pass
-- Relates to: [Rendering](../architecture/rendering.md), [Tech Stack](../architecture/tech-stack.md)
-
 ### Example Demo Scope
 
 The exact content of the `examples/demo` minimal dungeon (room count, enemy sprite count, light source count) is undefined beyond "minimal, playable, proves the pipeline."

@@ -7,11 +7,16 @@ export interface RenderResolutionConfig {
 
 /**
  * Default internal render resolution configuration.
- * Hardcoded to maxDevicePixelRatio = 1.0 as a conservative placeholder
- * pending real benchmark data from task:12.
+ * maxDevicePixelRatio = 0.70, benchmarked on iPhone 16e against a
+ * representative stress scene (see docs/architecture/rendering.md's
+ * "Performance Target" section) — chosen because p99 frame time dropped
+ * to 22ms at this cap versus 26-29ms at 85%/100%, while retaining more
+ * sharpness than the more conservative 50% cap (18ms p99).
+ * This is the engine's shipped default; consuming games may override it
+ * for their own content's performance profile.
  */
 export const DEFAULT_RENDER_RESOLUTION_CONFIG: Readonly<RenderResolutionConfig> = Object.freeze({
-  maxDevicePixelRatio: 1.0,
+  maxDevicePixelRatio: 0.7,
   maxPixels: Number.POSITIVE_INFINITY,
 });
 

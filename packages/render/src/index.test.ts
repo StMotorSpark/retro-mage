@@ -22,8 +22,8 @@ describe('render', () => {
   });
 
   describe('resolution capping logic', () => {
-    it('uses default config of maxDevicePixelRatio = 1.0', () => {
-      expect(DEFAULT_RENDER_RESOLUTION_CONFIG.maxDevicePixelRatio).toBe(1.0);
+    it('uses default config of maxDevicePixelRatio = 0.7', () => {
+      expect(DEFAULT_RENDER_RESOLUTION_CONFIG.maxDevicePixelRatio).toBe(0.7);
       expect(DEFAULT_RENDER_RESOLUTION_CONFIG.maxPixels).toBe(Number.POSITIVE_INFINITY);
     });
 
