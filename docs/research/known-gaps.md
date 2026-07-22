@@ -33,9 +33,9 @@ Lighting lookup tables are specified conceptually in [Rendering](../architecture
 
 ### Asset Pipeline
 
-Texture compression format is resolved — see [Asset Pipeline](../architecture/asset-pipeline.md). Still undecided: tile/sprite source folder conventions per consuming game, and the outdoor chunk file format.
+Texture compression format, transcode/upload ownership, fallback behavior, and mipmap handling are resolved — see [Asset Pipeline](../architecture/asset-pipeline.md). `packages/render` does not yet implement this target state in code: the bytes-in texture-loading function, ASTC-probe fallback, and block-aligned mip upload are designed but not built (task:17 still wires transcode/upload directly into `examples/demo` as a demonstration, per that task's explicit scope). Building the `packages/render` module itself is the next concrete task.
 
-**`packages/render` does not yet own texture transcode/upload.** `docs/architecture/asset-pipeline.md` defines the target state as `render` owning KTX2 transcode, GPU upload, and the uncompressed-fallback path — but task:17 (Vite plugin build automation) demonstrates the pipeline by wiring transcode/upload code directly into `examples/demo` instead, since no texture-loading module exists in `render` yet. Moving this logic into `packages/render` as a proper public API, and implementing the uncompressed-RGBA32 fallback path for devices without a compressed-texture extension, are both still open.
+Still undecided: tile/sprite source folder conventions per consuming game, and the outdoor chunk file format (the latter deferred until the visibility algorithm gap below is resolved, since chunk file shape depends on the chunking scheme visibility settles on).
 
 - Blocks: any task that adds real game assets rather than placeholder geometry, or has `packages/render` (rather than a consuming app) load textures directly
 - Relates to: [Asset Pipeline](../architecture/asset-pipeline.md), [Tech Stack](../architecture/tech-stack.md), [Rendering](../architecture/rendering.md)
