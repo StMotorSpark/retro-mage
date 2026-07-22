@@ -1,12 +1,12 @@
 ---
 task: "25"
 slug: demo-visibility-proof-scene
-status: pending
+status: done
 depends-on: ["22", "23", "24"]
 blocked-by: ""
 assigned-to: ""
 created: 2025-06-16
-outcome: ""
+outcome: "Implemented multi-room, multi-floor test scene in examples/demo proving shadowcasting occlusion wall, ambient light & torch sight-radius, and vertical opening floor connectivity. Updated PerfOverlay with live controls to adjust max_sight_distance, cull_precision_distance, and ambient_light live while displaying real-time sight radius and rendered tile/actor counts. Verified manually in Chrome macOS build (pnpm --filter demo build & dev): wall occludes actor 1 at (0, 0, -2) until walking around z=0 wall; dark corridor tiles at (-4, -3) collapse sight radius under 0.0 ambient light until approaching torch 1 or increasing ambient light; upper floor tiles and actor 2 at (2, 1, 1) are occluded until standing near (2, 0, 2) vertical opening."
 ---
 
 # Demo Visibility Proof Scene
