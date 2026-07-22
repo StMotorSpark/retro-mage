@@ -68,6 +68,8 @@ Two separate concerns are deliberately kept apart here, following the split/owne
 
 This resolves the outdoor chunk file format question previously tracked as an open gap: there is no single engine-mandated format, by design, so applications can choose handcrafted, procedural, or mixed authoring per their needs.
 
+The same engine-owned-contract/application-owned-source split applies to indoor rooms and the room graph that connects them: the engine defines what a resident room must resolve to (its tile/geometry data plus its graph edges to other rooms and to outdoor seams), and the application decides how rooms and their connections are authored — hand-built level data, a level editor's export format, or procedural generation — the same way it decides outdoor chunk sourcing.
+
 ## Related Docs
 
 - [Visibility](./visibility.md) — the "two data structures, invisible handoff" decision this doc provides the mechanics for, and the sight-distance tuning that constrains load-ahead distance here

@@ -42,6 +42,20 @@ The exact content of the `examples/demo` minimal dungeon (room count, enemy spri
 - Blocks: sizing the first playable-slice task in `examples/demo`
 - Relates to: [Repo Structure](../architecture/repo-structure.md), [World Model](../features/world-model.md)
 
+### World Streaming — ChunkData Contract Field Spec
+
+[World Streaming](../architecture/world-streaming.md) defines the shape a resident outdoor chunk must resolve to (tile/height grid, tile-type table, entity/decoration placement list) conceptually, but exact field types/sizes (tile-id encoding, height precision, entity list layout/max count) are undecided.
+
+- Blocks: task:26 in `engine-core`
+- Relates to: [World Streaming](../architecture/world-streaming.md), [WASM Bridge](../architecture/wasm-bridge.md)
+
+### World Streaming — ChunkProvider Transport Shape
+
+[World Streaming](../architecture/world-streaming.md)'s `ChunkProvider` interface is decided in principle (app-owned chunk source behind an engine-defined contract), but how a chunk request/response actually crosses the WASM boundary is undecided — [WASM Bridge](../architecture/wasm-bridge.md)'s existing buffers are fixed-size, synchronous, per-frame reads, which doesn't obviously fit a chunk load that may involve file I/O or procedural generation spanning multiple frames.
+
+- Blocks: task:26 in `engine-core`
+- Relates to: [World Streaming](../architecture/world-streaming.md), [WASM Bridge](../architecture/wasm-bridge.md)
+
 ## Related Docs
 
 - [Tech Stack](../architecture/tech-stack.md)
@@ -52,5 +66,5 @@ The exact content of the `examples/demo` minimal dungeon (room count, enemy spri
 - [Input Event Schema](../architecture/input-schema.md) — resolves the normalized input event shape gap
 - [Asset Pipeline](../architecture/asset-pipeline.md) — resolves the texture compression format gap
 - [Visibility](../architecture/visibility.md) — resolves the visibility algorithm gap
-- [World Streaming](../architecture/world-streaming.md) — resolves the outdoor chunk file format gap
+- [World Streaming](../architecture/world-streaming.md) — resolves the outdoor chunk file format gap; tracks the ChunkData contract field spec and ChunkProvider transport shape gaps
 - [Test-Driven Development](../principles/test-driven-development.md) — the testing discipline applied to future gap resolutions
