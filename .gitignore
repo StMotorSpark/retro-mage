@@ -16,6 +16,8 @@ dist/
 build/
 *.tsbuildinfo
 .next/
+target/
+*.wasm
 
 # IDE
 .vscode/

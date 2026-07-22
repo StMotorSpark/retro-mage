@@ -1,12 +1,12 @@
 ---
 task: "01"
 slug: bootstrap-monorepo
-status: pending
+status: done
 depends-on: []
 blocked-by: ""
 assigned-to: ""
 created: 2025-06-01
-outcome: ""
+outcome: "pnpm workspace bootstrapped (packages/*, examples/* members) with tsconfig.base.json (strict, ESNext/Bundler), Prettier + ESLint flat config, .editorconfig, and .gitignore covering node_modules/dist/target/*.wasm. Root scripts (build/dev/lint/typecheck/format) fan out via pnpm -r and no-op cleanly against empty workspace. Used corepack to pin pnpm 9.15.9 since pnpm wasn't preinstalled. Added type:module to package.json to silence ESM warning from flat-config eslint.config.js."
 ---
 
 # Bootstrap Monorepo
