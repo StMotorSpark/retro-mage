@@ -1,12 +1,12 @@
 ---
 task: "12"
 slug: render-resolution-benchmark-scene
-status: pending
+status: done
 depends-on: ["11"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-22
-outcome: ""
+outcome: "Built non-canonical throwaway benchmark app in examples/bench/ with 30-tile corridor stress scene, 8 actors, and light animation. Added live rolling avg/p95/p99 frame-timing overlay and dynamic runtime DPR cap switching (100%, 85%, 70%, 50% & custom URL query param). Host server configured with vite --host for LAN reachability."
 ---
 
 # Render Resolution Benchmark Scene

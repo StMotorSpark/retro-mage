@@ -24,6 +24,25 @@ importers:
         specifier: ^8.15.0
         version: 8.65.0(eslint@9.39.5)(typescript@5.9.3)
 
+  examples/bench:
+    dependencies:
+      engine-core:
+        specifier: workspace:*
+        version: link:../../packages/engine-core
+      input:
+        specifier: workspace:*
+        version: link:../../packages/input
+      render:
+        specifier: workspace:*
+        version: link:../../packages/render
+    devDependencies:
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      vite:
+        specifier: ^5.4.11
+        version: 5.4.21(@types/node@22.20.1)(terser@5.49.0)
+
   examples/demo:
     dependencies:
       engine-core:

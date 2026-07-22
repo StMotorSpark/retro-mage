@@ -2,7 +2,7 @@ import { createContext } from './context.js';
 import { createLoop, type RenderLoopOptions, type RenderLoop } from './loop.js';
 import type { WorldStateViews } from './world-state/types.js';
 
-export interface Renderer extends RenderLoop {}
+export type Renderer = RenderLoop;
 
 /**
  * Public entry point for the render package. Bootstraps a WebGL2 context on

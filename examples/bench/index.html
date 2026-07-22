@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Retro Mage — Render Resolution Benchmark (Non-Canonical)</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        width: 100%;
+        overflow: hidden;
+        background: #000;
+        font-family: monospace;
+      }
+      #scene {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      #overlay {
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        z-index: 10;
+        background: rgba(0, 0, 0, 0.85);
+        color: #00ff66;
+        padding: 12px;
+        border-radius: 6px;
+        border: 1px solid #333;
+        font-size: 13px;
+        line-height: 1.5;
+        max-width: calc(100vw - 44px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+      }
+      #overlay h1 {
+        font-size: 14px;
+        margin: 0 0 8px 0;
+        color: #fff;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+      .cap-buttons {
+        margin-top: 10px;
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .cap-btn {
+        background: #222;
+        color: #fff;
+        border: 1px solid #555;
+        padding: 6px 10px;
+        font-family: inherit;
+        font-size: 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        touch-action: manipulation;
+      }
+      .cap-btn.active {
+        background: #008800;
+        border-color: #00ff00;
+        color: #fff;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+    <div id="overlay">
+      <h1>Render Resolution Bench</h1>
+      <div id="stats-render">Loading benchmark scene...</div>
+      <div class="cap-buttons">
+        <button class="cap-btn" data-cap="1.0">100% (1.0)</button>
+        <button class="cap-btn" data-cap="0.85">85% (0.85)</button>
+        <button class="cap-btn" data-cap="0.70">70% (0.70)</button>
+        <button class="cap-btn" data-cap="0.50">50% (0.50)</button>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
