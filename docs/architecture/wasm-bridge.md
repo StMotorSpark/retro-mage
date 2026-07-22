@@ -91,4 +91,4 @@ This document is the single source of truth for buffer layout. Changes to a buff
 - [Tech Stack](./tech-stack.md) — the Rust/WASM and WebGL2 stack this bridge connects
 - [Rendering](./rendering.md) — the rendering pipeline that consumes these buffers, and the fixed-point math guidance this bridge's f32 wire format sits alongside
 - [Repo Structure](./repo-structure.md) — the `engine-core`/`render` package split this bridge crosses
-- [Input Event Schema](./input-schema.md) — the reverse-direction, `input` → `engine-core` schema whose transport mechanism across this same WASM boundary is still undecided
+- [Input Event Schema](./input-schema.md) — the reverse-direction, `input` → `engine-core` schema, which deliberately crosses this same WASM boundary via a per-frame function call rather than a buffer
