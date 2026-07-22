@@ -11,6 +11,11 @@ const MOVE_KNOB_SIZE = 40;
 const MOVE_MAX_RADIUS = (MOVE_BASE_SIZE - MOVE_KNOB_SIZE) / 2;
 
 const LOOK_MAX_RADIUS = 60;
+// Consumed-once per-frame swipe deltas are tiny in raw pixels compared to a
+// held stick's continuous -1..1 range, so boost sensitivity to feel
+// comparable in the shared `look` field's consumer (examples/demo's
+// LOOK_SPEED * dt integration).
+const TOUCH_LOOK_SENSITIVITY = 300;
 
 interface ButtonConfig {
   slot: ButtonSlot;
@@ -258,8 +263,8 @@ export function createTouchSource(container: HTMLElement): TouchSource {
       // still held down (drag-delta feel, not a persistent stick offset).
       // Y is inverted relative to raw swipe direction: swiping up should
       // look down (natural drag-to-look), not up.
-      const lookX = pendingLookDx / LOOK_MAX_RADIUS;
-      const lookY = -(pendingLookDy / LOOK_MAX_RADIUS);
+      const lookX = (pendingLookDx / LOOK_MAX_RADIUS) * TOUCH_LOOK_SENSITIVITY;
+      const lookY = -(pendingLookDy / LOOK_MAX_RADIUS) * TOUCH_LOOK_SENSITIVITY;
       pendingLookDx = 0;
       pendingLookDy = 0;
 
