@@ -1,12 +1,12 @@
 ---
 task: "19"
 slug: demo-consumes-render-texture-loader
-status: pending
+status: done
 depends-on: ["18"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-25
-outcome: ""
+outcome: "Replaced demo inline KTX2 transcode/upload with render's loadKtx2Texture API, removed loaders.gl dependencies from demo package.json, updated vite-plugin-ktx2 README, and resolved texture module gap in known-gaps.md."
 ---
 
 # Demo Consumes Render Texture Loader
