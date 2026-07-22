@@ -24,6 +24,14 @@ importers:
         specifier: ^8.15.0
         version: 8.65.0(eslint@9.39.5)(typescript@5.9.3)
 
+  packages/engine-core: {}
+
+  packages/render:
+    devDependencies:
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+
 packages:
 
   '@eslint-community/eslint-utils@4.10.1':
