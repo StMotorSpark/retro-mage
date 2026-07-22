@@ -44,7 +44,7 @@ retro-mage/
 
 - **`engine-core`** owns simulation truth: world state, entity/actor data, fixed-point math, tile/polygon geometry, visibility determination, collision. It has no rendering or input concerns — it exposes state and accepts normalized input events across the WASM boundary.
 - **`render`** owns everything GPU-facing: shaders, lighting LUTs, sprite drawing, skybox, painter's-algorithm sorting. It reads world state from `engine-core` every frame and draws it; it holds no gameplay logic.
-- **`input`** owns device abstraction: gamepad polling, touch overlay (virtual thumbstick, d-pad, contextual buttons), and normalization into the input event shape `engine-core` consumes. It holds no rendering or simulation logic.
+- **`input`** owns device abstraction: gamepad polling, touch overlay (virtual thumbstick, d-pad, contextual buttons), and normalization into the input event shape `engine-core` consumes. It holds no rendering or simulation logic. The exact normalized shape is defined in [Input Event Schema](./input-schema.md).
 - **`examples/demo`** is the thinnest possible glue: a Vite app that imports all three packages and runs a small, real dungeon scene. It exists to prove the engine works end to end and to give agents a concrete, runnable reference when iterating on any package.
 
 ## Internal Organization — Vertical Slices
