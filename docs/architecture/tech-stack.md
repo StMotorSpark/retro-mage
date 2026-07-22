@@ -7,6 +7,7 @@ relates-to:
   - "[Rendering](./rendering.md)"
   - "[Agent Development Principles](../principles/agent-dev-principles.md)"
   - "[WASM Bridge](./wasm-bridge.md)"
+  - "[Input Event Schema](./input-schema.md)"
 ---
 
 # Tech Stack
@@ -51,3 +52,4 @@ Performance validation happens against **iPhone 16e** hardware as the reference 
 - [Rendering](./rendering.md) — the retro rendering techniques and modern additions built on this stack
 - [Agent Development Principles](../principles/agent-dev-principles.md) — why Rust and vertical-slice organization are chosen for agent-driven development
 - [WASM Bridge](./wasm-bridge.md) — the concrete data contract crossing the Rust/WASM ↔ TypeScript boundary this stack defines
+- [Input Event Schema](./input-schema.md) — the normalized event shape the input layer produces
