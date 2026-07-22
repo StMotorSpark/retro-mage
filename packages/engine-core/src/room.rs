@@ -309,6 +309,33 @@ impl IndoorRoomStreamer {
             }
         }
     }
+
+    /// Preload a room tree (root room + neighbors within hop_depth) without altering `current_room_id`.
+    pub fn preload_room_tree<P: RoomProvider + ?Sized>(
+        &mut self,
+        root_room_id: RoomId,
+        provider: &mut P,
+    ) {
+        self.access_counter += 1;
+        let current_access = self.access_counter;
+        let target_rooms = compute_rooms_within_hops(root_room_id, self.hop_depth, provider);
+
+        for rid in target_rooms {
+            if let Some(resident) = self.resident_rooms.get_mut(&rid) {
+                resident.last_accessed = current_access;
+            } else {
+                if let RoomResult::Ready(node) = provider.request_room(rid) {
+                    self.resident_rooms.insert(
+                        rid,
+                        ResidentRoom {
+                            node,
+                            last_accessed: current_access,
+                        },
+                    );
+                }
+            }
+        }
+    }
 }
 
 impl Default for IndoorRoomStreamer {

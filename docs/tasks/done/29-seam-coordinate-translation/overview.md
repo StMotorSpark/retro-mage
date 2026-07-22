@@ -1,12 +1,12 @@
 ---
 task: "29"
 slug: seam-coordinate-translation
-status: pending
+status: done
 depends-on: ["27", "28"]
 blocked-by: ""
 assigned-to: ""
 created: 2025-06-17
-outcome: ""
+outcome: "Implemented seam coordinate translation and indoor/outdoor streaming handoff per world-streaming design doc. Built SeamTransform 2D rigid transform for local<->global coordinate conversion, Seam structure attached to rooms and outdoor locations, and WorldSeamManager for trigger-distance preloading and seam crossing handoff. Fully tested with Rust unit tests and WASM bindings."
 ---
 
 # Seam Coordinate Translation (Indoor ↔ Outdoor Handoff)

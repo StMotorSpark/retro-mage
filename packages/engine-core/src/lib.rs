@@ -6,6 +6,7 @@ pub mod chunk;
 pub mod input;
 pub mod lights;
 pub mod room;
+pub mod seam;
 pub mod tiles;
 pub mod visibility;
 
@@ -36,6 +37,7 @@ pub struct EngineState {
     chunk_provider: chunk::FlatChunkProvider,
     indoor_streamer: room::IndoorRoomStreamer,
     room_graph: room::RoomGraph,
+    seam_manager: seam::WorldSeamManager,
 }
 
 #[wasm_bindgen]
@@ -50,6 +52,8 @@ impl EngineState {
         let mut room_graph = room::RoomGraph::new();
         let mut indoor_streamer = room::IndoorRoomStreamer::default();
         indoor_streamer.update_for_current_room(&mut room_graph);
+
+        let seam_manager = seam::WorldSeamManager::new(seam::ActiveWorldStructure::Outdoor);
 
         EngineState {
             tick_count: 0.0,
@@ -68,6 +72,7 @@ impl EngineState {
             chunk_provider: provider,
             indoor_streamer,
             room_graph,
+            seam_manager,
         }
     }
 
@@ -96,12 +101,124 @@ impl EngineState {
     /// Advance the engine simulation tick by `dt` seconds and recompute visibility.
     pub fn tick(&mut self, dt: f64) {
         self.tick_count += dt;
-        self.chunk_streamer.update_for_player_pos(
-            self.camera.x[0],
-            self.camera.y[0],
+
+        let mut px = self.camera.x[0];
+        let mut py = self.camera.y[0];
+
+        self.seam_manager.update_and_check_crossing(
+            &mut px,
+            &mut py,
+            &mut self.indoor_streamer,
+            &mut self.room_graph,
+            &mut self.chunk_streamer,
             &mut self.chunk_provider,
         );
+
+        self.camera.x[0] = px;
+        self.camera.y[0] = py;
+
+        if self.seam_manager.active_structure() == seam::ActiveWorldStructure::Outdoor {
+            self.chunk_streamer.update_for_player_pos(
+                px,
+                py,
+                &mut self.chunk_provider,
+            );
+        } else {
+            self.indoor_streamer
+                .update_for_current_room(&mut self.room_graph);
+        }
+
         self.recompute_visibility();
+    }
+
+    /// Current active driving world structure (0 = Indoor, 1 = Outdoor).
+    pub fn active_world_structure(&self) -> u32 {
+        match self.seam_manager.active_structure() {
+            seam::ActiveWorldStructure::Indoor => 0,
+            seam::ActiveWorldStructure::Outdoor => 1,
+        }
+    }
+
+    /// Set active driving world structure (0 = Indoor, 1 = Outdoor).
+    pub fn set_active_world_structure(&mut self, structure: u32) {
+        let active = if structure == 0 {
+            seam::ActiveWorldStructure::Indoor
+        } else {
+            seam::ActiveWorldStructure::Outdoor
+        };
+        self.seam_manager.set_active_structure(active);
+    }
+
+    /// Player X coordinate in active structure's coordinate space.
+    pub fn player_x(&self) -> f32 {
+        self.camera.x[0]
+    }
+
+    /// Player Y coordinate in active structure's coordinate space.
+    pub fn player_y(&self) -> f32 {
+        self.camera.y[0]
+    }
+
+    /// Set player position in active structure's coordinate space.
+    pub fn set_player_pos(&mut self, x: f32, y: f32) {
+        self.camera.x[0] = x;
+        self.camera.y[0] = y;
+        match self.seam_manager.active_structure() {
+            seam::ActiveWorldStructure::Outdoor => {
+                self.chunk_streamer
+                    .update_for_player_pos(x, y, &mut self.chunk_provider);
+            }
+            seam::ActiveWorldStructure::Indoor => {
+                self.indoor_streamer
+                    .update_for_current_room(&mut self.room_graph);
+            }
+        }
+    }
+
+    /// Register a seam in the engine.
+    pub fn register_seam(
+        &mut self,
+        seam_id: u32,
+        room_id: u32,
+        room_tile_x: f32,
+        room_tile_y: f32,
+        outdoor_tile_x: f32,
+        outdoor_tile_y: f32,
+        offset_x: f32,
+        offset_y: f32,
+        rotation_rad: f32,
+    ) {
+        let transform = seam::SeamTransform::new(offset_x, offset_y, rotation_rad);
+        let seam = seam::Seam::new(
+            seam_id,
+            room_id,
+            room_tile_x,
+            room_tile_y,
+            outdoor_tile_x,
+            outdoor_tile_y,
+            transform,
+        );
+        self.seam_manager.register_seam(seam);
+    }
+
+    /// Seam trigger distance in tiles.
+    pub fn seam_trigger_distance(&self) -> f32 {
+        self.seam_manager.seam_trigger_distance()
+    }
+
+    /// Set seam trigger distance in tiles.
+    pub fn set_seam_trigger_distance(&mut self, dist: f32) {
+        self.seam_manager.set_seam_trigger_distance(dist);
+    }
+
+    /// Seam crossing threshold in tiles.
+    pub fn seam_crossing_threshold(&self) -> f32 {
+        self.seam_manager.crossing_threshold()
+    }
+
+    /// Set seam crossing threshold in tiles.
+    pub fn set_seam_crossing_threshold(&mut self, dist: f32) {
+        self.seam_manager.set_crossing_threshold(dist);
     }
 
     /// Outdoor chunk load radius (chunks).
