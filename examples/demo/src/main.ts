@@ -70,9 +70,17 @@ async function main(): Promise<void> {
     const dtMs = time - lastTime;
     lastTime = time;
 
-    perfOverlay.update(dtMs, time);
-
     const inputState = inputSource.getState();
+
+    engineState.set_input(
+      inputState.move.x,
+      inputState.move.y,
+      inputState.look.x,
+      inputState.look.y,
+      inputState.vertical,
+      inputState.buttons,
+      inputState.buttonsPressed
+    );
 
     // Toggle perf overlay visibility on face1 edge press
     if ((inputState.buttonsPressed & FACE1) !== 0) {

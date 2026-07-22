@@ -1,12 +1,12 @@
 ---
 task: "15"
 slug: input-wired-into-engine-core
-status: pending
+status: done
 depends-on: ["13"]
 blocked-by: ""
 assigned-to: ""
 created: 2025-01-01
-outcome: ""
+outcome: "Added set_input method on EngineState in engine-core storing normalized per-frame input struct. Added Rust unit tests and wired examples/demo to transmit input each frame before tick."
 ---
 
 # Input Wired Into Engine Core

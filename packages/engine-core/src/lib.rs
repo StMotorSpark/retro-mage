@@ -2,11 +2,13 @@
 
 pub mod actors;
 pub mod camera;
+pub mod input;
 pub mod lights;
 pub mod tiles;
 
 use actors::{ActorsBuffer, MAX_ACTORS};
 use camera::{CameraBuffer, MAX_CAMERA};
+use input::InputState;
 use lights::{LightsBuffer, MAX_LIGHTS};
 use tiles::{TilesBuffer, MAX_TILES};
 use wasm_bindgen::prelude::*;
@@ -15,6 +17,7 @@ use wasm_bindgen::prelude::*;
 #[wasm_bindgen]
 pub struct EngineState {
     tick_count: f64,
+    input: InputState,
     actors: ActorsBuffer,
     lights: LightsBuffer,
     tiles: TilesBuffer,
@@ -27,11 +30,34 @@ impl EngineState {
     pub fn new() -> EngineState {
         EngineState {
             tick_count: 0.0,
+            input: InputState::default(),
             actors: ActorsBuffer::new(),
             lights: LightsBuffer::new(),
             tiles: TilesBuffer::new(),
             camera: CameraBuffer::new(),
         }
+    }
+
+    /// Update the current frame's normalized input state.
+    pub fn set_input(
+        &mut self,
+        move_x: f32,
+        move_y: f32,
+        look_x: f32,
+        look_y: f32,
+        vertical: f32,
+        buttons: u32,
+        buttons_pressed: u32,
+    ) {
+        self.input = InputState {
+            move_x,
+            move_y,
+            look_x,
+            look_y,
+            vertical,
+            buttons,
+            buttons_pressed,
+        };
     }
 
     /// Advance the engine simulation tick by `dt` seconds.
@@ -351,5 +377,16 @@ mod tests {
             assert_eq!(*state.camera_yaw_ptr(), 0.1);
             assert_eq!(*state.camera_pitch_ptr(), 0.2);
         }
+
+        // Input
+        assert_eq!(state.input, InputState::default());
+        state.set_input(0.75, -0.5, 0.2, -0.1, 1.0, 0b1010, 0b0010);
+        assert_eq!(state.input.move_x, 0.75);
+        assert_eq!(state.input.move_y, -0.5);
+        assert_eq!(state.input.look_x, 0.2);
+        assert_eq!(state.input.look_y, -0.1);
+        assert_eq!(state.input.vertical, 1.0);
+        assert_eq!(state.input.buttons, 0b1010);
+        assert_eq!(state.input.buttons_pressed, 0b0010);
     }
 }
