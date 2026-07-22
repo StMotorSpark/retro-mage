@@ -15,7 +15,9 @@ Each entry links to a design doc and includes the doc's one-line summary. Docs d
 
 > Core feature mechanics and domain logic. Add docs here as you develop features.
 
-_No feature docs yet._
+| Doc | Summary |
+|-----|---------|
+| [`docs/features/world-model.md`](./features/world-model.md) | Retro Mage represents the game world as a grid-ish, real-time dungeon-crawler space indoors and chunked terrain outdoors, with room for simulation depth layered on top. |
 
 ---
 
@@ -23,7 +25,11 @@ _No feature docs yet._
 
 > System structure, technology decisions, data models, integration points.
 
-_No architecture docs yet._
+| Doc | Summary |
+|-----|---------|
+| [`docs/architecture/rendering.md`](./architecture/rendering.md) | Retro Mage renders a tile/polygon hybrid world with sprite-based actors, painter's-algorithm sorting, and lookup-table lighting, extended with longer draw distances and dynamic outdoor rendering for a modern-scale retro look. |
+| [`docs/architecture/repo-structure.md`](./architecture/repo-structure.md) | Retro Mage is a pnpm monorepo where the engine ships as a consumable package, an example dungeon demonstrates it end to end, and every package is organized as vertical feature slices. |
+| [`docs/architecture/tech-stack.md`](./architecture/tech-stack.md) | Retro Mage runs as a phone-first browser engine built on a Rust/WASM core, WebGL2/WebGPU rendering, TypeScript input, Vite tooling, and staged PWA support. |
 
 ---
 
@@ -39,7 +45,11 @@ _No research docs yet._
 
 > Design philosophy, constraints, guiding decisions that cut across features.
 
-_No principle docs yet. See [`AGENTS.md`](../AGENTS.md) for Filesystem as Memory principles._
+| Doc | Summary |
+|-----|---------|
+| [`docs/principles/agent-dev-principles.md`](./principles/agent-dev-principles.md) | Code and docs are organized as discoverable vertical feature slices because agents, not humans, are the primary coding actor. |
+
+See also [`AGENTS.md`](../AGENTS.md) for Filesystem as Memory principles.
 
 ---
 
