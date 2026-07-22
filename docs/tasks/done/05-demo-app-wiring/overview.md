@@ -1,12 +1,12 @@
 ---
 task: "05"
 slug: demo-app-wiring
-status: pending
+status: done
 depends-on: ["02", "03", "04"]
 blocked-by: ""
 assigned-to: ""
 created: 2025-06-01
-outcome: ""
+outcome: "Scaffolded examples/demo Vite app (vanilla TS) importing engine-core (WASM, via init()), render, input as workspace:* deps. src/main.ts inits WASM, starts renderer, runs its own rAF loop calling engineState.tick(dt) and logging inputSource.getState() each frame. Had to build render/input dist output first (pnpm --filter render/input build) before demo typecheck passed, since their .d.ts files aren't checked in. Verified: typecheck, build, and dev server all pass."
 ---
 
 # Demo App Wiring
