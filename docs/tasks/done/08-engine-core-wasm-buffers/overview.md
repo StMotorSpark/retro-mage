@@ -1,12 +1,12 @@
 ---
 task: "08"
 slug: engine-core-wasm-buffers
-status: pending
+status: done
 depends-on: []
 blocked-by: ""
 assigned-to: ""
 created: 2025-06-15
-outcome: ""
+outcome: "Implemented preallocated SoA WASM buffers for actors (64), lights (32), tiles (1024), and camera (1) in engine-core with pointer and count getters for every field, safe setter methods, unit tests, and updated wasm-bridge design doc."
 ---
 
 # Engine-Core WASM Buffers
@@ -27,12 +27,12 @@ Implement the fixed-size, preallocated SoA buffers defined in `docs/architecture
 
 ## Definition of Done
 
-- [ ] All four buffers exist with the exact field sets, types, and max entry counts documented in `docs/architecture/wasm-bridge.md`
-- [ ] Each buffer's data is stored in memory that does not require reallocation during normal operation (fixed-size arrays, not growable `Vec`s reallocated per-frame)
-- [ ] Pointer + count getters exist for every field of every buffer, following one consistent naming convention
-- [ ] `cargo test` passes, including tests asserting exact round-trip values for at least one populated entry per buffer
-- [ ] `wasm-pack build` still produces a working `pkg/` output with `.d.ts` types covering the new getters
-- [ ] `docs/architecture/wasm-bridge.md`'s "Memory Access Pattern" section reflects the actual getter naming convention chosen (update the doc if the task settles on a naming pattern not already explicit there)
+- [x] All four buffers exist with the exact field sets, types, and max entry counts documented in `docs/architecture/wasm-bridge.md`
+- [x] Each buffer's data is stored in memory that does not require reallocation during normal operation (fixed-size arrays, not growable `Vec`s reallocated per-frame)
+- [x] Pointer + count getters exist for every field of every buffer, following one consistent naming convention
+- [x] `cargo test` passes, including tests asserting exact round-trip values for at least one populated entry per buffer
+- [x] `wasm-pack build` still produces a working `pkg/` output with `.d.ts` types covering the new getters
+- [x] `docs/architecture/wasm-bridge.md`'s "Memory Access Pattern" section reflects the actual getter naming convention chosen (update the doc if the task settles on a naming pattern not already explicit there)
 
 ## Out of Scope
 

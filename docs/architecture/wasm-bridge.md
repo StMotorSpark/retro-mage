@@ -74,7 +74,7 @@ This buffer's exact field set is expected to grow once the [Visibility Algorithm
 
 ## Memory Access Pattern
 
-`engine-core` exposes, per buffer, a pointer (byte offset into WASM linear memory) and a live count (how many of the preallocated max entries are currently active) via plain `#[wasm_bindgen]` getter methods — e.g. `actors_ptr()`, `actors_count()`, and one pair per field per buffer. `render` wraps each pointer in a typed-array view over `memory.buffer` (the `WebAssembly.Memory` instance `wasm-bindgen` exposes) once, then re-wraps it each frame only if the underlying memory has grown, since a memory growth event invalidates existing views.
+`engine-core` exposes, per buffer field, a pointer getter (byte offset into WASM linear memory) and an element count getter via plain `#[wasm_bindgen]` methods — following the `<buffer>_<field>_ptr()` and `<buffer>_<field>_count()` convention (e.g. `actors_x_ptr()`, `actors_x_count()`). Each buffer category also exposes a `<buffer>_count()` method returning the current count of live/active entries. `render` wraps each pointer in a typed-array view over `memory.buffer` (the `WebAssembly.Memory` instance `wasm-bindgen` exposes) once, then re-wraps it each frame only if the underlying memory has grown, since a memory growth event invalidates existing views.
 
 Because buffers are fixed-size and preallocated once at `EngineState` construction, WASM memory does not need to grow to accommodate world-state changes during normal play — reallocation is only a concern if `engine-core`'s own heap usage (e.g. incidental allocations elsewhere) forces a memory grow. `render` re-fetches its buffer views defensively at the start of each frame to guard against this rather than assuming views stay valid forever.
 
