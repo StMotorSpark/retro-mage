@@ -53,7 +53,8 @@ async function main(): Promise<void> {
 
   // Pass reader view getter to the render loop
   const renderer = createRenderer(canvas, () => reader.read());
-  const inputSource = createInputSource(overlay);
+  // Override the touch look sensitivity default (3) up to 5 for this demo's feel.
+  const inputSource = createInputSource(overlay, { touch: { lookSensitivity: 5 } });
   const perfOverlay = new PerfOverlay();
 
   renderer.start();

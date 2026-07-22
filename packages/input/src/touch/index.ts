@@ -14,8 +14,13 @@ const LOOK_MAX_RADIUS = 60;
 // Consumed-once per-frame swipe deltas are tiny in raw pixels compared to a
 // held stick's continuous -1..1 range, so boost sensitivity to feel
 // comparable in the shared `look` field's consumer (examples/demo's
-// LOOK_SPEED * dt integration).
-const TOUCH_LOOK_SENSITIVITY = 3;
+// LOOK_SPEED * dt integration). Overridable per-app via TouchSourceOptions.
+const DEFAULT_TOUCH_LOOK_SENSITIVITY = 3;
+
+export interface TouchSourceOptions {
+  /** Multiplier applied to the normalized per-frame swipe delta driving `look`. */
+  lookSensitivity?: number;
+}
 
 interface ButtonConfig {
   slot: ButtonSlot;
@@ -41,7 +46,8 @@ const BUTTON_CONFIGS: ButtonConfig[] = [
   { slot: 'trigger4', label: 'T4', className: 'retro-input-btn-trigger4' },
 ];
 
-export function createTouchSource(container: HTMLElement): TouchSource {
+export function createTouchSource(container: HTMLElement, options: TouchSourceOptions = {}): TouchSource {
+  const lookSensitivity = options.lookSensitivity ?? DEFAULT_TOUCH_LOOK_SENSITIVITY;
   const state = createEmptyInputState();
   let prevButtons = 0;
   let activeButtonsMask = 0;
@@ -263,8 +269,8 @@ export function createTouchSource(container: HTMLElement): TouchSource {
       // still held down (drag-delta feel, not a persistent stick offset).
       // Y is inverted relative to raw swipe direction: swiping up should
       // look down (natural drag-to-look), not up.
-      const lookX = (pendingLookDx / LOOK_MAX_RADIUS) * TOUCH_LOOK_SENSITIVITY;
-      const lookY = -(pendingLookDy / LOOK_MAX_RADIUS) * TOUCH_LOOK_SENSITIVITY;
+      const lookX = (pendingLookDx / LOOK_MAX_RADIUS) * lookSensitivity;
+      const lookY = -(pendingLookDy / LOOK_MAX_RADIUS) * lookSensitivity;
       pendingLookDx = 0;
       pendingLookDy = 0;
 
