@@ -3,6 +3,7 @@
 pub mod actors;
 pub mod camera;
 pub mod chunk;
+pub mod collision;
 pub mod input;
 pub mod lights;
 pub mod room;
@@ -11,6 +12,7 @@ pub mod streaming_config;
 pub mod tiles;
 pub mod visibility;
 
+pub use collision::CollisionConfig;
 pub use streaming_config::StreamingConfig;
 
 use std::collections::HashMap;
@@ -28,6 +30,7 @@ pub struct EngineState {
     ambient_light: f32,
     max_sight_distance: f32,
     cull_precision_distance: f32,
+    collision_config: collision::CollisionConfig,
     input: InputState,
     actors: ActorsBuffer,
     lights: LightsBuffer,
@@ -63,6 +66,7 @@ impl EngineState {
             ambient_light: 0.0,
             max_sight_distance: visibility::DEFAULT_MAX_DRAW_DISTANCE,
             cull_precision_distance: visibility::DEFAULT_MAX_DRAW_DISTANCE,
+            collision_config: collision::CollisionConfig::default(),
             input: InputState::default(),
             actors: ActorsBuffer::new(),
             lights: LightsBuffer::new(),
@@ -104,6 +108,38 @@ impl EngineState {
     /// Advance the engine simulation tick by `dt` seconds and recompute visibility.
     pub fn tick(&mut self, dt: f64) {
         self.tick_count += dt;
+        let dt_f32 = dt as f32;
+
+        // --- Look input: update yaw / pitch ---
+        let (new_yaw, new_pitch) = collision::apply_look(
+            self.camera.yaw[0],
+            self.camera.pitch[0],
+            self.input.look_x,
+            self.input.look_y,
+            self.collision_config.look_sensitivity,
+            dt_f32,
+        );
+        self.camera.yaw[0] = new_yaw;
+        self.camera.pitch[0] = new_pitch;
+
+        // --- Movement input: compute desired delta, resolve against solid tiles ---
+        let (dx, dz) = collision::compute_movement_delta(
+            self.input.move_x,
+            self.input.move_y,
+            self.camera.yaw[0],
+            self.collision_config.player_speed,
+            dt_f32,
+        );
+        let (new_px, new_pz) = collision::resolve_movement(
+            self.camera.x[0],
+            self.camera.z[0],
+            dx,
+            dz,
+            self.collision_config.player_radius,
+            &self.master_tiles,
+        );
+        self.camera.x[0] = new_px;
+        self.camera.z[0] = new_pz;
 
         let mut px = self.camera.x[0];
         let mut py = self.camera.y[0];
@@ -427,6 +463,50 @@ impl EngineState {
     pub fn set_cull_precision_distance(&mut self, dist: f32) {
         self.cull_precision_distance = dist;
         self.recompute_visibility();
+    }
+
+    // ==========================================
+    // Collision / Movement Config
+    // ==========================================
+
+    /// Current collision and movement configuration.
+    pub fn collision_config(&self) -> collision::CollisionConfig {
+        self.collision_config
+    }
+
+    /// Set collision and movement configuration.
+    pub fn set_collision_config(&mut self, config: collision::CollisionConfig) {
+        self.collision_config = config;
+    }
+
+    /// Player movement speed in tiles per second.
+    pub fn player_speed(&self) -> f32 {
+        self.collision_config.player_speed
+    }
+
+    /// Set player movement speed in tiles per second.
+    pub fn set_player_speed(&mut self, speed: f32) {
+        self.collision_config.player_speed = speed;
+    }
+
+    /// Player collision radius in tiles.
+    pub fn player_radius(&self) -> f32 {
+        self.collision_config.player_radius
+    }
+
+    /// Set player collision radius in tiles.
+    pub fn set_player_radius(&mut self, radius: f32) {
+        self.collision_config.player_radius = radius;
+    }
+
+    /// Camera look sensitivity in radians per second per unit input.
+    pub fn look_sensitivity(&self) -> f32 {
+        self.collision_config.look_sensitivity
+    }
+
+    /// Set camera look sensitivity.
+    pub fn set_look_sensitivity(&mut self, sensitivity: f32) {
+        self.collision_config.look_sensitivity = sensitivity;
     }
 
     // ==========================================
@@ -1311,5 +1391,108 @@ mod tests {
         assert_eq!(config.outdoor_evict_radius, 3);
         assert_eq!(config.indoor_hop_depth, 1);
         assert_eq!(config.seam_trigger_distance, 5.0);
+    }
+
+    // ==========================================
+    // Collision / Movement integration tests
+    // ==========================================
+
+    #[test]
+    fn test_collision_config_defaults_on_new_state() {
+        let state = EngineState::new();
+        assert_eq!(state.player_speed(), collision::DEFAULT_PLAYER_SPEED);
+        assert_eq!(state.player_radius(), collision::DEFAULT_PLAYER_RADIUS);
+        assert_eq!(state.look_sensitivity(), collision::DEFAULT_LOOK_SENSITIVITY);
+    }
+
+    #[test]
+    fn test_collision_config_app_override() {
+        let mut state = EngineState::new();
+        state.set_player_speed(6.0);
+        state.set_player_radius(0.4);
+        state.set_look_sensitivity(3.0);
+        assert_eq!(state.player_speed(), 6.0);
+        assert_eq!(state.player_radius(), 0.4);
+        assert_eq!(state.look_sensitivity(), 3.0);
+    }
+
+    #[test]
+    fn test_tick_applies_look_input_to_yaw() {
+        let mut state = EngineState::new();
+        state.set_camera(0.0, 0.0, 0.0, 0.0, 0.0);
+        // look_x=1 with default sensitivity (2.0 rad/s) over dt=0.5s → yaw += 1.0
+        state.set_input(0.0, 0.0, 1.0, 0.0, 0.0, 0, 0);
+        state.tick(0.5);
+        let yaw = unsafe { *state.camera_yaw_ptr() };
+        assert!((yaw - 1.0).abs() < 1e-4, "yaw={}", yaw);
+    }
+
+    #[test]
+    fn test_tick_applies_pitch_input_clamped() {
+        let mut state = EngineState::new();
+        state.set_camera(0.0, 0.0, 0.0, 0.0, 0.0);
+        // look_y=1 for 100s → should clamp at ~85°, not exceed π/2
+        state.set_input(0.0, 0.0, 0.0, 1.0, 0.0, 0, 0);
+        state.tick(100.0);
+        let pitch = unsafe { *state.camera_pitch_ptr() };
+        assert!(pitch < std::f32::consts::FRAC_PI_2, "pitch={}", pitch);
+    }
+
+    #[test]
+    fn test_tick_moves_player_forward_at_yaw_zero() {
+        let mut state = EngineState::new();
+        state.set_ambient_light(1.0);
+        state.set_camera(0.0, 0.0, 0.0, 0.0, 0.0); // yaw=0 → forward = -Z
+        // move_y=1 (forward), dt=1s, speed=4.0 → dz = -4.0
+        state.set_input(0.0, 1.0, 0.0, 0.0, 0.0, 0, 0);
+        state.tick(1.0);
+        let pz = unsafe { *state.camera_z_ptr() };
+        assert!(pz < 0.0, "Expected player moved toward -Z, got z={}", pz);
+    }
+
+    #[test]
+    fn test_tick_collision_stops_player_before_wall() {
+        let mut state = EngineState::new();
+        state.set_ambient_light(1.0);
+        // Place camera at origin, yaw=0 → facing -Z
+        state.set_camera(0.0, 0.0, 0.0, 0.0, 0.0);
+        // Solid wall tile at (0, 0, -3): tile AABB Z face at z = -3 + 0.5 = -2.5
+        // With radius 0.3, player stops at z ≥ -2.5 + 0.3 = -2.2
+        state.set_tile(0, 0.0, 0.0, -3.0, 1.0, 0.0, 1.0, 0.0);
+        state.set_input(0.0, 1.0, 0.0, 0.0, 0.0, 0, 0);
+        // Run for 10 seconds — without collision player would travel 40 tiles
+        state.tick(10.0);
+        let pz = unsafe { *state.camera_z_ptr() };
+        assert!(pz > -2.5 + 0.3 - 1e-3, "Player passed through wall: z={}", pz);
+    }
+
+    #[test]
+    fn test_tick_non_solid_tile_does_not_block_movement() {
+        let mut state = EngineState::new();
+        state.set_ambient_light(1.0);
+        state.set_camera(0.0, 0.0, 0.0, 0.0, 0.0);
+        // Floor tile (solid=0) directly ahead — should not block
+        state.set_tile(0, 0.0, 0.0, -1.0, 1.0, 0.0, 0.0, 0.0);
+        state.set_input(0.0, 1.0, 0.0, 0.0, 0.0, 0, 0);
+        state.tick(0.1);
+        let pz = unsafe { *state.camera_z_ptr() };
+        assert!(pz < 0.0, "Non-solid tile incorrectly blocked movement: z={}", pz);
+    }
+
+    #[test]
+    fn test_tick_sliding_along_wall() {
+        let mut state = EngineState::new();
+        state.set_ambient_light(1.0);
+        // Place player left of a wall running along the Z axis
+        // Solid wall at (1, 0, 0): blocks +X movement but not -Z movement
+        state.set_camera(-0.5, 0.0, 2.0, 0.0, 0.0); // yaw=0 → facing -Z
+        state.set_tile(0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0);
+        // Move diagonally: forward (-Z) and strafe right (+X)
+        // The +X component hits the wall but -Z should succeed (slide)
+        state.set_input(1.0, 1.0, 0.0, 0.0, 0.0, 0, 0); // move_x=1 (strafe right), move_y=1 (forward)
+        let z_before = 2.0_f32;
+        state.tick(0.5);
+        let pz = unsafe { *state.camera_z_ptr() };
+        assert!(pz < z_before, "Expected Z slide (forward movement), got z={}", pz);
     }
 }
