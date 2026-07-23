@@ -1,10 +1,10 @@
 ---
 task: "32"
 slug: deploy-demo-example
-status: pending
+status: in-flight
 depends-on: []
 blocked-by: ""
-assigned-to: ""
+assigned-to: "agent"
 created: 2026-01-01
 outcome: ""
 ---
@@ -19,6 +19,7 @@ Stand up the AWS infrastructure and GitHub Actions pipeline described in `docs/a
 - Provide the CloudFront distribution's `*.cloudfront.net` domain name back to the user so they can add the external DNS CNAME (DNS for `pixeldrip.games` is managed outside this AWS account — the implementer does not have access to add this record and must hand it off)
 - Create IAM resources scoped for CI deploys (e.g. an IAM user or role with least-privilege access to: put/delete objects in the demo bucket, create CloudFront invalidations on the demo distribution only)
 - Add a GitHub Actions workflow (e.g. `.github/workflows/deploy-demo.yml`) that: builds workspace packages, builds `examples/demo`, syncs `dist/` to the S3 bucket, invalidates the CloudFront distribution
+- Workflow triggers via `workflow_dispatch` with a required `branch` input (defaults to `main`) so any branch, including an open PR's branch, can be deployed to the same demo URL for pre-merge testing
 - Set the GitHub Actions secrets/variables the workflow needs (AWS credentials or OIDC role ARN, bucket name, distribution ID) on the repo using `gh secret set` / `gh variable set`
 - Trigger the workflow (or run the deploy manually once) to confirm the pipeline works end to end, and confirm the demo is reachable once DNS is added
 
@@ -28,7 +29,7 @@ Stand up the AWS infrastructure and GitHub Actions pipeline described in `docs/a
 - [ ] ACM certificate for `retro-mage-demo.pixeldrip.games` issued and validated (or validation records handed to the user if DNS validation requires external DNS access)
 - [ ] CloudFront distribution exists, aliased to `retro-mage-demo.pixeldrip.games`, cert attached, serving the S3 bucket
 - [ ] User has been given the CloudFront domain name and told exactly what CNAME record to add externally
-- [ ] `.github/workflows/deploy-demo.yml` exists, triggers on manual dispatch at minimum (push-trigger on `examples/demo` or `packages/**` changes is a reasonable addition, implementer's choice)
+- [ ] `.github/workflows/deploy-demo.yml` exists, triggered via `workflow_dispatch` with a `branch` input (default `main`); workflow checks out that ref before building
 - [ ] Workflow runs build → sync → invalidate steps and completes successfully against the real infra when manually triggered
 - [ ] All secrets/variables the workflow reads are set on the GitHub repo via `gh secret set` / `gh variable set` — no secrets committed to the repo
 - [ ] IAM credentials used by the workflow are scoped to only this bucket/distribution, not full AWS account access
@@ -50,7 +51,7 @@ Stand up the AWS infrastructure and GitHub Actions pipeline described in `docs/a
 4. Request the ACM certificate (`aws acm request-certificate --domain-name retro-mage-demo.pixeldrip.games --validation-method DNS --region us-east-1`); surface the DNS validation CNAME record to the user immediately, since ACM validation requires it in external DNS before the cert issues
 5. Once the cert is validated, create the CloudFront distribution (`aws cloudfront create-distribution` or via a config JSON file), aliased to the subdomain, cert attached
 6. Create a scoped IAM user or OIDC role for GitHub Actions with a policy limited to `s3:PutObject`/`s3:DeleteObject`/`s3:ListBucket` on the demo bucket ARN and `cloudfront:CreateInvalidation` on the demo distribution ARN
-7. Write `.github/workflows/deploy-demo.yml`: checkout → pnpm install → `pnpm -r build` (or targeted `pnpm --filter demo... build` respecting workspace dependency order) → `aws s3 sync examples/demo/dist s3://<bucket>` → `aws cloudfront create-invalidation --distribution-id <id> --paths "/*"`
+7. Write `.github/workflows/deploy-demo.yml`: `workflow_dispatch` with required `branch` input (default `main`) → checkout that ref → pnpm install → `pnpm -r build` (or targeted `pnpm --filter demo... build` respecting workspace dependency order) → `aws s3 sync examples/demo/dist s3://<bucket>` → `aws cloudfront create-invalidation --distribution-id <id> --paths "/*"`
 8. Set repo secrets/variables via `gh secret set` (credentials) and `gh variable set` (bucket name, distribution ID) so the workflow file references `${{ secrets.* }}` / `${{ vars.* }}` rather than hardcoded values
 9. Manually trigger the workflow (`gh workflow run`) and confirm it completes successfully; verify the S3 bucket/website endpoint serves the built app directly (before DNS is live) as a sanity check
 10. Report back to the user: CloudFront domain name + exact CNAME record to add, and confirmation the deploy pipeline works

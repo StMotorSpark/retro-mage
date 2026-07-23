@@ -47,12 +47,15 @@ Deploying `examples/demo` as a static artifact means the build step resolves eve
 
 ## Deploy Flow
 
-1. `pnpm --filter demo build` (workspace packages build first via `pnpm -r` ordering)
-2. Sync `examples/demo/dist` to the example's S3 bucket
-3. Invalidate the CloudFront distribution so the new build serves immediately
-4. Hashed static assets (JS/CSS/KTX2/WASM) are cached long-lived and immutable; `index.html` and the service worker script are served no-cache, so clients always fetch the latest app shell on load
+Deployment runs through a GitHub Actions workflow (`.github/workflows/deploy-demo.yml`), triggered manually with a `branch` input (defaults to `main`). This lets any branch — including an open PR's branch — deploy to the same `retro-mage-demo.pixeldrip.games` URL for pre-merge testing, without a per-PR preview environment.
 
-This flow runs manually against the account holding `pixeldrip.games`'s infrastructure. Automating it behind CI is a natural next step but not required for the hosting shape itself to be correct.
+1. Workflow checks out the requested branch
+2. `pnpm -r build` (workspace packages build first via `pnpm -r` ordering), then `pnpm --filter demo build`
+3. Sync `examples/demo/dist` to the example's S3 bucket
+4. Invalidate the CloudFront distribution so the new build serves immediately
+5. Hashed static assets (JS/CSS/KTX2/WASM) are cached long-lived and immutable; `index.html` and the service worker script are served no-cache, so clients always fetch the latest app shell on load
+
+Because the workflow always deploys to the same bucket/distribution, only one branch's build is live at a time — deploying a PR branch to test it temporarily replaces whatever was previously deployed (`main` or another PR). This is a single shared test environment, not one environment per PR.
 
 ## Related Docs
 
