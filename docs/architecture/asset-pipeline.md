@@ -7,6 +7,7 @@ relates-to:
   - "[Rendering](./rendering.md)"
   - "[Repo Structure](./repo-structure.md)"
   - "[Known Gaps](../research/known-gaps.md)"
+  - "[Example Deployment](./example-deployment.md)"
 ---
 
 # Asset Pipeline
@@ -47,3 +48,4 @@ KTX2/UASTC transcoding and rendering is confirmed working end-to-end on both des
 - [Rendering](./rendering.md) — the low-poly, retro visual approach this format's memory/bandwidth budget supports
 - [Repo Structure](./repo-structure.md) — the engine-package-vs-consuming-game boundary this pipeline's responsibility split follows
 - [Known Gaps](../research/known-gaps.md) — remaining undecided asset-pipeline questions: the compression Vite plugin's exact implementation, tile/sprite folder conventions, and the outdoor chunk file format
+- [Example Deployment](./example-deployment.md) — how build-time-compressed KTX2 textures ship as static files in the deployed example
