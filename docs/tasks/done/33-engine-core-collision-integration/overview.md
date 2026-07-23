@@ -1,12 +1,12 @@
 ---
 task: "33"
 slug: engine-core-collision-integration
-status: pending
+status: done
 depends-on: []
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-23
-outcome: ""
+outcome: "Ported collision module into engine-core, exposed CollisionConfig via WASM bridge with app-tunable setters/getters, and integrated facing-relative look and movement with circle-vs-AABB tile collision sliding into EngineState::tick(). Passed all 70 engine-core unit tests."
 ---
 
 # Engine-Core Collision Integration
