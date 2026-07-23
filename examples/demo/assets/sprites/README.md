@@ -8,9 +8,7 @@ This directory contains human-provided source PNG sprites for `examples/demo` Ph
 |-------|--------|------------|---------|---------|
 | `tree-sprite.png` | PNG → KTX2/UASTC | 64×128 | Task 38 | Outdoor tree actors (single frame billboard) |
 
-## Build Note & Plugin Coverage Flag
+## Build Note & Plugin Coverage
 
-`vite-plugin-ktx2` in `examples/demo/vite.config.ts` currently configures `assetsDir: 'assets/textures'`.
-As a result, source files in `assets/sprites/` are **NOT** automatically processed by `vite-plugin-ktx2`.
-
-> **Attention Task 38:** Task 38 must address sprite KTX2 compression — either by moving sprite assets under `assets/textures/`, or by updating `vite-plugin-ktx2` config in `examples/demo/vite.config.ts` to include `assets/sprites`. Do not resolve this in Task 34.
+`vite-plugin-ktx2` in `examples/demo/vite.config.ts` includes a plugin instance for `assets/sprites`.
+Source PNG files in `assets/sprites/` are automatically compressed to `.ktx2` at build time.

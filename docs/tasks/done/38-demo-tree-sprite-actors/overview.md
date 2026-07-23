@@ -1,12 +1,12 @@
 ---
 task: "38"
 slug: demo-tree-sprite-actors
-status: pending
+status: done
 depends-on: ["34", "37"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-23
-outcome: ""
+outcome: "Implemented billboard sprite rendering with Y-axis camera billboarding and painter's-algorithm depth sorting in packages/render. Placed 6 tree actors across outdoor chunk area in examples/demo/src/main.ts and loaded tree-sprite.ktx2. Resolved KTX2 pipeline gap by adding assets/sprites plugin instance to vite.config.ts."
 ---
 
 # Demo Tree Sprite Actors

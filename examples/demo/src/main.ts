@@ -131,6 +131,15 @@ async function main(): Promise<void> {
   // Gate Room Torch
   engineState.set_light(3, 7.0, 1.5, 4.5, 1.0, 0.7, 0.3, 8.0, 1.0);
 
+  // Tree Billboard Sprite Actors (6 total) in outdoor chunk area (task:38)
+  // Scattered across outdoor area around seam exit (32, 32), avoiding direct path
+  engineState.set_actor(0, 25.0, 0.0, 24.0, 0.0, 1.0, 1.0);
+  engineState.set_actor(1, 38.0, 0.0, 26.0, 0.0, 1.0, 1.0);
+  engineState.set_actor(2, 22.0, 0.0, 36.0, 0.0, 1.0, 1.0);
+  engineState.set_actor(3, 40.0, 0.0, 38.0, 0.0, 1.0, 1.0);
+  engineState.set_actor(4, 28.0, 0.0, 44.0, 0.0, 1.0, 1.0);
+  engineState.set_actor(5, 36.0, 0.0, 42.0, 0.0, 1.0, 1.0);
+
   // Set up world state reader over WASM memory
   const reader = new WorldStateReader(engineState, wasmOutput.memory);
 
@@ -139,7 +148,7 @@ async function main(): Promise<void> {
     getViews: () => reader.read(),
   });
 
-  // Wire textures into world-tiles renderer
+  // Wire textures into world-tiles and sprites renderers
   try {
     const wallRes = await fetch('/assets/textures/wall.ktx2');
     if (wallRes.ok) {
@@ -153,6 +162,12 @@ async function main(): Promise<void> {
       const buffer = await grassRes.arrayBuffer();
       const loaded = await loadKtx2Texture(gl, buffer);
       renderer.tileRenderer?.setTexture(3, loaded.texture); // grass terrain (tile_id 3)
+    }
+    const treeRes = await fetch('/assets/sprites/tree-sprite.ktx2');
+    if (treeRes.ok) {
+      const buffer = await treeRes.arrayBuffer();
+      const loaded = await loadKtx2Texture(gl, buffer);
+      renderer.spriteRenderer?.setTexture(1, loaded.texture); // tree sprite (sprite_id 1)
     }
   } catch (err) {
     // eslint-disable-next-line no-console

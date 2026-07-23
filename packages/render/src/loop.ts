@@ -18,6 +18,7 @@ export interface RenderLoop {
   getOffscreenDimensions(): { width: number; height: number };
   tileRenderer?: TileRenderer | null;
   skyboxRenderer?: SkyboxRenderer | null;
+  spriteRenderer?: SpriteRenderer | null;
   setSkyboxEnabled(enabled: boolean): void;
 }
 
@@ -27,6 +28,7 @@ export interface RenderLoopOptions {
   resolutionConfig?: RenderResolutionConfig;
   tileRenderer?: TileRenderer;
   skyboxRenderer?: SkyboxRenderer;
+  spriteRenderer?: SpriteRenderer;
 }
 
 const CLEAR_COLOR: readonly [number, number, number, number] = [0.05, 0.05, 0.1, 1];
@@ -161,6 +163,7 @@ export function createLoop(
     },
     tileRenderer,
     skyboxRenderer,
+    spriteRenderer,
     setSkyboxEnabled(enabled: boolean): void {
       skyboxEnabled = enabled;
     },
