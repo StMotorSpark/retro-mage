@@ -7,6 +7,7 @@ relates-to:
   - "[Rendering](../architecture/rendering.md)"
   - "[Visibility](../architecture/visibility.md)"
   - "[World Streaming](../architecture/world-streaming.md)"
+  - "[Collision](../architecture/collision.md)"
   - "[WASM Bridge](../architecture/wasm-bridge.md)"
   - "[Asset Pipeline](../architecture/asset-pipeline.md)"
   - "[Input Event Schema](../architecture/input-schema.md)"
@@ -41,9 +42,9 @@ Three rooms connected by doorways, authored as hand-placed tile fixtures in `exa
 
 **Tile textures**: stone wall, stone floor. Two KTX2 textures, authored as 64×64 PNG, compressed at build time by `vite-plugin-ktx2`.
 
-**Lights**: 3 total torch point lights (one per room, with the exception of Entry Hall which has two). Each light has a warm orange-yellow color (`r=1.0, g=0.7, b=0.3`), intensity sufficient to illuminate its room when ambient light is low. Ambient light for the indoor space is set low (`ambient_light ≈ 0.05`) so torch lights are the primary illumination — demonstrating the sight-radius-collapses-toward-light-sources behavior described in [Visibility](../architecture/visibility.md).
+**Lights**: 4 total torch point lights (Entry Hall has two, each other room has one). Each light has a warm orange-yellow color (`r=1.0, g=0.7, b=0.3`), intensity sufficient to illuminate its room when ambient light is low. Ambient light for the indoor space is set low (`ambient_light ≈ 0.05`) so torch lights are the primary illumination — demonstrating the sight-radius-collapses-toward-light-sources behavior described in [Visibility](../architecture/visibility.md).
 
-**Collision**: player cannot walk through solid tiles. Implemented as AABB vs solid tile grid in `engine-core`'s `collision` module (see [Known Gaps — Collision System](../research/known-gaps.md#collision-system) for the design decisions that must be resolved before this is implemented).
+**Collision**: player cannot walk through solid tiles. Implemented as circle-vs-AABB collision against the master tile grid in `engine-core`'s `collision` module, with sliding resolution — see [Collision](../architecture/collision.md).
 
 **Room streaming**: indoor streamer with default hop depth (1) keeps Entry Hall + its direct neighbors resident. Walking from Entry Hall into Armory or Gate Room triggers neighbor update with no visible load event, per [World Streaming](../architecture/world-streaming.md).
 
@@ -70,7 +71,7 @@ A 3×3 chunk area (each chunk 32×32 tiles, total ~96×96 tiles of visible terra
 ## Player Controls
 
 Input wired per [Input Event Schema](../architecture/input-schema.md):
-- `move_x/y` → player translation (forward/back/strafe) within the active world structure
+- `move_x/y` → player translation (forward/back/strafe), facing-relative via camera yaw
 - `look_x/y` → camera yaw/pitch rotation
 - Touch overlay default layout (virtual thumbstick + swipe look zone) active on mobile; physical gamepad active on desktop
 
@@ -94,7 +95,7 @@ All assets authored in `examples/demo/assets/textures/`, compressed to `public/a
 | Textured tile rendering | Stone walls/floor indoors, grass outdoors |
 | LUT lighting | Torch point lights in low-ambient dungeon rooms |
 | Visibility / shadowcasting | Occlusion as player moves through doorways and rooms |
-| Collision | Player blocked by solid wall tiles |
+| Collision | Player blocked by solid wall tiles, slides along walls |
 | Indoor room streaming | 3-room graph, hop-depth adjacency load/evict |
 | Seam transition | Door in Gate Room crossing to outdoor chunk grid |
 | Streaming preload | Outdoor chunk resident before player reaches door |
@@ -119,9 +120,10 @@ These are explicitly out of scope and tracked as [Demo Scope Phase 2](../researc
 
 - [World Model](./world-model.md) — the indoor/outdoor world structure this demo instantiates
 - [Rendering](../architecture/rendering.md) — the tile/sprite/LUT/painter's-algorithm pipeline the demo exercises
+- [Collision](../architecture/collision.md) — the movement and collision system the player uses to navigate
 - [Visibility](../architecture/visibility.md) — the shadowcasting cull and light-driven sight radius the demo exercises
 - [World Streaming](../architecture/world-streaming.md) — the indoor room graph and outdoor chunk streaming the demo exercises
 - [WASM Bridge](../architecture/wasm-bridge.md) — the per-frame buffer contract carrying demo world state to render
 - [Asset Pipeline](../architecture/asset-pipeline.md) — how demo's PNG textures compress to KTX2 at build time
 - [Input Event Schema](../architecture/input-schema.md) — the normalized input the demo's player controls emit
-- [Known Gaps](../research/known-gaps.md) — collision and LUT gaps that must be resolved before this demo is fully implemented
+- [Known Gaps](../research/known-gaps.md) — LUT and remaining gaps that must be resolved before this demo is fully implemented
