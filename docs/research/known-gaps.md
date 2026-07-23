@@ -22,13 +22,6 @@ This doc tracks design questions the current docs leave open — decisions not y
 
 ## Open Questions
 
-### LUT Format and Generation
-
-Lighting lookup tables are specified conceptually in [Rendering](../architecture/rendering.md) but their dimensions, authoring method (baked offline vs. generated at runtime), and file format are undecided.
-
-- Blocks: `lighting` slice tasks in `render`
-- Relates to: [Rendering](../architecture/rendering.md)
-
 ### Asset Pipeline
 
 Texture compression format, transcode/upload ownership, fallback behavior, and mipmap handling are resolved and implemented — see [Asset Pipeline](../architecture/asset-pipeline.md). `packages/render` owns KTX2 transcode/upload via its `loadKtx2Texture` function (bytes-in, ASTC-probe fallback, block-aligned mip upload, throw-on-failure), and `examples/demo` consumes it directly rather than transcoding inline.
@@ -77,6 +70,9 @@ Phase 2 work begins after Phase 1 demo is complete, resolved incrementally as ea
 - Relates to: [Demo Scope](../features/demo-scope.md), [World Model](../features/world-model.md), [Rendering](../architecture/rendering.md)
 
 ## Resolved
+
+### LUT Format and Generation
+_Resolved._ See [Lighting](../architecture/lighting.md). 2D WebGL texture LUT (256×32 RGBA texels), generated procedurally at runtime in JavaScript from `LightingConfig` parameters, uploaded as `TEXTURE_2D` with `NEAREST` filtering. Consumes 32 WASM point lights per frame to evaluate distance attenuation and surface color quantization.
 
 ### Collision System
 _Resolved._ See [Collision](../architecture/collision.md). Circle-vs-AABB sliding collision, `player_radius=0.3` / `player_speed=4.0` / `look_sensitivity=2.0` defaults (all app-overridable via `CollisionConfig`), single-floor XZ-plane only, `engine-core` owns the `collision` module, runs inside `tick()` before visibility recompute.

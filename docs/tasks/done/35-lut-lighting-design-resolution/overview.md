@@ -1,12 +1,12 @@
 ---
 task: "35"
 slug: lut-lighting-design-resolution
-status: pending
+status: done
 depends-on: []
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-23
-outcome: ""
+outcome: "Resolved LUT Format and Generation known gap by authoring docs/architecture/lighting.md. Documented 256x32 2D LUT dimensions, procedural runtime generation, WebGL texture upload, WASM light buffer integration, and 4-torch demo mapping."
 ---
 
 # Resolve LUT Lighting Design Gap

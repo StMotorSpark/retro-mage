@@ -9,6 +9,7 @@ relates-to:
   - "[WASM Bridge](./wasm-bridge.md)"
   - "[Known Gaps](../research/known-gaps.md)"
   - "[Asset Pipeline](./asset-pipeline.md)"
+  - "[Lighting](./lighting.md)"
 ---
 
 # Rendering
