@@ -1,12 +1,12 @@
 ---
 task: "37"
 slug: demo-outdoor-seam-terrain-skybox
-status: pending
+status: done
 depends-on: ["34", "36"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-23
-outcome: ""
+outcome: "Registered Gate Room to outdoor terrain seam transform, added set_outdoor_default_tile_id to EngineState, implemented SkyboxRenderer in render package with atmospheric scattering gradient shader, wired grass texture and dynamic outdoor ambient light (1.0) on seam crossing in demo main.ts. Verified pnpm test, pnpm typecheck, and pnpm build pass with zero errors."
 ---
 
 # Demo Outdoor Seam, Terrain & Skybox

@@ -351,6 +351,11 @@ impl EngineState {
         self.chunk_streamer.is_chunk_resident(chunk_x, chunk_y)
     }
 
+    /// Set outdoor default tile ID (e.g. 3 for grass terrain).
+    pub fn set_outdoor_default_tile_id(&mut self, tile_id: u16) {
+        self.chunk_provider.default_tile_id = tile_id;
+    }
+
     /// Indoor room hop depth (graph hops).
     pub fn indoor_hop_depth(&self) -> u32 {
         self.indoor_streamer.hop_depth()

@@ -1,6 +1,7 @@
 import type { WorldStateViews } from './world-state/types.js';
 import { createTileRenderer, type TileRenderer } from './world-tiles/index.js';
 import { createSpriteRenderer, type SpriteRenderer } from './sprites/index.js';
+import { createSkyboxRenderer, type SkyboxRenderer } from './skybox/index.js';
 import { mat4CameraView, mat4Create, mat4Perspective } from './matrix.js';
 import {
   computeCappedResolution,
@@ -16,6 +17,8 @@ export interface RenderLoop {
   /** Exposed for testing / inspection of current internal resolution */
   getOffscreenDimensions(): { width: number; height: number };
   tileRenderer?: TileRenderer | null;
+  skyboxRenderer?: SkyboxRenderer | null;
+  setSkyboxEnabled(enabled: boolean): void;
 }
 
 export interface RenderLoopOptions {
@@ -23,6 +26,7 @@ export interface RenderLoopOptions {
   onFrame?: (time: number) => void;
   resolutionConfig?: RenderResolutionConfig;
   tileRenderer?: TileRenderer;
+  skyboxRenderer?: SkyboxRenderer;
 }
 
 const CLEAR_COLOR: readonly [number, number, number, number] = [0.05, 0.05, 0.1, 1];
@@ -36,6 +40,7 @@ export function createLoop(
   let onFrame: ((time: number) => void) | undefined;
   let resolutionConfig: RenderResolutionConfig = DEFAULT_RENDER_RESOLUTION_CONFIG;
   let customTileRenderer: TileRenderer | undefined;
+  let customSkyboxRenderer: SkyboxRenderer | undefined;
 
   if (typeof optionsOrGetViews === 'function') {
     getViews = optionsOrGetViews;
@@ -47,18 +52,24 @@ export function createLoop(
       resolutionConfig = optionsOrGetViews.resolutionConfig;
     }
     customTileRenderer = optionsOrGetViews.tileRenderer;
+    customSkyboxRenderer = optionsOrGetViews.skyboxRenderer;
   } else {
     onFrame = onFrameCallback;
   }
 
   let rafHandle: number | null = null;
   let tileRenderer: TileRenderer | null = customTileRenderer ?? null;
+  let skyboxRenderer: SkyboxRenderer | null = customSkyboxRenderer ?? null;
   let spriteRenderer: SpriteRenderer | null = null;
+  let skyboxEnabled = false;
 
   if (getViews) {
     gl.enable(gl.DEPTH_TEST);
     if (!tileRenderer) {
       tileRenderer = createTileRenderer(gl);
+    }
+    if (!skyboxRenderer) {
+      skyboxRenderer = createSkyboxRenderer(gl);
     }
     spriteRenderer = createSpriteRenderer(gl);
   }
@@ -113,6 +124,9 @@ export function createLoop(
 
         mat4CameraView(viewMatrix, cx, cy, cz, yaw, pitch);
 
+        if (skyboxEnabled && skyboxRenderer) {
+          skyboxRenderer.render(viewMatrix, projMatrix);
+        }
         if (tileRenderer) {
           tileRenderer.render(views.tiles, viewMatrix, projMatrix);
         }
@@ -146,5 +160,9 @@ export function createLoop(
       return { width: offscreen.width, height: offscreen.height };
     },
     tileRenderer,
+    skyboxRenderer,
+    setSkyboxEnabled(enabled: boolean): void {
+      skyboxEnabled = enabled;
+    },
   };
 }

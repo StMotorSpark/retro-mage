@@ -52,9 +52,10 @@ async function main(): Promise<void> {
   engineState.add_room_edge(0, 2);
   engineState.set_indoor_current_room(0);
   engineState.set_active_world_structure(0); // 0 = Indoor, 1 = Outdoor
+  engineState.set_outdoor_default_tile_id(3); // tile_id 3 = grass terrain
 
   // Register Seam mapping Gate Room exit tile at (10, 4) to outdoor global (32, 32)
-  engineState.register_seam(1, 2, 10.0, 4.0, 32.0, 32.0, 32.0, 40.0, 0.0);
+  engineState.register_seam(1, 2, 10.0, 4.0, 32.0, 32.0, 22.0, 28.0, 0.0);
 
   let tileIdx = 0;
 
@@ -139,14 +140,19 @@ async function main(): Promise<void> {
   });
 
   // Wire textures into world-tiles renderer
-  // TODO: swap when stone-wall.png/stone-floor.png land
   try {
-    const res = await fetch('/assets/textures/wall.ktx2');
-    if (res.ok) {
-      const buffer = await res.arrayBuffer();
+    const wallRes = await fetch('/assets/textures/wall.ktx2');
+    if (wallRes.ok) {
+      const buffer = await wallRes.arrayBuffer();
       const loaded = await loadKtx2Texture(gl, buffer);
       renderer.tileRenderer?.setTexture(1, loaded.texture); // stone wall (tile_id 1)
       renderer.tileRenderer?.setTexture(2, loaded.texture); // stone floor (tile_id 2)
+    }
+    const grassRes = await fetch('/assets/textures/grass.ktx2');
+    if (grassRes.ok) {
+      const buffer = await grassRes.arrayBuffer();
+      const loaded = await loadKtx2Texture(gl, buffer);
+      renderer.tileRenderer?.setTexture(3, loaded.texture); // grass terrain (tile_id 3)
     }
   } catch (err) {
     // eslint-disable-next-line no-console
@@ -219,6 +225,11 @@ async function main(): Promise<void> {
     engineState.tick(dt);
 
     const activeStruct = engineState.active_world_structure();
+    const isOutdoor = activeStruct === 1;
+
+    // Active world structure updates rendering skybox and outdoor ambient lighting
+    renderer.setSkyboxEnabled(isOutdoor);
+    engineState.set_ambient_light(isOutdoor ? 1.0 : 0.05);
 
     perfOverlay.update(dtMs, time, {
       sightRadius: engineState.sight_radius(),
