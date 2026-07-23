@@ -1,12 +1,12 @@
 ---
 task: "34"
 slug: demo-asset-folder-scaffold
-status: pending
+status: done
 depends-on: []
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-23
-outcome: ""
+outcome: "Created source asset folder structure for examples/demo with examples/demo/assets/sprites/ (.gitkeep included) and README.md files for textures/ and sprites/ detailing asset inventory specs (dimensions, format, purpose) and build-time KTX2 plugin coverage notes."
 ---
 
 # Demo Asset Folder Scaffold
