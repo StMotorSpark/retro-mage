@@ -1,12 +1,12 @@
 ---
 task: "36"
 slug: demo-indoor-dungeon-scene
-status: pending
+status: done
 depends-on: ["33", "34", "35"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-23
-outcome: ""
+outcome: "Implemented 3-room indoor dungeon scene (Entry Hall, Armory, Gate Room) in examples/demo with 4 torch point lights (ambient_light = 0.05), tile texture binding in packages/render's world-tiles, and collision-driven movement resolution via engineState.tick(dt)."
 ---
 
 # Demo Indoor Dungeon Scene

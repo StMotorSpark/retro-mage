@@ -1,17 +1,12 @@
 import init, { EngineState } from 'engine-core';
-import { createRenderer, WorldStateReader } from 'render';
+import { createRenderer, loadKtx2Texture, WorldStateReader } from 'render';
 import { createInputSource, FACE1 } from 'input';
 import { PerfOverlay } from './perf-overlay.js';
-import { TextureQuadDemo } from './texture-demo.js';
 
 /**
- * Demo app: thin glue proving engine-core (WASM sim), render (WebGL2), and
- * input (gamepad/touch) run together in one page.
- *
- * NOTE: Placeholder-geometry proof. Draws flat-shaded quads/cubes for tiles and
- * flat-colored billboard quads for actors directly from WASM engine-core SoA buffers.
- * Final rendering pipeline (lighting LUTs, textures, painter's algorithm sorting,
- * skybox) will follow in future vertical slices.
+ * Demo app: 3-room indoor dungeon scene (Entry Hall, Armory, Gate Room)
+ * exercising textured tile rendering, LUT lighting, collision-driven movement,
+ * and indoor room graph streaming per docs/features/demo-scope.md.
  */
 async function main(): Promise<void> {
   const canvas = document.querySelector<HTMLCanvasElement>('#scene');
@@ -26,18 +21,15 @@ async function main(): Promise<void> {
     throw new Error('WebGL2 context not supported.');
   }
 
-  const textureDemo = new TextureQuadDemo(gl);
-  textureDemo.loadTexture('/assets/textures/wall.ktx2');
-
   // engine-core ships as a wasm-bindgen `web` target module — must init before use.
   const wasmOutput = await init();
 
   const engineState = new EngineState();
 
-  // Populate multi-room, multi-floor, seam-connected streaming proof scene into engine-core
-  // Camera starting pose at (0, 0, 4) looking down -Z into starting room (Room 0)
-  engineState.set_camera(0, 0, 4, 0, 0);
-  engineState.set_ambient_light(0.0);
+  // Populate 3-room indoor dungeon scene into engine-core
+  // Camera starting pose at (0, 1.5, 6) looking down -Z into starting room (Room 0: Entry Hall)
+  engineState.set_camera(0, 1.5, 6, 0, 0);
+  engineState.set_ambient_light(0.05);
   engineState.set_max_sight_distance(32.0);
   engineState.set_cull_precision_distance(32.0);
 
@@ -49,84 +41,119 @@ async function main(): Promise<void> {
   engineState.set_seam_trigger_distance(32.0);
   engineState.set_seam_crossing_threshold(1.5);
 
-  // Set up room graph (task:28)
-  // Room 0: Entry Hall (starting room)
-  // Room 1: Seam Tunnel (connected room containing seam exit to outdoor terrain)
+  // Set up 3-room graph (task:36)
+  // Room 0: Entry Hall (starting room, wide, 2 torches)
+  // Room 1: Armory (narrower side room connected to Entry Hall, 1 torch)
+  // Room 2: Gate Room (connected to Entry Hall, 1 torch, contains seam exit tile)
   engineState.add_room_to_graph(0, 'Entry Hall');
-  engineState.add_room_to_graph(1, 'Seam Tunnel');
+  engineState.add_room_to_graph(1, 'Armory');
+  engineState.add_room_to_graph(2, 'Gate Room');
   engineState.add_room_edge(0, 1);
+  engineState.add_room_edge(0, 2);
   engineState.set_indoor_current_room(0);
   engineState.set_active_world_structure(0); // 0 = Indoor, 1 = Outdoor
 
-  // Register Seam (task:29) mapping Room 1 local portal at (0, -8) to outdoor global (32, 32)
-  // Transform: offset_x = 32.0, offset_y = 40.0, rotation_rad = 0.0
-  engineState.register_seam(1, 1, 0.0, -8.0, 32.0, 32.0, 32.0, 40.0, 0.0);
+  // Register Seam mapping Gate Room exit tile at (10, 4) to outdoor global (32, 32)
+  engineState.register_seam(1, 2, 10.0, 4.0, 32.0, 32.0, 32.0, 40.0, 0.0);
 
   let tileIdx = 0;
 
-  // 1. Starting room (Room 0) floor grid (y = 0.0): x in [-3, 3], z in [1, 5]
+  // 1. Room 0: Entry Hall floor grid (y = 0.0): x in [-3, 3], z in [2, 7]
   for (let x = -3; x <= 3; x++) {
-    for (let z = 1; z <= 5; z++) {
-      if (x === 2 && z === 2) {
-        // Balcony / stairwell vertical opening connecting to floor 1
-        engineState.set_tile(tileIdx++, 2, 0, 2, 2, 0, 0, 1.0);
-      } else {
-        engineState.set_tile(tileIdx++, x, 0, z, 1, 0, 0, 0);
-      }
+    for (let z = 2; z <= 7; z++) {
+      engineState.set_tile(tileIdx++, x, 0, z, 2, 0, 0, 0); // tile_id 2 = floor
     }
   }
 
-  // 2. Solid wall at z = 0 extending x in [-2, 2] with doorway at x = 0 to Room 1
-  for (let x = -2; x <= 2; x++) {
-    if (x !== 0) {
-      engineState.set_tile(tileIdx++, x, 0, 0, 1, 0, 1.0, 0);
+  // Entry Hall walls (tile_id 1 = wall, solid = 1.0)
+  for (let x = -4; x <= 4; x++) {
+    engineState.set_tile(tileIdx++, x, 0, 8, 1, 0, 1.0, 0); // South wall
+    engineState.set_tile(tileIdx++, x, 0, 1, 1, 0, 1.0, 0); // North wall
+  }
+  for (let z = 2; z <= 7; z++) {
+    if (z !== 4) {
+      engineState.set_tile(tileIdx++, -4, 0, z, 1, 0, 1.0, 0); // West wall (doorway at z=4)
+      engineState.set_tile(tileIdx++, 4, 0, z, 1, 0, 1.0, 0); // East wall (doorway at z=4)
     }
   }
 
-  // 3. Connected room (Room 1 - Seam Tunnel) (y = 0.0): x in [-2, 2], z in [-8, -1]
-  for (let x = -2; x <= 2; x++) {
-    for (let z = -8; z <= -1; z++) {
-      engineState.set_tile(tileIdx++, x, 0, z, 2, 0, 0, 0);
+  // 2. Room 1: Armory floor grid (y = 0.0): x in [-9, -5], z in [3, 6]
+  for (let x = -9; x <= -5; x++) {
+    for (let z = 3; z <= 6; z++) {
+      engineState.set_tile(tileIdx++, x, 0, z, 2, 0, 0, 0); // floor
+    }
+  }
+  // Doorway connection between Entry Hall & Armory
+  engineState.set_tile(tileIdx++, -4, 0, 4, 2, 0, 0, 0);
+
+  // Armory walls
+  for (let x = -10; x <= -4; x++) {
+    engineState.set_tile(tileIdx++, x, 0, 7, 1, 0, 1.0, 0); // South wall
+    engineState.set_tile(tileIdx++, x, 0, 2, 1, 0, 1.0, 0); // North wall
+  }
+  for (let z = 3; z <= 6; z++) {
+    engineState.set_tile(tileIdx++, -10, 0, z, 1, 0, 1.0, 0); // West wall
+    if (z !== 4) {
+      engineState.set_tile(tileIdx++, -4, 0, z, 1, 0, 1.0, 0); // East wall
     }
   }
 
-  // 4. Dark side corridor (y = 0.0): x in [-5, -3], z in [-4, -1]
-  for (let x = -5; x <= -3; x++) {
-    for (let z = -4; z <= -1; z++) {
-      engineState.set_tile(tileIdx++, x, 0, z, 1, 0, 0, 0);
+  // 3. Room 2: Gate Room floor grid (y = 0.0): x in [5, 9], z in [3, 6]
+  for (let x = 5; x <= 9; x++) {
+    for (let z = 3; z <= 6; z++) {
+      engineState.set_tile(tileIdx++, x, 0, z, 2, 0, 0, 0); // floor
+    }
+  }
+  // Doorway connection between Entry Hall & Gate Room
+  engineState.set_tile(tileIdx++, 4, 0, 4, 2, 0, 0, 0);
+  // Seam exit tile
+  engineState.set_tile(tileIdx++, 10, 0, 4, 2, 0, 0, 0);
+
+  // Gate Room walls
+  for (let x = 4; x <= 10; x++) {
+    engineState.set_tile(tileIdx++, x, 0, 7, 1, 0, 1.0, 0); // South wall
+    engineState.set_tile(tileIdx++, x, 0, 2, 1, 0, 1.0, 0); // North wall
+  }
+  for (let z = 3; z <= 6; z++) {
+    if (z !== 4) {
+      engineState.set_tile(tileIdx++, 4, 0, z, 1, 0, 1.0, 0); // West wall
+      engineState.set_tile(tileIdx++, 10, 0, z, 1, 0, 1.0, 0); // East wall (gate exit at z=4)
     }
   }
 
-  // 5. Upper floor (y = 1.0) connected via vertical opening (2, 0, 2)
-  engineState.set_tile(tileIdx++, 1, 1, 2, 3, 0, 0, 0);
-  engineState.set_tile(tileIdx++, 2, 1, 2, 3, 0, 0, 0);
-  engineState.set_tile(tileIdx++, 3, 1, 2, 3, 0, 0, 0);
-  engineState.set_tile(tileIdx++, 2, 1, 1, 3, 0, 0, 0);
-  engineState.set_tile(tileIdx++, 3, 1, 1, 3, 0, 0, 0);
-
-  // Actors:
-  // Actor 0: near player start (1, 0, 3)
-  engineState.set_actor(0, 1, 0, 3, 0, 1, 1);
-  // Actor 1: behind solid wall (1, 0, -2) - occluded until player moves around wall
-  engineState.set_actor(1, 1, 0, -2, 0, 1, 1);
-  // Actor 2: on upper floor (2, 1, 1) - visible through vertical opening
-  engineState.set_actor(2, 2, 1, 1, 0, 1, 1);
-
-  // Light sources:
-  // Light 0: bright starting torch near player (0, 1, 4)
-  engineState.set_light(0, 0, 1, 4, 1.0, 0.8, 0.4, 6.0, 1);
-  // Light 1: corridor torch in Seam Tunnel (0, 1, -4)
-  engineState.set_light(1, 0, 1, -4, 0.4, 0.6, 1.0, 4.0, 1);
+  // Torch Point Lights (4 total): warm orange-yellow (r=1.0, g=0.7, b=0.3)
+  // Entry Hall Torch 1 & 2
+  engineState.set_light(0, -2.0, 1.5, 4.0, 1.0, 0.7, 0.3, 8.0, 1.0);
+  engineState.set_light(1, 2.0, 1.5, 4.0, 1.0, 0.7, 0.3, 8.0, 1.0);
+  // Armory Torch
+  engineState.set_light(2, -7.0, 1.5, 4.5, 1.0, 0.7, 0.3, 8.0, 1.0);
+  // Gate Room Torch
+  engineState.set_light(3, 7.0, 1.5, 4.5, 1.0, 0.7, 0.3, 8.0, 1.0);
 
   // Set up world state reader over WASM memory
   const reader = new WorldStateReader(engineState, wasmOutput.memory);
 
-  // Pass reader view getter and frame hook to the render loop
+  // Pass reader view getter to the render loop
   const renderer = createRenderer(canvas, {
     getViews: () => reader.read(),
-    onFrame: () => textureDemo.render(),
   });
-  // Override the touch look sensitivity default (3) up to 5 for this demo's feel.
+
+  // Wire textures into world-tiles renderer
+  // TODO: swap when stone-wall.png/stone-floor.png land
+  try {
+    const res = await fetch('/assets/textures/wall.ktx2');
+    if (res.ok) {
+      const buffer = await res.arrayBuffer();
+      const loaded = await loadKtx2Texture(gl, buffer);
+      renderer.tileRenderer?.setTexture(1, loaded.texture); // stone wall (tile_id 1)
+      renderer.tileRenderer?.setTexture(2, loaded.texture); // stone floor (tile_id 2)
+    }
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to load demo textures:', err);
+  }
+
+  // Override touch look sensitivity default (3) up to 5 for this demo's feel.
   const inputSource = createInputSource(overlay, { touch: { lookSensitivity: 5 } });
   const perfOverlay = new PerfOverlay({
     onAdjustMaxSight: (delta: number) => {
@@ -165,10 +192,6 @@ async function main(): Promise<void> {
 
   let lastTime = performance.now();
 
-  const MOVE_SPEED = 3.0; // units per second
-  const LOOK_SPEED = 1.5; // radians per second
-  const PITCH_LIMIT = Math.PI / 2 - 0.05;
-
   const frame = (time: number): void => {
     const dt = (time - lastTime) / 1000;
     const dtMs = time - lastTime;
@@ -191,36 +214,8 @@ async function main(): Promise<void> {
       perfOverlay.toggle();
     }
 
-    // Read current camera view pose as base for deltas
-    const camera = reader.read().camera;
-    const curX = camera.x[0] ?? 0;
-    const curY = camera.y[0] ?? 0;
-    const curZ = camera.z[0] ?? 0;
-    const curYaw = camera.yaw[0] ?? 0;
-    const curPitch = camera.pitch[0] ?? 0;
-
-    // Apply look deltas (yaw and pitch)
-    let newYaw = curYaw + inputState.look.x * LOOK_SPEED * dt;
-    let newPitch = curPitch - inputState.look.y * LOOK_SPEED * dt;
-
-    if (newPitch > PITCH_LIMIT) newPitch = PITCH_LIMIT;
-    if (newPitch < -PITCH_LIMIT) newPitch = -PITCH_LIMIT;
-
-    // Ground plane camera translation relative to facing yaw
-    const forwardX = -Math.sin(curYaw);
-    const forwardZ = -Math.cos(curYaw);
-    const rightX = Math.cos(curYaw);
-    const rightZ = -Math.sin(curYaw);
-
-    const fwdScalar = -inputState.move.y * MOVE_SPEED * dt;
-    const strafeScalar = inputState.move.x * MOVE_SPEED * dt;
-
-    const newX = curX + fwdScalar * forwardX + strafeScalar * rightX;
-    const newY = curY + inputState.vertical * MOVE_SPEED * dt;
-    const newZ = curZ + fwdScalar * forwardZ + strafeScalar * rightZ;
-
-    engineState.set_camera(newX, newY, newZ, newYaw, newPitch);
-
+    // Advance engine tick: applies look, computes facing movement delta,
+    // and resolves tile collision with sliding resolution (task:33)
     engineState.tick(dt);
 
     const activeStruct = engineState.active_world_structure();

@@ -15,12 +15,14 @@ export interface RenderLoop {
   stop(): void;
   /** Exposed for testing / inspection of current internal resolution */
   getOffscreenDimensions(): { width: number; height: number };
+  tileRenderer?: TileRenderer | null;
 }
 
 export interface RenderLoopOptions {
   getViews?: () => WorldStateViews | undefined;
   onFrame?: (time: number) => void;
   resolutionConfig?: RenderResolutionConfig;
+  tileRenderer?: TileRenderer;
 }
 
 const CLEAR_COLOR: readonly [number, number, number, number] = [0.05, 0.05, 0.1, 1];
@@ -33,6 +35,7 @@ export function createLoop(
   let getViews: (() => WorldStateViews | undefined) | undefined;
   let onFrame: ((time: number) => void) | undefined;
   let resolutionConfig: RenderResolutionConfig = DEFAULT_RENDER_RESOLUTION_CONFIG;
+  let customTileRenderer: TileRenderer | undefined;
 
   if (typeof optionsOrGetViews === 'function') {
     getViews = optionsOrGetViews;
@@ -43,17 +46,20 @@ export function createLoop(
     if (optionsOrGetViews.resolutionConfig) {
       resolutionConfig = optionsOrGetViews.resolutionConfig;
     }
+    customTileRenderer = optionsOrGetViews.tileRenderer;
   } else {
     onFrame = onFrameCallback;
   }
 
   let rafHandle: number | null = null;
-  let tileRenderer: TileRenderer | null = null;
+  let tileRenderer: TileRenderer | null = customTileRenderer ?? null;
   let spriteRenderer: SpriteRenderer | null = null;
 
   if (getViews) {
     gl.enable(gl.DEPTH_TEST);
-    tileRenderer = createTileRenderer(gl);
+    if (!tileRenderer) {
+      tileRenderer = createTileRenderer(gl);
+    }
     spriteRenderer = createSpriteRenderer(gl);
   }
 
@@ -139,5 +145,6 @@ export function createLoop(
     getOffscreenDimensions(): { width: number; height: number } {
       return { width: offscreen.width, height: offscreen.height };
     },
+    tileRenderer,
   };
 }
