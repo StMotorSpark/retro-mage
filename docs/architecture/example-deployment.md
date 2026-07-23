@@ -33,7 +33,7 @@ Example deployment reuses this exact shape rather than inventing a new hosting p
 3. **CloudFront distribution** — origin is the S3 bucket's website endpoint (HTTP-only origin, matching the existing `pixeldrip.games` sites), alias set to the example's subdomain, ACM cert attached, TLS-only viewer access.
 4. **DNS** — a CNAME for the subdomain pointing at the distribution's `*.cloudfront.net` domain, added manually in the external DNS provider once the distribution's domain name is known.
 
-Bucket names, certificate ARNs, and distribution IDs are operational details tracked in the deploying account, not in this doc.
+Bucket names, certificate ARNs, and distribution IDs are operational details tracked in the deploying account, not in this doc. GitHub Actions authenticates to AWS via OIDC (a per-repo IAM role trusted by GitHub's OIDC provider, scoped only to the demo bucket and distribution) rather than long-lived access keys.
 
 ## Build Requirements
 

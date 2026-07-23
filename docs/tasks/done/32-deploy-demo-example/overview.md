@@ -1,12 +1,12 @@
 ---
 task: "32"
 slug: deploy-demo-example
-status: in-flight
+status: done
 depends-on: []
 blocked-by: ""
-assigned-to: "agent"
+assigned-to: ""
 created: 2026-01-01
-outcome: ""
+outcome: "Provisioned AWS infra for retro-mage-demo.pixeldrip.games: S3 bucket (retro-mage-demo-frontend-prod, static website hosting, public read), ACM cert (us-east-1, issued via DNS validation), CloudFront distribution (E378G2IAGQ7OJO, mirrors hacknscratch.pixeldrip.games's config: HTTP-only S3-website origin, CachingOptimized managed policy, TLSv1.2_2021). Added .github/workflows/deploy-demo.yml with workflow_dispatch + required branch input (default main) so any branch/PR can deploy to the same shared demo URL. Auth via GitHub OIDC federated role (github-actions-retro-mage-deploy-demo) scoped only to this bucket + distribution, no long-lived AWS keys; repo secrets/vars set via gh cli (AWS_DEPLOY_ROLE_ARN secret, DEMO_S3_BUCKET/DEMO_CLOUDFRONT_DISTRIBUTION_ID vars). Gotcha: org's GitHub OIDC subject claims include immutable numeric owner/repo IDs (repo:StMotorSpark@5678670/retro-mage@1308870730:*), not just repo:StMotorSpark/retro-mage:* -- trust policy had to match the actual sub claim format, discovered via CloudTrail AssumeRoleWithWebIdentity events. Also discovered workflow_dispatch requires the workflow file to exist on the default branch before it can be dispatched at all (even to test a different ref), so PR #12 (docs) was merged to unblock verification. Ran full pipeline end-to-end against main; confirmed live via S3 website endpoint and https://d14i1n58h6osj.cloudfront.net (200 OK). SharedArrayBuffer/COOP-COEP headers skipped -- engine-core has no threads/rayon feature, not needed. DNS CNAME for the subdomain itself handed off to user (external Namecheap DNS, no AWS/registrar access for this account)."
 ---
 
 # Deploy Demo Example
