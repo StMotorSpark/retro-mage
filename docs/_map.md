@@ -17,6 +17,7 @@ Each entry links to a design doc and includes the doc's one-line summary. Docs d
 
 | Doc | Summary |
 |-----|---------|
+| [`docs/features/demo-scope.md`](./features/demo-scope.md) | The Phase 1 demo for examples/demo is a minimal but complete dungeon scene that exercises every major engine system — textured rooms, collision, LUT lighting, a seam transition to an outdoor area, sprite actors, and a skybox — proving the full retro rendering pipeline end to end. |
 | [`docs/features/world-model.md`](./features/world-model.md) | Retro Mage represents the game world as a grid-ish, real-time dungeon-crawler space indoors and chunked terrain outdoors, with room for simulation depth layered on top. |
 
 ---
