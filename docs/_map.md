@@ -17,6 +17,7 @@ Each entry links to a design doc and includes the doc's one-line summary. Docs d
 
 | Doc | Summary |
 |-----|---------|
+| [`docs/features/demo-scope.md`](./features/demo-scope.md) | The Phase 1 demo for examples/demo is a minimal but complete dungeon scene that exercises every major engine system — textured rooms, collision, LUT lighting, a seam transition to an outdoor area, sprite actors, and a skybox — proving the full retro rendering pipeline end to end. |
 | [`docs/features/world-model.md`](./features/world-model.md) | Retro Mage represents the game world as a grid-ish, real-time dungeon-crawler space indoors and chunked terrain outdoors, with room for simulation depth layered on top. |
 
 ---
@@ -28,8 +29,10 @@ Each entry links to a design doc and includes the doc's one-line summary. Docs d
 | Doc | Summary |
 |-----|---------|
 | [`docs/architecture/asset-pipeline.md`](./architecture/asset-pipeline.md) | Retro Mage ships texture assets as KTX2/UASTC, compressed by the consuming game's build step and transcoded/uploaded at runtime by the engine's render package, splitting the compression step (build-time, app-owned) from the transcode step (runtime, engine-owned). |
+| [`docs/architecture/collision.md`](./architecture/collision.md) | Retro Mage resolves player movement with facing-relative input and circle-vs-AABB tile collision with sliding, running inside engine-core's tick loop as a single XZ-plane check against the master tile buffer. |
 | [`docs/architecture/example-deployment.md`](./architecture/example-deployment.md) | Retro Mage example apps deploy as static sites to S3 + CloudFront under pixeldrip.games subdomains, so anyone can test the engine without running a local dev server. |
 | [`docs/architecture/input-schema.md`](./architecture/input-schema.md) | Retro Mage normalizes gamepad and touch input into one fixed-shape event struct — two analog vectors, a reserved vertical axis, and a 12-slot button bitmask — that the input package produces and engine-core consumes identically regardless of source device. |
+| [`docs/architecture/lighting.md`](./architecture/lighting.md) | Retro Mage computes surface shading using dynamic 2D lighting lookup tables (LUTs) generated at runtime, mapping surface base colors and active point lights read from engine-core's WASM buffer to shaded pixel colors. |
 | [`docs/architecture/rendering.md`](./architecture/rendering.md) | Retro Mage renders a tile/polygon hybrid world with sprite-based actors, painter's-algorithm sorting, and lookup-table lighting, extended with longer draw distances and dynamic outdoor rendering for a modern-scale retro look. |
 | [`docs/architecture/repo-structure.md`](./architecture/repo-structure.md) | Retro Mage is a pnpm monorepo where the engine ships as a consumable package, an example dungeon demonstrates it end to end, and every package is organized as vertical feature slices. |
 | [`docs/architecture/tech-stack.md`](./architecture/tech-stack.md) | Retro Mage runs as a phone-first browser engine built on a Rust/WASM core, WebGL2/WebGPU rendering, TypeScript input, Vite tooling, and staged PWA support. |

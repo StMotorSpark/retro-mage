@@ -15,6 +15,12 @@ export default defineConfig({
       assetsDir: 'assets/textures',
       include: '**/*.png',
     }),
+    // Task 38: Separate plugin instance to cover sprite PNGs in assets/sprites/
+    // keeping the logical assets/textures vs assets/sprites directory split.
+    vitePluginKtx2({
+      assetsDir: 'assets/sprites',
+      include: '**/*.png',
+    }),
     VitePWA({
       // We register the service worker ourselves in src/main.ts.
       injectRegister: false,
