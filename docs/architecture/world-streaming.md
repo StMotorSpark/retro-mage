@@ -49,7 +49,8 @@ Instead, each indoor/outdoor seam carries an explicit **seam transform** — an 
 
 1. Player position is converted from the source structure's local coordinates through that seam's transform into the destination structure's coordinates.
 2. The destination structure (already preloaded per the seam trigger distance above) is now the active data structure driving visibility and movement.
-3. No global coordinate reconciliation happens elsewhere — the transform is a lookup local to that seam, not a step toward unifying indoor and outdoor into one coordinate space.
+3. A hysteresis lock prevents the player from immediately triggering the same seam again until they move outside its crossing threshold, preventing rapid oscillation between structures.
+4. No global coordinate reconciliation happens elsewhere — the transform is a lookup local to that seam, not a step toward unifying indoor and outdoor into one coordinate space.
 
 This keeps indoor and outdoor genuinely independent data models, per [Visibility](./visibility.md)'s "two data structures" framing, while still producing a seamless crossing.
 
