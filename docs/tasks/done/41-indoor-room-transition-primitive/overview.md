@@ -1,12 +1,12 @@
 ---
 task: "41"
 slug: indoor-room-transition-primitive
-status: pending
+status: done
 depends-on: []
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-24
-outcome: ""
+outcome: "Implemented Doorway struct in engine-core. Wired registration API and tick check. Updated demo app to use registered doorways and removed manual bounds check."
 ---
 
 # Indoor Room-Transition Primitive
