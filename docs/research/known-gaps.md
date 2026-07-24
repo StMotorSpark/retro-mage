@@ -43,23 +43,19 @@ Undecided:
 - Blocks: multi-floor dungeon rooms (stairs, balconies) — deferred post-Phase-1 demo
 - Relates to: [Collision](../architecture/collision.md), [Visibility](../architecture/visibility.md), [World Model](../features/world-model.md)
 
-### Indoor Room-Transition Detection
 
-Indoor rooms are graph nodes, not spatial regions — `engine-core` has no automatic detection of which room the player is physically standing in as they walk through a doorway (see [World Streaming](../architecture/world-streaming.md)). The engine only exposes an explicit `set_indoor_current_room(room_id)` call; nothing in `engine-core` infers a room change from player position. This means a consuming game must run its own room-boundary check every tick and call `set_indoor_current_room` when the player crosses into a different room's footprint, or the seam manager silently never evaluates seams attached to rooms other than whichever one is manually marked current (seam candidates are filtered to the *current* room, not merely resident rooms).
+### Unified World Coordinate Space (Option B)
+
+The current world model partitions indoor and outdoor space into independent coordinate grids (see [World Structure Partitioning](../architecture/world-structure-partitioning.md)), using seam-local coordinate injection to render across seams ([Seam Rendering](../architecture/seam-rendering.md)). 
+
+While this prevents coordinate bleeding and solves far-side visibility, it limits physical overlap between indoor spaces (e.g. windows looking from an indoor room down onto the outdoor chunk). A long-term goal is to explore **Option B: Unified World Coordinate Space**, resolving the mechanical isolation into a single contiguous world map without sacrificing the performance benefits of independent structure streaming.
 
 Undecided:
-- **Detection mechanism**: should the engine offer a doorway/trigger-volume primitive (author a room-transition zone alongside the tile grid) so applications don't hand-roll bounding-box math per room shape, or does this stay entirely application-owned?
-- **Non-rectangular rooms**: a simple axis-aligned bounding check (as used today in `examples/demo`) only works for box-shaped rooms; irregular room footprints need a different membership test.
+- **Origin shift and precision loss**: large contiguous outdoor worlds eventually suffer floating point precision issues; how are origins managed?
+- **Global Z-fighting and overlap**: how to guarantee procedurally generated dungeons don't naturally collide with height-mapped outdoor terrain in global space?
 
-- Blocks: any indoor room graph larger than one manually-pinned current room; any seam attached to a non-starting room
-- Relates to: [World Streaming](../architecture/world-streaming.md), [Collision](../architecture/collision.md)
-
-### Outdoor Chunk Rendering Bridge
-
-`OutdoorChunkStreamer`/`ChunkProvider` (see [World Streaming](../architecture/world-streaming.md)) correctly tracks which chunks are resident, but resident chunk tile data is never copied into `master_tiles` — the buffer `recompute_visibility` culls from and that `render`'s `TilesView` reads. A chunk becoming resident updates streaming bookkeeping (counts, load/evict state) but produces no visible geometry. Until this bridge exists, outdoor terrain is only visible where an application hand-authors ordinary tiles the same way indoor rooms are authored (see [Demo Scope](../features/demo-scope.md)).
-
-- Blocks: any outdoor terrain rendering that relies on `ChunkProvider`-sourced tile data rather than hand-placed tiles
-- Relates to: [World Streaming](../architecture/world-streaming.md), [WASM Bridge](../architecture/wasm-bridge.md), [Rendering](../architecture/rendering.md)
+- Blocks: deep integrations between indoors/outdoors (e.g. windows looking out onto outdoor chunks)
+- Relates to: [World Structure Partitioning](../architecture/world-structure-partitioning.md), [Seam Rendering](../architecture/seam-rendering.md)
 
 
 ### Demo Scope — Phase 2
@@ -83,6 +79,12 @@ Phase 2 work begins after Phase 1 demo is complete, resolved incrementally as ea
 _Resolved._ See [World Structure Partitioning](../architecture/world-structure-partitioning.md). The engine mechanically isolates indoor and outdoor space by maintaining separate `indoor_tiles`/`outdoor_tiles` and `indoor_actors`/`outdoor_actors` buffers. The active world structure branches array reads in `tick()`, entirely preventing cross-structure coordinate bleed.
 
 _Resolved._ Streaming, seam crossing, and player position all use `(camera.x, camera.z)` as the outdoor ground-plane coordinates — `camera.y` is elevation only and is never read as a horizontal axis. See [World Streaming](../architecture/world-streaming.md) and [Collision](../architecture/collision.md).
+
+### Outdoor Chunk Rendering Bridge
+_Resolved._ See [World Streaming](../architecture/world-streaming.md) and `chunk.rs`. When `OutdoorChunkStreamer` loads a chunk it immediately writes every tile into `outdoor_tiles` (the partitioned buffer that `recompute_visibility` culls from). Evicting a chunk zeros those tile slots. Outdoor terrain from `ChunkProvider`-sourced data is visible geometry without any app-level hand-placement.
+
+### Indoor Room-Transition Detection
+_Resolved._ `engine-core` provides a doorway primitive: `register_indoor_doorway(min_x, max_x, min_z, max_z, from_room_id, to_room_id)`. During `tick()`, the engine checks the player's XZ position against registered doorway volumes and automatically calls `set_indoor_current_room` on crossing. Applications author doorway volumes alongside the tile grid; no hand-rolled bounding-box logic is needed in app code.
 
 ### LUT Format and Generation
 _Resolved._ See [Lighting](../architecture/lighting.md). 2D WebGL texture LUT (256×32 RGBA texels), generated procedurally at runtime in JavaScript from `LightingConfig` parameters, uploaded as `TEXTURE_2D` with `NEAREST` filtering. Consumes 32 WASM point lights per frame to evaluate distance attenuation and surface color quantization.

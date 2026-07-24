@@ -138,6 +138,10 @@ impl Seam {
     }
 }
 
+/// Frames of cooldown after any crossing before re-crossing is allowed.
+/// At 60fps, 90 ticks ≈ 1.5 seconds — enough to move well clear of the seam.
+pub const CROSSING_COOLDOWN_TICKS: u32 = 90;
+
 /// Manages active world structure, seam registration, trigger distance preloading, and handoff crossings.
 #[derive(Debug, Clone)]
 pub struct WorldSeamManager {
@@ -146,7 +150,10 @@ pub struct WorldSeamManager {
     active_structure: ActiveWorldStructure,
     seam_trigger_distance: f32,
     crossing_threshold: f32,
-    last_crossed_seam: Option<SeamId>,
+    pub(crate) last_crossed_seam: Option<SeamId>,
+    /// Frames remaining before a re-crossing is permitted. Set to CROSSING_COOLDOWN_TICKS
+    /// on each crossing; decremented each call to update_and_check_crossing.
+    crossing_cooldown_ticks: u32,
 }
 
 impl WorldSeamManager {
@@ -158,6 +165,7 @@ impl WorldSeamManager {
             seam_trigger_distance: DEFAULT_SEAM_TRIGGER_DISTANCE,
             crossing_threshold: DEFAULT_SEAM_CROSSING_THRESHOLD,
             last_crossed_seam: None,
+            crossing_cooldown_ticks: 0,
         }
     }
 
@@ -204,6 +212,48 @@ impl WorldSeamManager {
         self.crossing_threshold = dist;
     }
 
+    /// Reset the hysteresis lock on the last-crossed seam, allowing immediate re-crossing.
+    /// Intended for test setup and explicit application resets only.
+    pub fn clear_hysteresis(&mut self) {
+        self.last_crossed_seam = None;
+        self.crossing_cooldown_ticks = 0;
+    }
+
+    /// Returns SeamTransforms for seams within `seam_trigger_distance` of the player
+    /// in the current active structure's coordinate space.
+    ///
+    /// Used by `EngineState::update_seam_injection` to determine which far-side tile sets
+    /// need to be transformed and injected into the visibility pass (Option C seam rendering).
+    pub fn nearby_seam_transforms(
+        &self,
+        player_x: f32,
+        player_z: f32,
+        current_room_id: RoomId,
+    ) -> Vec<SeamTransform> {
+        let mut transforms = Vec::new();
+        match self.active_structure {
+            ActiveWorldStructure::Indoor => {
+                for seam in self.seams_for_room(current_room_id) {
+                    let dx = player_x - seam.room_tile_x;
+                    let dz = player_z - seam.room_tile_y;
+                    if (dx * dx + dz * dz).sqrt() <= self.seam_trigger_distance {
+                        transforms.push(seam.transform);
+                    }
+                }
+            }
+            ActiveWorldStructure::Outdoor => {
+                for seam in self.seams.values() {
+                    let dx = player_x - seam.outdoor_tile_x;
+                    let dz = player_z - seam.outdoor_tile_y;
+                    if (dx * dx + dz * dz).sqrt() <= self.seam_trigger_distance {
+                        transforms.push(seam.transform);
+                    }
+                }
+            }
+        }
+        transforms
+    }
+
     /// Evaluates current player position against seams for preloading and handoff crossing.
     ///
     /// - Performs preloading of the destination structure when within `seam_trigger_distance`.
@@ -222,6 +272,12 @@ impl WorldSeamManager {
         chunk_provider: &mut P2,
         outdoor_tiles: &mut crate::tiles::TilesBuffer,
     ) -> Option<SeamId> {
+        // Decrement cooldown each tick regardless of structure or crossing outcome.
+        if self.crossing_cooldown_ticks > 0 {
+            self.crossing_cooldown_ticks -= 1;
+        }
+        let crossing_allowed = self.crossing_cooldown_ticks == 0;
+
         match self.active_structure {
             ActiveWorldStructure::Indoor => {
                 let current_room_id = indoor_streamer.current_room_id();
@@ -253,8 +309,8 @@ impl WorldSeamManager {
                             self.last_crossed_seam = None;
                         }
 
-                        // Crossing check
-                        if dist <= self.crossing_threshold && crossed_seam.is_none() && Some(seam.id) != self.last_crossed_seam {
+                        // Crossing check — requires cooldown elapsed and no hysteresis lock
+                        if crossing_allowed && dist <= self.crossing_threshold && crossed_seam.is_none() && Some(seam.id) != self.last_crossed_seam {
                             crossed_seam = Some(seam);
                         }
                     }
@@ -264,6 +320,7 @@ impl WorldSeamManager {
                     let (new_out_x, new_out_y) = seam.transform.room_to_outdoor(*player_x, *player_y);
                     self.active_structure = ActiveWorldStructure::Outdoor;
                     self.last_crossed_seam = Some(seam.id);
+                    self.crossing_cooldown_ticks = CROSSING_COOLDOWN_TICKS;
                     *player_x = new_out_x;
                     *player_y = new_out_y;
                     chunk_streamer.update_for_player_pos(new_out_x, new_out_y, chunk_provider, outdoor_tiles);
@@ -295,8 +352,8 @@ impl WorldSeamManager {
                         self.last_crossed_seam = None;
                     }
 
-                    // Crossing check
-                    if dist <= self.crossing_threshold && crossed_seam.is_none() && Some(seam.id) != self.last_crossed_seam {
+                    // Crossing check — requires cooldown elapsed and no hysteresis lock
+                    if crossing_allowed && dist <= self.crossing_threshold && crossed_seam.is_none() && Some(seam.id) != self.last_crossed_seam {
                         crossed_seam = Some(seam);
                     }
                 }
@@ -305,6 +362,7 @@ impl WorldSeamManager {
                     let (new_room_x, new_room_y) = seam.transform.outdoor_to_room(*player_x, *player_y);
                     self.active_structure = ActiveWorldStructure::Indoor;
                     self.last_crossed_seam = Some(seam.id);
+                    self.crossing_cooldown_ticks = CROSSING_COOLDOWN_TICKS;
                     indoor_streamer.set_current_room(seam.room_id, room_provider);
                     *player_x = new_room_x;
                     *player_y = new_room_y;
@@ -598,7 +656,7 @@ mod tests {
 
         // Reset back to Indoor in room 0, clear hysteresis
         seam_manager.set_active_structure(ActiveWorldStructure::Indoor);
-        seam_manager.last_crossed_seam = None; // Manual override for test setup
+        seam_manager.clear_hysteresis();
         player_x = 17.0;
         player_y = 5.0;
 

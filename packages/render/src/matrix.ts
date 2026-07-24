@@ -53,8 +53,8 @@ export function mat4CameraView(
   yaw: number,
   pitch: number,
 ): Mat4 {
-  const cosY = Math.cos(-yaw);
-  const sinY = Math.sin(-yaw);
+  const cosY = Math.cos(yaw);
+  const sinY = Math.sin(yaw);
   const cosP = Math.cos(-pitch);
   const sinP = Math.sin(-pitch);
 

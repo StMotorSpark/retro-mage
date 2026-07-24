@@ -41,6 +41,10 @@ pub struct EngineState {
     master_lights: LightsBuffer,
     indoor_tiles: TilesBuffer,
     outdoor_tiles: TilesBuffer,
+    /// Far-side tiles transformed into the current structure's coordinate space.
+    /// Populated each tick by `update_seam_injection` when the player is within
+    /// `seam_trigger_distance` of a seam. Included in visibility but NOT in collision.
+    seam_injection_tiles: TilesBuffer,
     doorways: [room::Doorway; room::MAX_DOORWAYS],
     doorways_count: usize,
     chunk_streamer: chunk::OutdoorChunkStreamer,
@@ -56,7 +60,7 @@ impl EngineState {
     pub fn new() -> EngineState {
         let camera = CameraBuffer::new();
         let mut outdoor_tiles = TilesBuffer::new();
-        let mut indoor_tiles = TilesBuffer::new();
+        let indoor_tiles = TilesBuffer::new();
         let mut streamer = chunk::OutdoorChunkStreamer::default();
         let mut provider = chunk::FlatChunkProvider::default();
         streamer.update_for_player_pos(camera.x[0], camera.z[0], &mut provider, &mut outdoor_tiles);
@@ -83,6 +87,7 @@ impl EngineState {
             master_lights: LightsBuffer::new(),
             indoor_tiles,
             outdoor_tiles,
+            seam_injection_tiles: TilesBuffer::new(),
             doorways: [room::Doorway::default(); room::MAX_DOORWAYS],
             doorways_count: 0,
             chunk_streamer: streamer,
@@ -152,7 +157,7 @@ impl EngineState {
         self.camera.z[0] = new_pz;
 
         // Ground plane for streaming/seams is XZ (camera.y is elevation, not a horizontal axis) —
-        // see docs/research/known-gaps.md "Outdoor Coordinate System".
+        // see docs/architecture/world-streaming.md and docs/architecture/collision.md.
         let mut px = self.camera.x[0];
         let mut pz = self.camera.z[0];
 
@@ -191,6 +196,10 @@ impl EngineState {
             self.indoor_streamer
                 .update_for_current_room(&mut self.room_graph);
         }
+
+        // Build seam injection buffer before visibility so cross-seam tiles participate
+        // in occlusion culling and rendering (Option C: seam-local coordinate injection).
+        self.update_seam_injection();
 
         self.recompute_visibility();
     }
@@ -883,6 +892,74 @@ impl EngineState {
     }
 
     // ==========================================
+    // Seam Injection
+    // ==========================================
+
+    /// Update the seam injection buffer with transformed far-side tiles.
+    fn update_seam_injection(&mut self) {
+        self.seam_injection_tiles.count = 0;
+        
+        let player_x = self.camera.x[0];
+        let player_z = self.camera.z[0];
+        let current_room_id = self.indoor_streamer.current_room_id();
+        let transforms = self.seam_manager.nearby_seam_transforms(player_x, player_z, current_room_id);
+        
+        if transforms.is_empty() {
+            return;
+        }
+
+        let mut inject_count = 0;
+        let sight_dist_sq = self.max_sight_distance * self.max_sight_distance;
+        
+        match self.seam_manager.active_structure() {
+            seam::ActiveWorldStructure::Indoor => {
+                for transform in transforms {
+                    for i in 0..self.outdoor_tiles.count {
+                        if inject_count >= MAX_TILES { break; }
+                        let (rx, rz) = transform.outdoor_to_room(self.outdoor_tiles.x[i], self.outdoor_tiles.z[i]);
+                        
+                        let dx = rx - player_x;
+                        let dz = rz - player_z;
+                        if dx*dx + dz*dz <= sight_dist_sq {
+                            self.seam_injection_tiles.x[inject_count] = rx;
+                            self.seam_injection_tiles.y[inject_count] = self.outdoor_tiles.y[i];
+                            self.seam_injection_tiles.z[inject_count] = rz;
+                            self.seam_injection_tiles.tile_id[inject_count] = self.outdoor_tiles.tile_id[i];
+                            self.seam_injection_tiles.variant[inject_count] = self.outdoor_tiles.variant[i];
+                            self.seam_injection_tiles.solid[inject_count] = self.outdoor_tiles.solid[i];
+                            self.seam_injection_tiles.vertical_opening[inject_count] = self.outdoor_tiles.vertical_opening[i];
+                            inject_count += 1;
+                        }
+                    }
+                }
+            }
+            seam::ActiveWorldStructure::Outdoor => {
+                for transform in transforms {
+                    for i in 0..self.indoor_tiles.count {
+                        if inject_count >= MAX_TILES { break; }
+                        let (ox, oz) = transform.room_to_outdoor(self.indoor_tiles.x[i], self.indoor_tiles.z[i]);
+                        
+                        let dx = ox - player_x;
+                        let dz = oz - player_z;
+                        if dx*dx + dz*dz <= sight_dist_sq {
+                            self.seam_injection_tiles.x[inject_count] = ox;
+                            self.seam_injection_tiles.y[inject_count] = self.indoor_tiles.y[i];
+                            self.seam_injection_tiles.z[inject_count] = oz;
+                            self.seam_injection_tiles.tile_id[inject_count] = self.indoor_tiles.tile_id[i];
+                            self.seam_injection_tiles.variant[inject_count] = self.indoor_tiles.variant[i];
+                            self.seam_injection_tiles.solid[inject_count] = self.indoor_tiles.solid[i];
+                            self.seam_injection_tiles.vertical_opening[inject_count] = self.indoor_tiles.vertical_opening[i];
+                            inject_count += 1;
+                        }
+                    }
+                }
+            }
+        }
+        
+        self.seam_injection_tiles.count = inject_count;
+    }
+
+    // ==========================================
     // Sight Radius & Visibility Culling
     // ==========================================
 
@@ -919,30 +996,36 @@ impl EngineState {
             &self.outdoor_actors
         };
 
-        // Build solid & vertical-opening grid maps from active tiles
+        // Build solid & vertical-opening grid maps from active tiles AND injected tiles
         let mut grid_solids = HashMap::new();
         let mut grid_openings = HashMap::new();
-        for i in 0..active_tiles.count {
-            let pos = visibility::get_grid_pos_3d(
-                active_tiles.x[i],
-                active_tiles.y[i],
-                active_tiles.z[i],
-                use_y_axis,
-            );
-            let solid = active_tiles.solid[i] != 0.0;
-            if solid {
-                grid_solids.insert(pos, true);
-            } else {
-                grid_solids.entry(pos).or_insert(false);
-            }
+        
+        let mut process_tiles_for_grid = |tiles: &TilesBuffer| {
+            for i in 0..tiles.count {
+                let pos = visibility::get_grid_pos_3d(
+                    tiles.x[i],
+                    tiles.y[i],
+                    tiles.z[i],
+                    use_y_axis,
+                );
+                let solid = tiles.solid[i] != 0.0;
+                if solid {
+                    grid_solids.insert(pos, true);
+                } else {
+                    grid_solids.entry(pos).or_insert(false);
+                }
 
-            let is_opening = active_tiles.vertical_opening[i] != 0.0;
-            if is_opening {
-                grid_openings.insert(pos, true);
-            } else {
-                grid_openings.entry(pos).or_insert(false);
+                let is_opening = tiles.vertical_opening[i] != 0.0;
+                if is_opening {
+                    grid_openings.insert(pos, true);
+                } else {
+                    grid_openings.entry(pos).or_insert(false);
+                }
             }
-        }
+        };
+
+        process_tiles_for_grid(active_tiles);
+        process_tiles_for_grid(&self.seam_injection_tiles);
 
         // Compute visible grid cells
         let visible_cells = visibility::compute_visible_grid_cells_3d(
@@ -956,33 +1039,39 @@ impl EngineState {
             use_y_axis,
         );
 
-        // Filter tiles: copy visible active tiles to self.tiles
+        // Filter tiles: copy visible active tiles AND injected tiles to self.tiles
         let mut visible_tile_count = 0;
-        for i in 0..active_tiles.count {
-            let tx = active_tiles.x[i];
-            let ty = active_tiles.y[i];
-            let tz = active_tiles.z[i];
-            let pos = visibility::get_grid_pos_3d(tx, ty, tz, use_y_axis);
+        
+        let mut filter_tiles_to_output = |tiles: &TilesBuffer| {
+            for i in 0..tiles.count {
+                let tx = tiles.x[i];
+                let ty = tiles.y[i];
+                let tz = tiles.z[i];
+                let pos = visibility::get_grid_pos_3d(tx, ty, tz, use_y_axis);
 
-            let dx = tx - cam_x;
-            let dy = ty - cam_y;
-            let dz = tz - cam_z;
-            let dist = (dx * dx + dy * dy + dz * dz).sqrt();
+                let dx = tx - cam_x;
+                let dy = ty - cam_y;
+                let dz = tz - cam_z;
+                let dist = (dx * dx + dy * dy + dz * dz).sqrt();
 
-            if visible_cells.contains(&pos) && dist <= radius {
-                if visible_tile_count < MAX_TILES {
-                    self.tiles.x[visible_tile_count] = tx;
-                    self.tiles.y[visible_tile_count] = ty;
-                    self.tiles.z[visible_tile_count] = tz;
-                    self.tiles.tile_id[visible_tile_count] = active_tiles.tile_id[i];
-                    self.tiles.variant[visible_tile_count] = active_tiles.variant[i];
-                    self.tiles.solid[visible_tile_count] = active_tiles.solid[i];
-                    self.tiles.vertical_opening[visible_tile_count] =
-                        active_tiles.vertical_opening[i];
-                    visible_tile_count += 1;
+                if visible_cells.contains(&pos) && dist <= radius {
+                    if visible_tile_count < MAX_TILES {
+                        self.tiles.x[visible_tile_count] = tx;
+                        self.tiles.y[visible_tile_count] = ty;
+                        self.tiles.z[visible_tile_count] = tz;
+                        self.tiles.tile_id[visible_tile_count] = tiles.tile_id[i];
+                        self.tiles.variant[visible_tile_count] = tiles.variant[i];
+                        self.tiles.solid[visible_tile_count] = tiles.solid[i];
+                        self.tiles.vertical_opening[visible_tile_count] =
+                            tiles.vertical_opening[i];
+                        visible_tile_count += 1;
+                    }
                 }
             }
-        }
+        };
+
+        filter_tiles_to_output(active_tiles);
+        filter_tiles_to_output(&self.seam_injection_tiles);
         self.tiles.count = visible_tile_count;
 
         // Filter actors: update active state in self.actors

@@ -40,6 +40,7 @@ Each entry links to a design doc and includes the doc's one-line summary. Docs d
 | [`docs/architecture/wasm-bridge.md`](./architecture/wasm-bridge.md) | Retro Mage crosses the WASM boundary via fixed-size typed-array buffers that engine-core writes and render reads as zero-copy views into WASM linear memory. |
 | [`docs/architecture/world-streaming.md`](./architecture/world-streaming.md) | Retro Mage streams indoor rooms and outdoor terrain chunks in and out as the player moves using distance/proximity triggers, hop-based load-ahead, and per-seam coordinate translation, so the two data structures behind the seamless world of Visibility never require a load screen or level swap. |
 | [`docs/architecture/world-structure-partitioning.md`](./architecture/world-structure-partitioning.md) | Retro Mage isolates indoor and outdoor space mechanically by maintaining separate tile and actor buffers in engine-core, preventing coordinate overlap between the two structures. |
+| [`docs/architecture/seam-rendering.md`](./architecture/seam-rendering.md) | Retro Mage renders seamless environments across coordinate seams by injecting transformed far-side tiles directly into the visibility and rendering pass. |
 
 ---
 

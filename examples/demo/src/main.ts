@@ -66,24 +66,12 @@ async function main(): Promise<void> {
   engineState.set_active_world_structure(0); // 0 = Indoor, 1 = Outdoor
   engineState.set_outdoor_default_tile_id(3); // tile_id 3 = grass terrain
 
-  // Outdoor world coordinates are deliberately offset far away (+1000 on both axes) from
-  // indoor room coordinates. engine-core's master tile buffer and collision system are a
-  // single shared coordinate space with no structure-aware partitioning (see
-  // docs/research/known-gaps.md "Outdoor Coordinate System") — indoor tiles remain solid
-  // obstacles and visible geometry at their literal (x, z) position even while the active
-  // world structure is Outdoor. Since the indoor rooms occupy roughly x/z in [-10, 10], a
-  // small offdoor anchor like (32, 32) put solid Gate Room wall tiles well within both the
-  // outdoor sight radius (up to 32 tiles) and the collision path back to the seam, causing
-  // dungeon geometry to render in the outdoor sky and to block the return crossing. Pushing
-  // the outdoor world out to ~1000 keeps the two spaces from ever numerically overlapping.
-  
-
-  // Register Seam mapping Gate Room exit tile at (10, 4) to outdoor global (1032, 1032).
-  // register_seam's offset_x/offset_y are raw SeamTransform translation values (not
-  // derived from the pinned-point formula), so both the outdoor anchor and the transform
-  // offset must be shifted by OUTDOOR_OFFSET consistently with the original (32, 32) anchor
-  // — shifting the room-side (10, 4) numbers instead would desync the seam's stored anchor
-  // from where the transform actually places the player on crossing.
+  // Register Seam: Gate Room exit tile (10, 4) ↔ outdoor global anchor (32, 32).
+  // offset_x/offset_y are raw SeamTransform translation values derived from the
+  // pinned-point formula: offset = outdoor_anchor − room_anchor (with rotation=0).
+  // indoor_tiles and outdoor_tiles are now fully separate buffers (see
+  // docs/architecture/world-structure-partitioning.md), so indoor geometry cannot
+  // bleed into outdoor space regardless of coordinate proximity.
   engineState.register_seam(
     1,
     2,
@@ -162,7 +150,6 @@ async function main(): Promise<void> {
   }
 
 
-
   // Torch Point Lights (4 total): warm orange-yellow (r=1.0, g=0.7, b=0.3)
   // Entry Hall Torch 1 & 2
   engineState.set_light(0, -2.0, 1.5, 4.0, 1.0, 0.7, 0.3, 8.0, 1.0);
@@ -181,9 +168,9 @@ async function main(): Promise<void> {
   engineState.set_outdoor_actor(4, 28.0, 0.0, 44.0, 0.0, 1.0, 1.0);
   engineState.set_outdoor_actor(5, 36.0, 0.0, 42.0, 0.0, 1.0, 1.0);
 
-  // Two trees marking the seam entrance back to the dungeon at (32, 32)
-  engineState.set_outdoor_actor(6, 30.5, 0.0, 32.0, 0.0, 1.0, 1.0);
-  engineState.set_outdoor_actor(7, 33.5, 0.0, 32.0, 0.0, 1.0, 1.0);
+  // A pair of solid stone wall tiles (tile_id 1) marking the seam entrance back to the dungeon
+  engineState.set_outdoor_tile(31.0, 0.0, 32.0, 1, 0, 1.0, 0.0);
+  engineState.set_outdoor_tile(33.0, 0.0, 32.0, 1, 0, 1.0, 0.0);
 
   // Set up world state reader over WASM memory
   const reader = new WorldStateReader(engineState, wasmOutput.memory);
@@ -290,13 +277,18 @@ async function main(): Promise<void> {
     engineState.tick(dt);
 
 
-
     const activeStruct = engineState.active_world_structure();
     const isOutdoor = activeStruct === 1;
 
     // Active world structure updates rendering skybox and outdoor ambient lighting
     renderer.setSkyboxEnabled(isOutdoor);
-    engineState.set_ambient_light(isOutdoor ? 1.0 : 0.05);
+    
+    // Smoothly transition ambient light instead of snapping to prevent flashing during cooldown/hysteresis
+    const targetAmbient = isOutdoor ? 1.0 : 0.05;
+    const currentAmbient = engineState.ambient_light();
+    engineState.set_ambient_light(
+      currentAmbient + (targetAmbient - currentAmbient) * (1.0 - Math.exp(-5.0 * dt))
+    );
 
     perfOverlay.update(dtMs, time, {
       sightRadius: engineState.sight_radius(),
