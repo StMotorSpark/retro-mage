@@ -36,9 +36,11 @@ pub struct EngineState {
     lights: LightsBuffer,
     tiles: TilesBuffer,
     camera: CameraBuffer,
-    master_actors: ActorsBuffer,
+    indoor_actors: ActorsBuffer,
+    outdoor_actors: ActorsBuffer,
     master_lights: LightsBuffer,
-    master_tiles: TilesBuffer,
+    indoor_tiles: TilesBuffer,
+    outdoor_tiles: TilesBuffer,
     chunk_streamer: chunk::OutdoorChunkStreamer,
     chunk_provider: chunk::FlatChunkProvider,
     indoor_streamer: room::IndoorRoomStreamer,
@@ -73,9 +75,11 @@ impl EngineState {
             lights: LightsBuffer::new(),
             tiles: TilesBuffer::new(),
             camera,
-            master_actors: ActorsBuffer::new(),
+            indoor_actors: ActorsBuffer::new(),
+            outdoor_actors: ActorsBuffer::new(),
             master_lights: LightsBuffer::new(),
-            master_tiles: TilesBuffer::new(),
+            indoor_tiles: TilesBuffer::new(),
+            outdoor_tiles: TilesBuffer::new(),
             chunk_streamer: streamer,
             chunk_provider: provider,
             indoor_streamer,
@@ -137,7 +141,7 @@ impl EngineState {
             dx,
             dz,
             self.collision_config.player_radius,
-            &self.master_tiles,
+            if self.active_world_structure() == 0 { &self.indoor_tiles } else { &self.outdoor_tiles },
         );
         self.camera.x[0] = new_px;
         self.camera.z[0] = new_pz;
@@ -567,7 +571,7 @@ impl EngineState {
         self.actors.active_count()
     }
 
-    pub fn set_actor(
+    pub fn set_indoor_actor(
         &mut self,
         index: usize,
         x: f32,
@@ -578,7 +582,26 @@ impl EngineState {
         active: f32,
     ) -> bool {
         let ok = self
-            .master_actors
+            .indoor_actors
+            .set_actor(index, x, y, z, facing, sprite_id, active);
+        if ok {
+            self.recompute_visibility();
+        }
+        ok
+    }
+
+    pub fn set_outdoor_actor(
+        &mut self,
+        index: usize,
+        x: f32,
+        y: f32,
+        z: f32,
+        facing: f32,
+        sprite_id: f32,
+        active: f32,
+    ) -> bool {
+        let ok = self
+            .outdoor_actors
             .set_actor(index, x, y, z, facing, sprite_id, active);
         if ok {
             self.recompute_visibility();
@@ -728,7 +751,7 @@ impl EngineState {
         self.tiles.count
     }
 
-    pub fn set_tile(
+    pub fn set_indoor_tile(
         &mut self,
         index: usize,
         x: f32,
@@ -740,7 +763,27 @@ impl EngineState {
         vertical_opening: f32,
     ) -> bool {
         let ok = self
-            .master_tiles
+            .indoor_tiles
+            .set_tile(index, x, y, z, tile_id, variant, solid, vertical_opening);
+        if ok {
+            self.recompute_visibility();
+        }
+        ok
+    }
+
+    pub fn set_outdoor_tile(
+        &mut self,
+        index: usize,
+        x: f32,
+        y: f32,
+        z: f32,
+        tile_id: f32,
+        variant: f32,
+        solid: f32,
+        vertical_opening: f32,
+    ) -> bool {
+        let ok = self
+            .outdoor_tiles
             .set_tile(index, x, y, z, tile_id, variant, solid, vertical_opening);
         if ok {
             self.recompute_visibility();
@@ -819,24 +862,35 @@ impl EngineState {
 
         let use_y_axis = false;
 
-        // Build solid & vertical-opening grid maps from master tiles
+        let active_tiles = if self.active_world_structure() == 0 {
+            &self.indoor_tiles
+        } else {
+            &self.outdoor_tiles
+        };
+        let active_actors = if self.active_world_structure() == 0 {
+            &self.indoor_actors
+        } else {
+            &self.outdoor_actors
+        };
+
+        // Build solid & vertical-opening grid maps from active tiles
         let mut grid_solids = HashMap::new();
         let mut grid_openings = HashMap::new();
-        for i in 0..self.master_tiles.count {
+        for i in 0..active_tiles.count {
             let pos = visibility::get_grid_pos_3d(
-                self.master_tiles.x[i],
-                self.master_tiles.y[i],
-                self.master_tiles.z[i],
+                active_tiles.x[i],
+                active_tiles.y[i],
+                active_tiles.z[i],
                 use_y_axis,
             );
-            let solid = self.master_tiles.solid[i] != 0.0;
+            let solid = active_tiles.solid[i] != 0.0;
             if solid {
                 grid_solids.insert(pos, true);
             } else {
                 grid_solids.entry(pos).or_insert(false);
             }
 
-            let is_opening = self.master_tiles.vertical_opening[i] != 0.0;
+            let is_opening = active_tiles.vertical_opening[i] != 0.0;
             if is_opening {
                 grid_openings.insert(pos, true);
             } else {
@@ -856,12 +910,12 @@ impl EngineState {
             use_y_axis,
         );
 
-        // Filter tiles: copy visible master tiles to self.tiles
+        // Filter tiles: copy visible active tiles to self.tiles
         let mut visible_tile_count = 0;
-        for i in 0..self.master_tiles.count {
-            let tx = self.master_tiles.x[i];
-            let ty = self.master_tiles.y[i];
-            let tz = self.master_tiles.z[i];
+        for i in 0..active_tiles.count {
+            let tx = active_tiles.x[i];
+            let ty = active_tiles.y[i];
+            let tz = active_tiles.z[i];
             let pos = visibility::get_grid_pos_3d(tx, ty, tz, use_y_axis);
 
             let dx = tx - cam_x;
@@ -874,11 +928,11 @@ impl EngineState {
                     self.tiles.x[visible_tile_count] = tx;
                     self.tiles.y[visible_tile_count] = ty;
                     self.tiles.z[visible_tile_count] = tz;
-                    self.tiles.tile_id[visible_tile_count] = self.master_tiles.tile_id[i];
-                    self.tiles.variant[visible_tile_count] = self.master_tiles.variant[i];
-                    self.tiles.solid[visible_tile_count] = self.master_tiles.solid[i];
+                    self.tiles.tile_id[visible_tile_count] = active_tiles.tile_id[i];
+                    self.tiles.variant[visible_tile_count] = active_tiles.variant[i];
+                    self.tiles.solid[visible_tile_count] = active_tiles.solid[i];
                     self.tiles.vertical_opening[visible_tile_count] =
-                        self.master_tiles.vertical_opening[i];
+                        active_tiles.vertical_opening[i];
                     visible_tile_count += 1;
                 }
             }
@@ -887,16 +941,16 @@ impl EngineState {
 
         // Filter actors: update active state in self.actors
         for i in 0..MAX_ACTORS {
-            self.actors.x[i] = self.master_actors.x[i];
-            self.actors.y[i] = self.master_actors.y[i];
-            self.actors.z[i] = self.master_actors.z[i];
-            self.actors.facing[i] = self.master_actors.facing[i];
-            self.actors.sprite_id[i] = self.master_actors.sprite_id[i];
+            self.actors.x[i] = active_actors.x[i];
+            self.actors.y[i] = active_actors.y[i];
+            self.actors.z[i] = active_actors.z[i];
+            self.actors.facing[i] = active_actors.facing[i];
+            self.actors.sprite_id[i] = active_actors.sprite_id[i];
 
-            if self.master_actors.active[i] != 0.0 {
-                let ax = self.master_actors.x[i];
-                let ay = self.master_actors.y[i];
-                let az = self.master_actors.z[i];
+            if active_actors.active[i] != 0.0 {
+                let ax = active_actors.x[i];
+                let ay = active_actors.y[i];
+                let az = active_actors.z[i];
                 let pos = visibility::get_grid_pos_3d(ax, ay, az, use_y_axis);
 
                 let dx = ax - cam_x;
@@ -905,7 +959,7 @@ impl EngineState {
                 let dist = (dx * dx + dy * dy + dz * dz).sqrt();
 
                 if visible_cells.contains(&pos) && dist <= radius {
-                    self.actors.active[i] = self.master_actors.active[i];
+                    self.actors.active[i] = active_actors.active[i];
                 } else {
                     self.actors.active[i] = 0.0;
                 }
@@ -960,13 +1014,14 @@ mod tests {
     #[test]
     fn test_engine_state_getters_and_roundtrip() {
         let mut state = EngineState::new();
+        state.set_active_world_structure(0);
         state.set_ambient_light(1.0);
 
         // Actors
         assert!(!state.actors_x_ptr().is_null());
         assert_eq!(state.actors_x_count(), 64);
         assert_eq!(state.actors_count(), 0);
-        state.set_actor(0, 1.0, 0.0, 3.0, 0.5, 10.0, 1.0);
+        state.set_indoor_actor(0, 1.0, 0.0, 3.0, 0.5, 10.0, 1.0);
         assert_eq!(state.actors_count(), 1);
         unsafe {
             assert_eq!(*state.actors_x_ptr(), 1.0);
@@ -997,7 +1052,7 @@ mod tests {
         assert!(!state.tiles_vertical_opening_ptr().is_null());
         assert_eq!(state.tiles_vertical_opening_count(), 1024);
         assert_eq!(state.tiles_count(), 0);
-        state.set_tile(0, 10.0, 0.0, 20.0, 2.0, 1.0, 1.0, 0.0);
+        state.set_indoor_tile(0, 10.0, 0.0, 20.0, 2.0, 1.0, 1.0, 0.0);
         assert_eq!(state.tiles_count(), 1);
         unsafe {
             assert_eq!(*state.tiles_x_ptr(), 10.0);
@@ -1044,6 +1099,7 @@ mod tests {
     #[test]
     fn test_shadowcasting_occlusion_and_sight_radius_fixtures() {
         let mut state = EngineState::new();
+        state.set_active_world_structure(0);
         // Set camera at (0, 0, 0)
         state.set_camera(0.0, 0.0, 0.0, 0.0, 0.0);
         // Ambient light 0.1 -> sight_radius = 3.2m
@@ -1056,19 +1112,19 @@ mod tests {
         // Tile 2: (0, 0, 3) - behind wall (occluded by solid wall at z=2) -> excluded
         // Tile 3: (0, 0, 10) - unoccluded direction, but beyond sight radius (dist 10.0 > 3.2) -> excluded
         // Tile 4: (2, 0, 0) - side floor (unoccluded, dist 2.0 <= 3.2) -> visible
-        state.set_tile(0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0);
-        state.set_tile(1, 0.0, 0.0, 2.0, 2.0, 0.0, 1.0, 0.0); // Solid wall at z=2
-        state.set_tile(2, 0.0, 0.0, 3.0, 1.0, 0.0, 0.0, 0.0);
-        state.set_tile(3, 0.0, 0.0, 10.0, 1.0, 0.0, 0.0, 0.0);
-        state.set_tile(4, 2.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0);
+        state.set_indoor_tile(0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0);
+        state.set_indoor_tile(1, 0.0, 0.0, 2.0, 2.0, 0.0, 1.0, 0.0); // Solid wall at z=2
+        state.set_indoor_tile(2, 0.0, 0.0, 3.0, 1.0, 0.0, 0.0, 0.0);
+        state.set_indoor_tile(3, 0.0, 0.0, 10.0, 1.0, 0.0, 0.0, 0.0);
+        state.set_indoor_tile(4, 2.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0);
 
         // Actors:
         // Actor 0: (0, 0, 1) - near side -> visible
         // Actor 1: (0, 0, 3) - behind wall -> occluded (active cleared)
         // Actor 2: (0, 0, 10) - beyond sight radius -> out of sight (active cleared)
-        state.set_actor(0, 0.0, 0.0, 1.0, 0.0, 1.0, 1.0);
-        state.set_actor(1, 0.0, 0.0, 3.0, 0.0, 1.0, 1.0);
-        state.set_actor(2, 0.0, 0.0, 10.0, 0.0, 1.0, 1.0);
+        state.set_indoor_actor(0, 0.0, 0.0, 1.0, 0.0, 1.0, 1.0);
+        state.set_indoor_actor(1, 0.0, 0.0, 3.0, 0.0, 1.0, 1.0);
+        state.set_indoor_actor(2, 0.0, 0.0, 10.0, 0.0, 1.0, 1.0);
 
         // Lights:
         // Light 0: (2, 0, 0) - unoccluded -> visible
@@ -1111,12 +1167,13 @@ mod tests {
     #[test]
     fn test_visibility_runs_every_frame_on_movement() {
         let mut state = EngineState::new();
+        state.set_active_world_structure(0);
         state.set_ambient_light(1.0); // Full sight radius
 
         // Set up wall at (0, 0, 2) and tile behind wall at (0, 0, 3)
-        state.set_tile(0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0);
-        state.set_tile(1, 0.0, 0.0, 2.0, 2.0, 0.0, 1.0, 0.0); // Wall
-        state.set_tile(2, 0.0, 0.0, 3.0, 1.0, 0.0, 0.0, 0.0); // Behind wall
+        state.set_indoor_tile(0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0);
+        state.set_indoor_tile(1, 0.0, 0.0, 2.0, 2.0, 0.0, 1.0, 0.0); // Wall
+        state.set_indoor_tile(2, 0.0, 0.0, 3.0, 1.0, 0.0, 0.0, 0.0); // Behind wall
 
         // Frame 1: player at (0, 0, 0)
         state.set_camera(0.0, 0.0, 0.0, 0.0, 0.0);
@@ -1133,26 +1190,27 @@ mod tests {
     #[test]
     fn test_multi_floor_visibility_opening_and_isolation() {
         let mut state = EngineState::new();
+        state.set_active_world_structure(0);
         state.set_ambient_light(1.0); // Full sight radius
 
         // Floor 1 (upper floor, y = 1.0):
         // Tile 0: Player stand tile at (0, 1, 0)
         // Tile 1: Balcony opening tile at (1, 1, 0) with vertical_opening = 1.0
-        state.set_tile(0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0);
-        state.set_tile(1, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0); // Vertical opening!
+        state.set_indoor_tile(0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0);
+        state.set_indoor_tile(1, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0); // Vertical opening!
 
         // Floor 0 (lower floor, y = 0.0):
         // Tile 2: Tile directly under opening at (1, 0, 0)
         // Tile 3: Tile forward on lower floor at (2, 0, 0)
         // Tile 4: Tile under solid floor at (0, 0, 0)
-        state.set_tile(2, 1.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0);
-        state.set_tile(3, 2.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0);
-        state.set_tile(4, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0);
+        state.set_indoor_tile(2, 1.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0);
+        state.set_indoor_tile(3, 2.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0);
+        state.set_indoor_tile(4, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0);
 
         // Actor 0 on lower floor forward (2, 0, 0)
         // Actor 1 on lower floor under solid floor (0, 0, 0)
-        state.set_actor(0, 2.0, 0.0, 0.0, 0.0, 1.0, 1.0);
-        state.set_actor(1, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0);
+        state.set_indoor_actor(0, 2.0, 0.0, 0.0, 0.0, 1.0, 1.0);
+        state.set_indoor_actor(1, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0);
 
         // 1. Player near opening on upper floor: camera at (0, 1, 0)
         state.set_camera(0.0, 1.0, 0.0, 0.0, 0.0);
@@ -1203,6 +1261,7 @@ mod tests {
     #[test]
     fn test_max_sight_distance_tuning() {
         let mut state = EngineState::new();
+        state.set_active_world_structure(0);
 
         // Default max sight distance is DEFAULT_MAX_DRAW_DISTANCE (32.0)
         assert_eq!(state.max_sight_distance(), visibility::DEFAULT_MAX_DRAW_DISTANCE);
@@ -1223,6 +1282,7 @@ mod tests {
     #[test]
     fn test_cull_precision_distance_tuning() {
         let mut state = EngineState::new();
+        state.set_active_world_structure(0);
         state.set_ambient_light(1.0); // Full sight radius (32.0)
         state.set_camera(0.0, 0.0, 0.0, 0.0, 0.0);
 
@@ -1233,9 +1293,9 @@ mod tests {
         // Tile 0: (0, 0, 1) - solid wall at z=1 (dist 1.0)
         // Tile 1: (0, 0, 2) - floor tile behind wall at z=1 (dist 2.0)
         // Tile 2: (0, 0, 4) - floor tile further behind wall (dist 4.0)
-        state.set_tile(0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0); // Solid wall at z=1
-        state.set_tile(1, 0.0, 0.0, 2.0, 1.0, 0.0, 0.0, 0.0); // Behind wall (dist 2.0)
-        state.set_tile(2, 0.0, 0.0, 4.0, 1.0, 0.0, 0.0, 0.0); // Further behind wall (dist 4.0)
+        state.set_indoor_tile(0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0); // Solid wall at z=1
+        state.set_indoor_tile(1, 0.0, 0.0, 2.0, 1.0, 0.0, 0.0, 0.0); // Behind wall (dist 2.0)
+        state.set_indoor_tile(2, 0.0, 0.0, 4.0, 1.0, 0.0, 0.0, 0.0); // Further behind wall (dist 4.0)
 
         // 1. With default cull_precision_distance (32.0): exact occlusion everywhere
         // Only wall at z=1 is visible; z=2 and z=4 are occluded.
@@ -1265,6 +1325,7 @@ mod tests {
     #[test]
     fn test_engine_state_outdoor_chunk_streaming() {
         let mut state = EngineState::new();
+        state.set_active_world_structure(0);
         // Initial state at (0,0): 25 resident chunks (load_radius 2)
         assert_eq!(state.outdoor_load_radius(), 2);
         assert_eq!(state.outdoor_evict_radius(), 3);
@@ -1282,6 +1343,7 @@ mod tests {
     #[test]
     fn test_engine_state_indoor_room_streaming() {
         let mut state = EngineState::new();
+        state.set_active_world_structure(0);
         state.add_room_to_graph(10, "Entrance");
         state.add_room_to_graph(11, "Hallway");
         state.add_room_to_graph(12, "Armory");
@@ -1309,6 +1371,7 @@ mod tests {
     #[test]
     fn test_streaming_config_runtime_tuning_and_behavior_changes() {
         let mut state = EngineState::new();
+        state.set_active_world_structure(0);
 
         // 1. Initial default streaming config values
         let default_config = state.streaming_config();
@@ -1370,6 +1433,7 @@ mod tests {
     #[test]
     fn test_streaming_config_sight_distance_validation_warnings() {
         let mut state = EngineState::new();
+        state.set_active_world_structure(0);
         state.set_max_sight_distance(32.0);
 
         // Outdoor load radius 0 chunks = 0 tiles < 32.0 sight distance -> warning!
@@ -1407,7 +1471,8 @@ mod tests {
 
     #[test]
     fn test_collision_config_defaults_on_new_state() {
-        let state = EngineState::new();
+        let mut state = EngineState::new();
+        state.set_active_world_structure(0);
         assert_eq!(state.player_speed(), collision::DEFAULT_PLAYER_SPEED);
         assert_eq!(state.player_radius(), collision::DEFAULT_PLAYER_RADIUS);
         assert_eq!(state.look_sensitivity(), collision::DEFAULT_LOOK_SENSITIVITY);
@@ -1416,6 +1481,7 @@ mod tests {
     #[test]
     fn test_collision_config_app_override() {
         let mut state = EngineState::new();
+        state.set_active_world_structure(0);
         state.set_player_speed(6.0);
         state.set_player_radius(0.4);
         state.set_look_sensitivity(3.0);
@@ -1427,6 +1493,7 @@ mod tests {
     #[test]
     fn test_tick_applies_look_input_to_yaw() {
         let mut state = EngineState::new();
+        state.set_active_world_structure(0);
         state.set_camera(0.0, 0.0, 0.0, 0.0, 0.0);
         // look_x=1 with default sensitivity (2.0 rad/s) over dt=0.5s → yaw += 1.0
         state.set_input(0.0, 0.0, 1.0, 0.0, 0.0, 0, 0);
@@ -1438,6 +1505,7 @@ mod tests {
     #[test]
     fn test_tick_applies_pitch_input_clamped() {
         let mut state = EngineState::new();
+        state.set_active_world_structure(0);
         state.set_camera(0.0, 0.0, 0.0, 0.0, 0.0);
         // look_y=1 for 100s → should clamp at ~85°, not exceed π/2
         state.set_input(0.0, 0.0, 0.0, 1.0, 0.0, 0, 0);
@@ -1449,6 +1517,7 @@ mod tests {
     #[test]
     fn test_tick_moves_player_forward_at_yaw_zero() {
         let mut state = EngineState::new();
+        state.set_active_world_structure(0);
         state.set_ambient_light(1.0);
         state.set_camera(0.0, 0.0, 0.0, 0.0, 0.0); // yaw=0 → forward = -Z
         // move_y=1 (forward), dt=1s, speed=4.0 → dz = -4.0
@@ -1461,12 +1530,13 @@ mod tests {
     #[test]
     fn test_tick_collision_stops_player_before_wall() {
         let mut state = EngineState::new();
+        state.set_active_world_structure(0);
         state.set_ambient_light(1.0);
         // Place camera at origin, yaw=0 → facing -Z
         state.set_camera(0.0, 0.0, 0.0, 0.0, 0.0);
         // Solid wall tile at (0, 0, -3): tile AABB Z face at z = -3 + 0.5 = -2.5
         // With radius 0.3, player stops at z >= -2.5 + 0.3 = -2.2
-        state.set_tile(0, 0.0, 0.0, -3.0, 1.0, 0.0, 1.0, 0.0);
+        state.set_indoor_tile(0, 0.0, 0.0, -3.0, 1.0, 0.0, 1.0, 0.0);
         state.set_input(0.0, 1.0, 0.0, 0.0, 0.0, 0, 0);
         // Run for 10 seconds — without collision player would travel 40 tiles
         state.tick(10.0);
@@ -1477,10 +1547,11 @@ mod tests {
     #[test]
     fn test_tick_non_solid_tile_does_not_block_movement() {
         let mut state = EngineState::new();
+        state.set_active_world_structure(0);
         state.set_ambient_light(1.0);
         state.set_camera(0.0, 0.0, 0.0, 0.0, 0.0);
         // Floor tile (solid=0) directly ahead — should not block
-        state.set_tile(0, 0.0, 0.0, -1.0, 1.0, 0.0, 0.0, 0.0);
+        state.set_indoor_tile(0, 0.0, 0.0, -1.0, 1.0, 0.0, 0.0, 0.0);
         state.set_input(0.0, 1.0, 0.0, 0.0, 0.0, 0, 0);
         state.tick(0.1);
         let pz = unsafe { *state.camera_z_ptr() };
@@ -1490,11 +1561,12 @@ mod tests {
     #[test]
     fn test_tick_sliding_along_wall() {
         let mut state = EngineState::new();
+        state.set_active_world_structure(0);
         state.set_ambient_light(1.0);
         // Place player left of a wall running along the Z axis
         // Solid wall at (1, 0, 0): blocks +X movement but not -Z movement
         state.set_camera(-0.5, 0.0, 2.0, 0.0, 0.0); // yaw=0 → facing -Z
-        state.set_tile(0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0);
+        state.set_indoor_tile(0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0);
         // Move diagonally: forward (-Z) and strafe right (+X)
         // The +X component hits the wall but -Z should succeed (slide)
         state.set_input(1.0, 1.0, 0.0, 0.0, 0.0, 0, 0); // move_x=1 (strafe right), move_y=1 (forward)
