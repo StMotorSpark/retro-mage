@@ -54,9 +54,11 @@ One seam is registered in `examples/demo` connecting Gate Room's exit tile to th
 
 The seam trigger distance is set to cover at least the indoor sight radius so the outdoor chunk is loaded before the player reaches the door — no pop-in at the crossing. The seam crossing threshold is one tile width so the transition feels responsive without false triggers.
 
+The engine only evaluates a seam while its owning room is the current room, and `engine-core` never infers room changes from player position on its own (see [Known Gaps — Indoor Room-Transition Detection](../research/known-gaps.md#indoor-room-transition-detection)). `examples/demo` tracks the current room itself each tick with a simple x-coordinate bounds check against each room's known footprint, calling `set_indoor_current_room` when the player's position crosses into a different room — this is what lets the Gate Room's seam become active once the player physically walks there from Entry Hall.
+
 ## Outdoor — Terrain, Sky, Trees
 
-A 3×3 chunk area (each chunk 32×32 tiles, total ~96×96 tiles of visible terrain) provided by a `FlatChunkProvider` variant that fills all tiles with tile ID matching the grass texture. Outdoor ambient light is high (`ambient_light = 1.0`), giving full draw-distance sight radius and demonstrating the contrast with the dark dungeon interior.
+A 3×3 chunk area (each chunk 32×32 tiles, total ~96×96 tiles of visible terrain) provided by a `FlatChunkProvider` variant that fills all tiles with tile ID matching the grass texture, and additionally authored as ordinary hand-placed grass tiles alongside the indoor rooms (see Seam section above and [Known Gaps](../research/known-gaps.md#outdoor-chunk-rendering-bridge)). Outdoor ambient light is high (`ambient_light = 1.0`), giving full draw-distance sight radius and demonstrating the contrast with the dark dungeon interior.
 
 **Terrain texture**: grass tile. One KTX2 texture, 64×64 PNG source.
 
@@ -66,7 +68,7 @@ A 3×3 chunk area (each chunk 32×32 tiles, total ~96×96 tiles of visible terra
 
 **Sprite texture**: one tree sprite sheet (single frame). PNG source, KTX2 at build time.
 
-**Outdoor chunk streaming**: load radius 2, evict radius 3 (engine defaults). Player movement in the outdoor area triggers chunk resident-set updates transparently.
+**Outdoor chunk streaming**: load radius 2, evict radius 3 (engine defaults). Player movement in the outdoor area triggers chunk resident-set updates transparently. Until the outdoor chunk-to-render-tile bridge exists (see [Known Gaps — Outdoor Chunk Rendering Bridge](../research/known-gaps.md#outdoor-chunk-rendering-bridge)), the visible grass terrain itself is authored as ordinary hand-placed tiles the same way indoor rooms are, at a coordinate range offset far (+1000 tiles on both axes) from the indoor rooms' coordinates — this keeps the two spaces from falling within each other's sight radius or collision range, per [Known Gaps — Shared Indoor/Outdoor Coordinate Space](../research/known-gaps.md#shared-indooroutdoor-coordinate-space).
 
 ## Player Controls
 

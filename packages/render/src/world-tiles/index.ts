@@ -142,6 +142,12 @@ export function createTileRenderer(gl: WebGL2RenderingContext): TileRenderer {
 
   const modelMatrix = mat4Create();
 
+  // Base cube geometry is 1 unit tall (y: 0..1). Floor tiles render at that height;
+  // solid (wall) tiles are scaled taller so they occlude the player's eye-height view
+  // (camera render eye sits at tile elevation + EYE_HEIGHT_OFFSET, see loop.ts) instead
+  // of appearing flush with the floor top.
+  const WALL_HEIGHT = 3.0;
+
   return {
     setTexture(tileId: number, texture: WebGLTexture): void {
       textures.set(tileId, texture);
@@ -162,8 +168,12 @@ export function createTileRenderer(gl: WebGL2RenderingContext): TileRenderer {
         const y = tiles.y[i] ?? 0;
         const z = tiles.z[i] ?? 0;
         const tileId = tiles.tile_id[i] ?? 0;
+        const solid = tiles.solid[i] ?? 0;
 
         mat4Translation(modelMatrix, x, y, z);
+        if (solid !== 0) {
+          modelMatrix[5] = WALL_HEIGHT; // scale local Y axis before translation offset
+        }
         gl.uniformMatrix4fv(uModel, false, modelMatrix);
 
         if (tileId !== currentTexTileId) {

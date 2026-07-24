@@ -43,16 +43,34 @@ Undecided:
 - Blocks: multi-floor dungeon rooms (stairs, balconies) — deferred post-Phase-1 demo
 - Relates to: [Collision](../architecture/collision.md), [Visibility](../architecture/visibility.md), [World Model](../features/world-model.md)
 
-### Outdoor Coordinate System
+### Indoor Room-Transition Detection
 
-Outdoor chunk streaming uses `(camera.x, camera.y)` as the 2D ground-plane coordinates passed to `world_to_chunk_coord`. In the 3D world the ground plane is XZ (Y is elevation), but the streaming and seam code consistently treats Y as the second horizontal axis. This has no visible effect while the player is indoors (room-graph streaming ignores XY position), but would produce incorrect chunk loading if outdoor player movement is wired — moving along Z would not update the player's resident chunk set.
+Indoor rooms are graph nodes, not spatial regions — `engine-core` has no automatic detection of which room the player is physically standing in as they walk through a doorway (see [World Streaming](../architecture/world-streaming.md)). The engine only exposes an explicit `set_indoor_current_room(room_id)` call; nothing in `engine-core` infers a room change from player position. This means a consuming game must run its own room-boundary check every tick and call `set_indoor_current_room` when the player crosses into a different room's footprint, or the seam manager silently never evaluates seams attached to rooms other than whichever one is manually marked current (seam candidates are filtered to the *current* room, not merely resident rooms).
+
+Undecided:
+- **Detection mechanism**: should the engine offer a doorway/trigger-volume primitive (author a room-transition zone alongside the tile grid) so applications don't hand-roll bounding-box math per room shape, or does this stay entirely application-owned?
+- **Non-rectangular rooms**: a simple axis-aligned bounding check (as used today in `examples/demo`) only works for box-shaped rooms; irregular room footprints need a different membership test.
+
+- Blocks: any indoor room graph larger than one manually-pinned current room; any seam attached to a non-starting room
+- Relates to: [World Streaming](../architecture/world-streaming.md), [Collision](../architecture/collision.md)
+
+### Outdoor Chunk Rendering Bridge
+
+`OutdoorChunkStreamer`/`ChunkProvider` (see [World Streaming](../architecture/world-streaming.md)) correctly tracks which chunks are resident, but resident chunk tile data is never copied into `master_tiles` — the buffer `recompute_visibility` culls from and that `render`'s `TilesView` reads. A chunk becoming resident updates streaming bookkeeping (counts, load/evict state) but produces no visible geometry. Until this bridge exists, outdoor terrain is only visible where an application hand-authors ordinary tiles the same way indoor rooms are authored (see [Demo Scope](../features/demo-scope.md)).
+
+- Blocks: any outdoor terrain rendering that relies on `ChunkProvider`-sourced tile data rather than hand-placed tiles
+- Relates to: [World Streaming](../architecture/world-streaming.md), [WASM Bridge](../architecture/wasm-bridge.md), [Rendering](../architecture/rendering.md)
+
+### Shared Indoor/Outdoor Coordinate Space
+
+`master_tiles` and tile collision hold indoor and outdoor tiles together in one coordinate space with no partitioning by active world structure — every authored tile, indoor or outdoor, is a candidate for both the visibility cull and the collision check regardless of which structure is currently active. If an outdoor area's tile coordinates numerically overlap or sit close to an indoor room's tile coordinates, dungeon geometry can render and collide from outdoor space (and vice versa) purely because both fall within the same cull/collision radius of the player's literal position. Seam transforms only convert the player's position at the moment of crossing; authored tile positions on either side are never translated or isolated from each other.
 
 Resolution options:
-- Remap streaming to use `(camera.x, camera.z)`, rename chunk Y to Z throughout, and update `set_player_pos` / seam transforms to the XZ convention.
-- Keep XY as the outdoor map convention and map `camera.z` → `camera.y` at the outdoor rendering boundary.
+- Partition `master_tiles` (or add a per-tile structure tag) so visibility and collision only consider tiles belonging to the currently active structure.
+- Leave the shared space as-is and require applications to keep indoor and outdoor authored coordinate ranges far enough apart that they never fall within each other's sight radius or collision range (the current mitigation in [Demo Scope](../features/demo-scope.md)).
 
-- Blocks: outdoor player movement in the demo (deferred; Phase 1 demo crosses one seam but the outdoor area is small enough that chunk streaming mismatch has no visible effect)
-- Relates to: [Collision](../architecture/collision.md), [World Streaming](../architecture/world-streaming.md), [WASM Bridge](../architecture/wasm-bridge.md)
+- Blocks: any indoor/outdoor layout where an application wants authored coordinates to overlap or sit close together (e.g. multiple seams into a compact outdoor hub)
+- Relates to: [World Streaming](../architecture/world-streaming.md), [Collision](../architecture/collision.md), [WASM Bridge](../architecture/wasm-bridge.md)
 
 ### Demo Scope — Phase 2
 
@@ -70,6 +88,9 @@ Phase 2 work begins after Phase 1 demo is complete, resolved incrementally as ea
 - Relates to: [Demo Scope](../features/demo-scope.md), [World Model](../features/world-model.md), [Rendering](../architecture/rendering.md)
 
 ## Resolved
+
+### Outdoor Coordinate System
+_Resolved._ Streaming, seam crossing, and player position all use `(camera.x, camera.z)` as the outdoor ground-plane coordinates — `camera.y` is elevation only and is never read as a horizontal axis. See [World Streaming](../architecture/world-streaming.md) and [Collision](../architecture/collision.md).
 
 ### LUT Format and Generation
 _Resolved._ See [Lighting](../architecture/lighting.md). 2D WebGL texture LUT (256×32 RGBA texels), generated procedurally at runtime in JavaScript from `LightingConfig` parameters, uploaded as `TEXTURE_2D` with `NEAREST` filtering. Consumes 32 WASM point lights per frame to evaluate distance attenuation and surface color quantization.

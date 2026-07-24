@@ -7,6 +7,7 @@ relates-to:
   - "[World Model](../features/world-model.md)"
   - "[WASM Bridge](./wasm-bridge.md)"
   - "[Asset Pipeline](./asset-pipeline.md)"
+  - "[Known Gaps](../research/known-gaps.md)"
 ---
 
 # World Streaming
@@ -38,6 +39,8 @@ Load-ahead distance is not independent of [Visibility](./visibility.md)'s sight-
 
 Indoor rooms use graph-hop depth rather than a distance calculation because room-graph connectivity, not spatial distance, is the only adjacency notion that exists indoors — there is no shared coordinate space to measure distance in until a room is placed relative to a specific seam.
 
+The engine has no automatic detection of which room the player currently occupies — rooms are graph nodes, not spatial regions, so nothing in `engine-core` infers a room change from player position. Advancing `current_room_id` (via `set_indoor_current_room`) as the player crosses a doorway is an application responsibility; the seam manager only evaluates seams attached to whichever room is currently marked as current, not merely resident rooms, so a stale `current_room_id` silently disables every seam attached to a different room. See [Known Gaps — Indoor Room-Transition Detection](../research/known-gaps.md#indoor-room-transition-detection).
+
 ## Coordinate Translation at the Seam
 
 Outdoor chunks tile one global coordinate grid — chunk and tile coordinates are globally meaningful by construction, which is what makes the load-radius and eviction math above work. Indoor rooms do not share that grid: because rooms exist only as room-graph nodes (see above), a room has no inherent world position, and the same room could in principle be reached via more than one door leading to different outdoor locations, or reused in more than one place. Giving rooms global coordinates would fight the graph model rather than simplify it.
@@ -68,6 +71,10 @@ Two separate concerns are deliberately kept apart here, following the split/owne
 
 This resolves the outdoor chunk file format question previously tracked as an open gap: there is no single engine-mandated format, by design, so applications can choose handcrafted, procedural, or mixed authoring per their needs.
 
+A resident chunk's tile data is not automatically copied into the render-visible tile buffer — `ChunkProvider`/`OutdoorChunkStreamer` track chunk residency, but the engine's visibility cull reads from `master_tiles`, a separate, hand-authored tile buffer. An application must currently author outdoor terrain as ordinary tiles alongside its indoor rooms for that terrain to render; see [Known Gaps — Outdoor Chunk Rendering Bridge](../research/known-gaps.md#outdoor-chunk-rendering-bridge).
+
+Indoor and outdoor tiles also share that same `master_tiles` coordinate space with no partitioning by active structure, so an application must keep its indoor and outdoor authored coordinate ranges far enough apart that neither structure's tiles fall within the other's sight radius or collision range; see [Known Gaps — Shared Indoor/Outdoor Coordinate Space](../research/known-gaps.md#shared-indooroutdoor-coordinate-space).
+
 The same engine-owned-contract/application-owned-source split applies to indoor rooms and the room graph that connects them: the engine defines what a resident room must resolve to (its tile/geometry data plus its graph edges to other rooms and to outdoor seams), and the application decides how rooms and their connections are authored — hand-built level data, a level editor's export format, or procedural generation — the same way it decides outdoor chunk sourcing.
 
 ## Related Docs
@@ -76,3 +83,4 @@ The same engine-owned-contract/application-owned-source split applies to indoor 
 - [World Model](../features/world-model.md) — the room-as-unit indoor model and chunked outdoor terrain this streaming design operates on
 - [WASM Bridge](./wasm-bridge.md) — the buffer contract streamed chunk/room data ultimately crosses into render/engine-core through
 - [Asset Pipeline](./asset-pipeline.md) — the engine-owned/application-owned split pattern this doc's chunk data contract/source split follows
+- [Known Gaps](../research/known-gaps.md) — indoor room-transition detection, the outdoor chunk rendering bridge, and the shared indoor/outdoor coordinate space tracked as open gaps against this doc's design

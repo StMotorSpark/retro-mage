@@ -110,7 +110,7 @@ look_sensitivity f32   2.0 rad/s/unit      Camera look rotation speed
 - **Actor-vs-tile collision**: actors (NPCs, enemies) do not collide with tiles yet. Phase 2.
 - **Actor-vs-actor collision**: no entity-to-entity collision. Phase 2.
 - **Physics responses** (bouncing, friction, mass): out of scope for a dungeon-crawler; simple stop/slide is the intended model indefinitely.
-- **Outdoor XZ/XY coordinate inconsistency**: chunk streaming currently uses `(camera.x, camera.y)` as its 2D ground plane, but movement updates `camera.x` and `camera.z`. This is a pre-existing coordinate system inconsistency that has no effect on indoor (room-graph-driven) streaming but would need to be resolved before outdoor player movement is wired. Tracked in [Known Gaps](../research/known-gaps.md#outdoor-coordinate-system).
+- **Shared indoor/outdoor coordinate space**: collision checks every solid tile in `master_tiles` regardless of which world structure (indoor/outdoor) is currently active — there is no structure-based partitioning. An outdoor area's tiles can be blocked by indoor walls (or vice versa) if their authored coordinates fall close enough together. Tracked in [Known Gaps](../research/known-gaps.md#shared-indooroutdoor-coordinate-space).
 
 ## Related Docs
 
@@ -118,4 +118,4 @@ look_sensitivity f32   2.0 rad/s/unit      Camera look rotation speed
 - [WASM Bridge](./wasm-bridge.md) — the `master_tiles` solid field this collision check reads; the camera buffer this module writes
 - [Input Event Schema](./input-schema.md) — the `move_x/y` and `look_x/y` fields this module consumes
 - [Repo Structure](./repo-structure.md) — why collision lives in `engine-core` (simulation truth) not `render` or `input`
-- [Known Gaps](../research/known-gaps.md) — multi-floor collision and outdoor coordinate inconsistency tracked as future work
+- [Known Gaps](../research/known-gaps.md) — multi-floor collision and the shared indoor/outdoor coordinate space tracked as future work

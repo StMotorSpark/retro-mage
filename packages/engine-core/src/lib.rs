@@ -53,7 +53,8 @@ impl EngineState {
         let camera = CameraBuffer::new();
         let mut streamer = chunk::OutdoorChunkStreamer::default();
         let mut provider = chunk::FlatChunkProvider::default();
-        streamer.update_for_player_pos(camera.x[0], camera.y[0], &mut provider);
+        // Ground plane for streaming/seams is XZ (Y is elevation) — see docs/research/known-gaps.md "Outdoor Coordinate System".
+        streamer.update_for_player_pos(camera.x[0], camera.z[0], &mut provider);
 
         let mut room_graph = room::RoomGraph::new();
         let mut indoor_streamer = room::IndoorRoomStreamer::default();
@@ -141,12 +142,14 @@ impl EngineState {
         self.camera.x[0] = new_px;
         self.camera.z[0] = new_pz;
 
+        // Ground plane for streaming/seams is XZ (camera.y is elevation, not a horizontal axis) —
+        // see docs/research/known-gaps.md "Outdoor Coordinate System".
         let mut px = self.camera.x[0];
-        let mut py = self.camera.y[0];
+        let mut pz = self.camera.z[0];
 
         self.seam_manager.update_and_check_crossing(
             &mut px,
-            &mut py,
+            &mut pz,
             &mut self.indoor_streamer,
             &mut self.room_graph,
             &mut self.chunk_streamer,
@@ -154,12 +157,12 @@ impl EngineState {
         );
 
         self.camera.x[0] = px;
-        self.camera.y[0] = py;
+        self.camera.z[0] = pz;
 
         if self.seam_manager.active_structure() == seam::ActiveWorldStructure::Outdoor {
             self.chunk_streamer.update_for_player_pos(
                 px,
-                py,
+                pz,
                 &mut self.chunk_provider,
             );
         } else {
@@ -193,19 +196,19 @@ impl EngineState {
         self.camera.x[0]
     }
 
-    /// Player Y coordinate in active structure's coordinate space.
+    /// Player Z coordinate (ground-plane second axis) in active structure's coordinate space.
     pub fn player_y(&self) -> f32 {
-        self.camera.y[0]
+        self.camera.z[0]
     }
 
-    /// Set player position in active structure's coordinate space.
-    pub fn set_player_pos(&mut self, x: f32, y: f32) {
+    /// Set player position in active structure's coordinate space (x, z ground plane).
+    pub fn set_player_pos(&mut self, x: f32, z: f32) {
         self.camera.x[0] = x;
-        self.camera.y[0] = y;
+        self.camera.z[0] = z;
         match self.seam_manager.active_structure() {
             seam::ActiveWorldStructure::Outdoor => {
                 self.chunk_streamer
-                    .update_for_player_pos(x, y, &mut self.chunk_provider);
+                    .update_for_player_pos(x, z, &mut self.chunk_provider);
             }
             seam::ActiveWorldStructure::Indoor => {
                 self.indoor_streamer
@@ -786,7 +789,7 @@ impl EngineState {
 
     pub fn set_camera(&mut self, x: f32, y: f32, z: f32, yaw: f32, pitch: f32) {
         self.camera.set_camera(x, y, z, yaw, pitch);
-        self.chunk_streamer.update_for_player_pos(x, y, &mut self.chunk_provider);
+        self.chunk_streamer.update_for_player_pos(x, z, &mut self.chunk_provider);
         self.recompute_visibility();
     }
 
