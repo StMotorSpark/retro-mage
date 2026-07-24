@@ -161,20 +161,7 @@ async function main(): Promise<void> {
     }
   }
 
-  // Outdoor grass terrain patch (app-level workaround, see note below), centered on the
-  // seam anchor (32, 32) and sized to cover the scattered tree actors' footprint.
-  //
-  // NOTE: engine-core's outdoor chunk streamer (OutdoorChunkStreamer/FlatChunkProvider)
-  // tracks resident chunk bookkeeping correctly but never copies chunk tile data into
-  // master_tiles / the visible-tiles buffer that recompute_visibility culls from render
-  // reads — so streamed outdoor chunks are otherwise invisible geometry. Until that
-  // chunk-to-tile-buffer bridge exists in engine-core, this demo authors the outdoor
-  // ground plane as ordinary hand-placed tiles, the same way indoor rooms are authored.
-  for (let x = 20; x <= 46; x++) {
-    for (let z = 20; z <= 46; z++) {
-      engineState.set_outdoor_tile(tileIdx++, x, 0, z, 3, 0, 0, 0); // grass, non-solid
-    }
-  }
+
 
   // Torch Point Lights (4 total): warm orange-yellow (r=1.0, g=0.7, b=0.3)
   // Entry Hall Torch 1 & 2
@@ -193,6 +180,10 @@ async function main(): Promise<void> {
   engineState.set_outdoor_actor(3, 40.0, 0.0, 38.0, 0.0, 1.0, 1.0);
   engineState.set_outdoor_actor(4, 28.0, 0.0, 44.0, 0.0, 1.0, 1.0);
   engineState.set_outdoor_actor(5, 36.0, 0.0, 42.0, 0.0, 1.0, 1.0);
+
+  // Two trees marking the seam entrance back to the dungeon at (32, 32)
+  engineState.set_outdoor_actor(6, 30.5, 0.0, 32.0, 0.0, 1.0, 1.0);
+  engineState.set_outdoor_actor(7, 33.5, 0.0, 32.0, 0.0, 1.0, 1.0);
 
   // Set up world state reader over WASM memory
   const reader = new WorldStateReader(engineState, wasmOutput.memory);
