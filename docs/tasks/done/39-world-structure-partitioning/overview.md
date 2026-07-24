@@ -1,12 +1,12 @@
 ---
 task: "39"
 slug: world-structure-partitioning
-status: pending
+status: done
 depends-on: []
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-24
-outcome: ""
+outcome: "Split master_tiles and actors into indoor and outdoor arrays. Updated tests and removed OUTDOOR_OFFSET."
 ---
 
 # World Structure Partitioning
