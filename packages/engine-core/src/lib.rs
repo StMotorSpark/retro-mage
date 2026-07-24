@@ -41,6 +41,8 @@ pub struct EngineState {
     master_lights: LightsBuffer,
     indoor_tiles: TilesBuffer,
     outdoor_tiles: TilesBuffer,
+    doorways: [room::Doorway; room::MAX_DOORWAYS],
+    doorways_count: usize,
     chunk_streamer: chunk::OutdoorChunkStreamer,
     chunk_provider: chunk::FlatChunkProvider,
     indoor_streamer: room::IndoorRoomStreamer,
@@ -81,6 +83,8 @@ impl EngineState {
             master_lights: LightsBuffer::new(),
             indoor_tiles,
             outdoor_tiles,
+            doorways: [room::Doorway::default(); room::MAX_DOORWAYS],
+            doorways_count: 0,
             chunk_streamer: streamer,
             chunk_provider: provider,
             indoor_streamer,
@@ -173,6 +177,17 @@ impl EngineState {
                 &mut self.outdoor_tiles,
             );
         } else {
+            // Check doorways first
+            for i in 0..self.doorways_count {
+                let d = &self.doorways[i];
+                if d.from_room_id == self.indoor_streamer.current_room_id() {
+                    if px >= d.min_x && px <= d.max_x && pz >= d.min_z && pz <= d.max_z {
+                        self.set_indoor_current_room(d.to_room_id);
+                        break;
+                    }
+                }
+            }
+
             self.indoor_streamer
                 .update_for_current_room(&mut self.room_graph);
         }
@@ -493,8 +508,33 @@ impl EngineState {
     }
 
     /// Set collision and movement configuration.
-    pub fn set_collision_config(&mut self, config: CollisionConfig) {
+    pub fn set_collision_config(&mut self, config: collision::CollisionConfig) {
         self.collision_config = config;
+    }
+
+    pub fn register_indoor_doorway(
+        &mut self,
+        min_x: f32,
+        max_x: f32,
+        min_z: f32,
+        max_z: f32,
+        from_room_id: u32,
+        to_room_id: u32,
+    ) -> bool {
+        if self.doorways_count < room::MAX_DOORWAYS {
+            self.doorways[self.doorways_count] = room::Doorway {
+                min_x,
+                max_x,
+                min_z,
+                max_z,
+                from_room_id,
+                to_room_id,
+            };
+            self.doorways_count += 1;
+            true
+        } else {
+            false
+        }
     }
 
     /// Player movement speed in tiles per second.

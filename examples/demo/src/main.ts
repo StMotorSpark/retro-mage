@@ -56,6 +56,13 @@ async function main(): Promise<void> {
   engineState.add_room_edge(0, 1);
   engineState.add_room_edge(0, 2);
   engineState.set_indoor_current_room(0);
+
+  // Doorways
+  engineState.register_indoor_doorway(-100.0, -4.0, -100.0, 100.0, 0, 1); // Entry -> Armory
+  engineState.register_indoor_doorway(-4.0, 100.0, -100.0, 100.0, 1, 0);  // Armory -> Entry
+  engineState.register_indoor_doorway(4.0, 100.0, -100.0, 100.0, 0, 2);   // Entry -> Gate Room
+  engineState.register_indoor_doorway(-100.0, 4.0, -100.0, 100.0, 2, 0);  // Gate Room -> Entry
+
   engineState.set_active_world_structure(0); // 0 = Indoor, 1 = Outdoor
   engineState.set_outdoor_default_tile_id(3); // tile_id 3 = grass terrain
 
@@ -302,19 +309,7 @@ async function main(): Promise<void> {
     // Entry Hall, since the seam manager only evaluates seams attached to the
     // current room, not merely resident rooms.
     if (engineState.active_world_structure() === 0) {
-      const px = engineState.player_x();
-      const currentRoom = engineState.indoor_current_room_id();
-      let room = currentRoom;
-      if (px <= -4) {
-        room = 1; // Armory
-      } else if (px >= 4) {
-        room = 2; // Gate Room
-      } else {
-        room = 0; // Entry Hall
-      }
-      if (room !== currentRoom) {
-        engineState.set_indoor_current_room(room);
-      }
+
     }
 
     const activeStruct = engineState.active_world_structure();

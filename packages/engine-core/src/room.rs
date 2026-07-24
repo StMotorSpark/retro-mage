@@ -8,6 +8,18 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 pub type RoomId = u32;
 
+pub const MAX_DOORWAYS: usize = 64;
+
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct Doorway {
+    pub min_x: f32,
+    pub max_x: f32,
+    pub min_z: f32,
+    pub max_z: f32,
+    pub from_room_id: RoomId,
+    pub to_room_id: RoomId,
+}
+
 /// Tile geometry within a room's local space.
 ///
 /// Follows `TilesBuffer` convention per `docs/architecture/wasm-bridge.md`.
