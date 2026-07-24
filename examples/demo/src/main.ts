@@ -27,8 +27,13 @@ async function main(): Promise<void> {
   const engineState = new EngineState();
 
   // Populate 3-room indoor dungeon scene into engine-core
-  // Camera starting pose at (0, 1.5, 6) looking down -Z into starting room (Room 0: Entry Hall)
-  engineState.set_camera(0, 1.5, 6, 0, 0);
+  // Camera starting pose at (0, 0, 6) looking down -Z into starting room (Room 0: Entry Hall).
+  // y must match the tile grid's floor elevation (0 = Entry Hall floor tiles' y), since
+  // engine-core's visibility culling rounds camera.y to an integer "elev" layer and only
+  // tiles on that same elev are shadowcast-visible (see recompute_visibility/visibility.rs).
+  // A fractional eye-height y (e.g. 1.5) rounds to a different elev than the floor tiles,
+  // producing zero visible tiles.
+  engineState.set_camera(0, 0, 6, 0, 0);
   engineState.set_ambient_light(0.05);
   engineState.set_max_sight_distance(32.0);
   engineState.set_cull_precision_distance(32.0);
@@ -280,7 +285,9 @@ main().catch((err) => {
 
 // Register the generated service worker so the app shell (JS, WASM, CSS, HTML)
 // installs to the home screen and reloads without a network round-trip.
-if ('serviceWorker' in navigator) {
+// generateSW strategy only emits sw.js on `vite build`; dev server has no
+// service worker to register, so skip in dev to avoid a text/html 404 mismatch.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch((err) => {
       // eslint-disable-next-line no-console

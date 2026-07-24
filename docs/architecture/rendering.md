@@ -7,6 +7,7 @@ relates-to:
   - "[Repo Structure](./repo-structure.md)"
   - "[World Model](../features/world-model.md)"
   - "[WASM Bridge](./wasm-bridge.md)"
+  - "[Collision](./collision.md)"
   - "[Known Gaps](../research/known-gaps.md)"
   - "[Asset Pipeline](./asset-pipeline.md)"
   - "[Lighting](./lighting.md)"
@@ -55,6 +56,11 @@ The internal resolution cap is a **static** decision made once at context/viewpo
 - **The cap must be implemented as a single named, tunable configuration value** (e.g. an exported constant or a config parameter passed into context/viewport setup) — never hardcoded inline into framebuffer sizing math. The engine ships **0.70 as its default**, chosen from reference-device benchmark data, but the config value remains overridable — owning this as engine-default-with-app-override responsibility means a consuming game repo can raise the cap for a lighter scene or lower it for a heavier one without forking the engine's rendering pipeline. Determining the *right* default for a specific game's actual content is that game's responsibility; the engine's job is to ship a validated, safe baseline.
 - **Upscale filtering is linear, not nearest-neighbor.** This project's retro reference (Ultima Underworld-, Elder Scrolls Arena-era first-person dungeon/outdoor crawlers) is treated as a rendering *technique* reference — tile/polygon hybrid geometry, sprite actors, LUT lighting, painter's algorithm — not a pixelated-nostalgia aesthetic. Nearest-neighbor upscaling (visible pixel grid, deliberately chunky look) is explicitly rejected as the look target.
 - **HUD and touch controls render outside the capped 3D framebuffer**, composited over the upscaled 3D layer at native canvas resolution, so on-screen controls and text stay sharp regardless of the 3D internal resolution cap.
+- **The canvas element's backing store is kept in sync with its CSS display size every frame.** A `<canvas>` element's drawing buffer (`canvas.width`/`canvas.height`, and therefore `gl.drawingBufferWidth`/`gl.drawingBufferHeight`) does not automatically track its CSS layout size — left unset, it defaults to 300×150 regardless of how large the element is stretched via CSS, silently degenerating the final blit target (and thus the whole visible canvas) to a tiny, blurry upscaled image with no thrown error. `render`'s loop resizes the canvas's backing store to its CSS size times device pixel ratio each frame before computing the final blit pass's target dimensions, so the on-screen canvas stays crisp at the device's actual display resolution independent of the separately-capped internal 3D framebuffer resolution described above.
+
+## Camera Elevation vs. Render Eye Height
+
+`engine-core`'s `camera.y` is the player's floor-plane elevation — an engine-owned coordinate that must line up with the tile grid's `y` values for visibility culling and (future) multi-floor collision to work (see [Collision](./collision.md)). Tile geometry (`world-tiles`) renders every tile, floor included, as a full 1-unit-tall block spanning from its `y` to `y + 1`, so a rendered view positioned at that same `y` sits at the tile's base, embedded in the block. `render`'s loop adds a fixed, render-only eye-height offset on top of `camera.y` when building the view matrix each frame, lifting the visible camera to a believable standing height above the floor plane without altering `camera.y` itself. Engine-core's visibility, collision, and world-streaming logic all keep reading and writing the unmodified elevation coordinate; only the render package's view matrix construction applies the offset, so consuming games set `camera.y` to the floor's grid elevation (matching the tile data they authored at that `y`), not to a literal eye-height world position.
 
 ### Performance Target
 
@@ -77,5 +83,6 @@ Outdoor areas extend the same rendering pipeline with additions specific to open
 - [Repo Structure](./repo-structure.md) — how rendering feature slices are organized inside the `render` package
 - [World Model](../features/world-model.md) — the dungeon and outdoor world structure this pipeline renders
 - [WASM Bridge](./wasm-bridge.md) — the per-frame data contract this pipeline reads from `engine-core`
+- [Collision](./collision.md) — the engine-owned `camera.y` elevation coordinate this pipeline offsets for render-only eye height
 - [Asset Pipeline](./asset-pipeline.md) — the texture format this pipeline's texture-loading path consumes
 - [Visibility](./visibility.md) — the occlusion/sight-radius cull that determines what this pipeline draws each frame

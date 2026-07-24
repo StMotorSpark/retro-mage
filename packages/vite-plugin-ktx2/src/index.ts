@@ -60,12 +60,14 @@ export function vitePluginKtx2(options: VitePluginKtx2Options = {}): Plugin {
   };
 
   let viteRoot = process.cwd();
+  let command: 'build' | 'serve' = 'build';
 
   return {
     name: 'vite-plugin-ktx2',
 
     configResolved(config) {
       viteRoot = config.root;
+      command = config.command ?? 'build';
     },
 
     configureServer(server: ViteDevServer) {
@@ -83,16 +85,29 @@ export function vitePluginKtx2(options: VitePluginKtx2Options = {}): Plugin {
 
         if (pathname.startsWith(urlPrefix)) {
           const relativePath = pathname.slice(urlPrefix.length);
-          // If requesting .ktx2 or .png, serve the raw source .png from assetsDir
-          let pngRelative = relativePath;
-          if (pngRelative.endsWith('.ktx2')) {
-            pngRelative = pngRelative.replace(/\.ktx2$/i, '.png');
-          }
 
+          // Requests always arrive for the .ktx2 URL (that's what the demo code
+          // imports/fetches). Map back to the source .png and encode it to a
+          // real KTX2 payload on the fly, so the dev server response matches
+          // what the loader (render's loadKtx2Texture) expects: valid KTX2
+          // magic bytes, not raw PNG bytes wearing a .ktx2 extension.
+          if (!relativePath.endsWith('.ktx2')) {
+            return next();
+          }
+          const pngRelative = relativePath.replace(/\.ktx2$/i, '.png');
           const localPngPath = path.resolve(absAssetsDir, pngRelative);
+
           if (fs.existsSync(localPngPath) && fs.statSync(localPngPath).isFile()) {
-            res.setHeader('Content-Type', 'image/png');
-            fs.createReadStream(localPngPath).pipe(res);
+            fs.promises
+              .readFile(localPngPath)
+              .then((pngBuffer) => encodeToKTX2(new Uint8Array(pngBuffer), { ...encodeOpts, imageDecoder }))
+              .then((ktx2Data) => {
+                res.setHeader('Content-Type', 'application/octet-stream');
+                res.end(Buffer.from(ktx2Data));
+              })
+              .catch((err) => {
+                next(err instanceof Error ? err : new Error(String(err)));
+              });
             return;
           }
         }
@@ -102,6 +117,11 @@ export function vitePluginKtx2(options: VitePluginKtx2Options = {}): Plugin {
     },
 
     async buildStart() {
+      // Dev server handles encoding per-request via configureServer's middleware;
+      // emitFile() isn't supported outside a real build anyway.
+      if (command !== 'build') {
+        return;
+      }
       // Only execute during build command (or Rollup build)
       const absAssetsDir = path.resolve(viteRoot, assetsDir);
 

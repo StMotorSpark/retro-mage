@@ -5,6 +5,7 @@ summary: Retro Mage resolves player movement with facing-relative input and circ
 relates-to:
   - "[World Model](../features/world-model.md)"
   - "[WASM Bridge](./wasm-bridge.md)"
+  - "[Rendering](./rendering.md)"
   - "[Input Event Schema](./input-schema.md)"
   - "[Repo Structure](./repo-structure.md)"
   - "[Known Gaps](../research/known-gaps.md)"
@@ -27,7 +28,7 @@ The engine's 3D world uses:
 - **Y** — vertical (elevation / floor level)
 - **Z** — depth (camera at yaw=0 looks toward −Z)
 
-Player movement is in the **XZ plane**. Camera Y is the player's elevation and is constant in Phase 1 (single flat floor). Collision is computed in XZ only; the Y-axis is not considered during movement resolution.
+Player movement is in the **XZ plane**. Camera Y is the player's elevation and is constant in Phase 1 (single flat floor). Collision is computed in XZ only; the Y-axis is not considered during movement resolution. This `camera.y` elevation coordinate is engine-owned and must match the tile grid's `y` values (visibility culling rounds it to the same integer floor layer as the tiles) — it is not a literal render-time eye height. `render` applies a separate, render-only eye-height offset on top of this value when constructing the view matrix; see [Rendering — Camera Elevation vs. Render Eye Height](./rendering.md#camera-elevation-vs-render-eye-height).
 
 ### Movement direction
 

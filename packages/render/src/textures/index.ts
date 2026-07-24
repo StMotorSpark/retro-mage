@@ -97,7 +97,22 @@ export async function loadKtx2Texture(
 
   for (let level = 0; level < result.length; level++) {
     const mip = result[level];
-    if (!mip || mip.width < 4 || mip.height < 4) {
+    if (!mip) {
+      break;
+    }
+
+    // loaders.gl's Basis transcoder reports mip.width/mip.height clamped to the
+    // compressed-format block size (e.g. ASTC 4x4) for levels below that size — it
+    // labels a real 2x2 or 1x1 level as "4x4" while mip.data still holds the true,
+    // unpadded-size buffer. Trusting the reported dims for texImage2D/compressedTexImage2D
+    // at those levels either throws ("ArrayBufferView not big enough for request" on the
+    // uncompressed RGBA32 path) or silently uploads block data at the wrong dimensions,
+    // corrupting the decode (observed as solid black textures). Compute each level's true
+    // dimensions ourselves from the base level by halving, which is what the KTX2 mip chain
+    // guarantees regardless of the transcoder's block-alignment labeling.
+    const levelWidth = Math.max(1, baseWidth >> level);
+    const levelHeight = Math.max(1, baseHeight >> level);
+    if (levelWidth < 4 || levelHeight < 4) {
       break;
     }
 
@@ -106,8 +121,8 @@ export async function loadKtx2Texture(
         gl.TEXTURE_2D,
         level,
         mip.format,
-        mip.width,
-        mip.height,
+        levelWidth,
+        levelHeight,
         0,
         mip.data,
       );
@@ -116,8 +131,8 @@ export async function loadKtx2Texture(
         gl.TEXTURE_2D,
         level,
         gl.RGBA,
-        mip.width,
-        mip.height,
+        levelWidth,
+        levelHeight,
         0,
         gl.RGBA,
         gl.UNSIGNED_BYTE,

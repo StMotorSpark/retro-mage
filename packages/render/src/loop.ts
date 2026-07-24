@@ -33,6 +33,15 @@ export interface RenderLoopOptions {
 
 const CLEAR_COLOR: readonly [number, number, number, number] = [0.05, 0.05, 0.1, 1];
 
+// engine-core's camera.y is the player's floor elevation/grid layer (visibility culling and
+// collision round it to match tile y positions directly — see docs/architecture/collision.md
+// and engine-core's recompute_visibility). Tile geometry (world-tiles) renders each tile as a
+// 1-unit-tall block from its y to y+1, so a camera placed exactly at that same y sits at the
+// tile's base, inside the block. This constant lifts the *render-only* view position to a
+// believable eye height above the floor plane without altering camera.y itself (which must
+// stay on the tile's floor layer for engine-core visibility/collision to work).
+const EYE_HEIGHT_OFFSET = 1.5;
+
 export function createLoop(
   gl: WebGL2RenderingContext,
   optionsOrGetViews?: RenderLoopOptions | (() => WorldStateViews | undefined),
@@ -100,8 +109,21 @@ export function createLoop(
     const cappedRes = computeCappedResolution(cssW, cssH, dpr, resolutionConfig);
     offscreen.resize(cappedRes.width, cappedRes.height);
 
-    const canvasWidth = gl.drawingBufferWidth || canvas?.width || Math.round(cssW * dpr);
-    const canvasHeight = gl.drawingBufferHeight || canvas?.height || Math.round(cssH * dpr);
+    // The canvas element's backing store (width/height attributes) is never sized by the
+    // browser to match its CSS layout size — it defaults to 300x150 and stays there unless
+    // set explicitly. Without this, gl.drawingBufferWidth/Height (and thus the final blit
+    // viewport) stay pinned at 300x150 forever while CSS stretches that tiny buffer to fill
+    // the page, producing a blurry/degenerate result. Keep the backing store in sync with the
+    // element's displayed CSS size (at device pixel ratio) every frame.
+    const desiredWidth = Math.max(1, Math.round(cssW * dpr));
+    const desiredHeight = Math.max(1, Math.round(cssH * dpr));
+    if (canvas && (canvas.width !== desiredWidth || canvas.height !== desiredHeight)) {
+      canvas.width = desiredWidth;
+      canvas.height = desiredHeight;
+    }
+
+    const canvasWidth = gl.drawingBufferWidth || canvas?.width || desiredWidth;
+    const canvasHeight = gl.drawingBufferHeight || canvas?.height || desiredHeight;
 
     // 1. Scene draw into offscreen framebuffer
     gl.bindFramebuffer(gl.FRAMEBUFFER, offscreen.framebuffer);
@@ -119,7 +141,7 @@ export function createLoop(
 
         const cam = views.camera;
         const cx = cam.count > 0 ? (cam.x[0] ?? 0) : 0;
-        const cy = cam.count > 0 ? (cam.y[0] ?? 1.5) : 1.5;
+        const cy = (cam.count > 0 ? (cam.y[0] ?? 0) : 0) + EYE_HEIGHT_OFFSET;
         const cz = cam.count > 0 ? (cam.z[0] ?? 3.0) : 3.0;
         const yaw = cam.count > 0 ? (cam.yaw[0] ?? 0) : 0;
         const pitch = cam.count > 0 ? (cam.pitch[0] ?? 0) : 0;
