@@ -298,19 +298,7 @@ async function main(): Promise<void> {
     // and resolves tile collision with sliding resolution (task:33)
     engineState.tick(dt);
 
-    // Indoor room-graph transitions are driven by an explicit current-room id
-    // (engine-core has no automatic position-based room detection — rooms are
-    // graph nodes, not spatial regions, per docs/architecture/world-streaming.md).
-    // The demo's 3 rooms *do* occupy known, non-overlapping tile footprints along
-    // the x axis, so approximate room membership from player x and update the
-    // engine's current room as the player physically crosses a doorway. Without
-    // this, the Gate Room seam (registered against room_id=2) is never a
-    // candidate for the seam manager's crossing check once the player leaves
-    // Entry Hall, since the seam manager only evaluates seams attached to the
-    // current room, not merely resident rooms.
-    if (engineState.active_world_structure() === 0) {
 
-    }
 
     const activeStruct = engineState.active_world_structure();
     const isOutdoor = activeStruct === 1;
