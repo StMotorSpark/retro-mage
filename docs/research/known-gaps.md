@@ -61,16 +61,6 @@ Undecided:
 - Blocks: any outdoor terrain rendering that relies on `ChunkProvider`-sourced tile data rather than hand-placed tiles
 - Relates to: [World Streaming](../architecture/world-streaming.md), [WASM Bridge](../architecture/wasm-bridge.md), [Rendering](../architecture/rendering.md)
 
-### Shared Indoor/Outdoor Coordinate Space
-
-`master_tiles` and tile collision hold indoor and outdoor tiles together in one coordinate space with no partitioning by active world structure — every authored tile, indoor or outdoor, is a candidate for both the visibility cull and the collision check regardless of which structure is currently active. If an outdoor area's tile coordinates numerically overlap or sit close to an indoor room's tile coordinates, dungeon geometry can render and collide from outdoor space (and vice versa) purely because both fall within the same cull/collision radius of the player's literal position. Seam transforms only convert the player's position at the moment of crossing; authored tile positions on either side are never translated or isolated from each other.
-
-Resolution options:
-- Partition `master_tiles` (or add a per-tile structure tag) so visibility and collision only consider tiles belonging to the currently active structure.
-- Leave the shared space as-is and require applications to keep indoor and outdoor authored coordinate ranges far enough apart that they never fall within each other's sight radius or collision range (the current mitigation in [Demo Scope](../features/demo-scope.md)).
-
-- Blocks: any indoor/outdoor layout where an application wants authored coordinates to overlap or sit close together (e.g. multiple seams into a compact outdoor hub)
-- Relates to: [World Streaming](../architecture/world-streaming.md), [Collision](../architecture/collision.md), [WASM Bridge](../architecture/wasm-bridge.md)
 
 ### Demo Scope — Phase 2
 
@@ -89,7 +79,9 @@ Phase 2 work begins after Phase 1 demo is complete, resolved incrementally as ea
 
 ## Resolved
 
-### Outdoor Coordinate System
+### Shared Indoor/Outdoor Coordinate Space
+_Resolved._ See [World Structure Partitioning](../architecture/world-structure-partitioning.md). The engine mechanically isolates indoor and outdoor space by maintaining separate `indoor_tiles`/`outdoor_tiles` and `indoor_actors`/`outdoor_actors` buffers. The active world structure branches array reads in `tick()`, entirely preventing cross-structure coordinate bleed.
+
 _Resolved._ Streaming, seam crossing, and player position all use `(camera.x, camera.z)` as the outdoor ground-plane coordinates — `camera.y` is elevation only and is never read as a horizontal axis. See [World Streaming](../architecture/world-streaming.md) and [Collision](../architecture/collision.md).
 
 ### LUT Format and Generation

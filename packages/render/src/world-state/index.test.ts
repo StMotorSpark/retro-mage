@@ -24,8 +24,8 @@ describe('world-state reader', () => {
     const { engine, memory } = setupWasmEngine();
 
     expect(engine.actors_count()).toBe(0);
-    engine.set_actor(0, 10.5, 0.0, -5.0, 1.57, 42.0, 1.0);
-    engine.set_actor(1, 1.0, 0.0, 3.0, 0.0, 7.0, 1.0);
+    engine.set_indoor_actor(0, 10.5, 0.0, -5.0, 1.57, 42.0, 1.0);
+    engine.set_indoor_actor(1, 1.0, 0.0, 3.0, 0.0, 7.0, 1.0);
 
     const actorsView = readActorsView(engine, memory);
     expect(actorsView.count).toBe(2);
@@ -67,7 +67,7 @@ describe('world-state reader', () => {
 
     expect(engine.tiles_count()).toBe(0);
     engine.set_camera(100.0, 0.0, 200.0, 0.0, 0.0);
-    engine.set_tile(0, 100.0, 0.0, 200.0, 12.0, 3.0, 1.0, 0.0);
+    engine.set_indoor_tile(0, 100.0, 0.0, 200.0, 12.0, 3.0, 1.0, 0.0);
 
     const tilesView = readTilesView(engine, memory);
     expect(tilesView.count).toBe(1);

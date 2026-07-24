@@ -36,10 +36,10 @@ Forward and strafe-right vectors are derived from camera yaw at the time of the 
 
 ```
 forward  = ( sin(yaw),  0, −cos(yaw) )   in XZ
-right    = ( cos(yaw),  0, −sin(yaw) )   in XZ
+right    = ( cos(yaw),  0,  sin(yaw) )   in XZ
 ```
 
-At yaw=0 the camera looks −Z, so forward is −Z and right is +X. At yaw=π/2 the camera looks +X, forward is +X and right is −Z.
+At yaw=0 the camera looks −Z, so forward is −Z and right is +X. At yaw=π/2 the camera looks +X, forward is +X and right is +Z.
 
 Desired movement delta per frame:
 

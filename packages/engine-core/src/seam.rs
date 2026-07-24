@@ -146,6 +146,7 @@ pub struct WorldSeamManager {
     active_structure: ActiveWorldStructure,
     seam_trigger_distance: f32,
     crossing_threshold: f32,
+    last_crossed_seam: Option<SeamId>,
 }
 
 impl WorldSeamManager {
@@ -156,6 +157,7 @@ impl WorldSeamManager {
             active_structure,
             seam_trigger_distance: DEFAULT_SEAM_TRIGGER_DISTANCE,
             crossing_threshold: DEFAULT_SEAM_CROSSING_THRESHOLD,
+            last_crossed_seam: None,
         }
     }
 
@@ -218,6 +220,7 @@ impl WorldSeamManager {
         room_provider: &mut P1,
         chunk_streamer: &mut OutdoorChunkStreamer,
         chunk_provider: &mut P2,
+        outdoor_tiles: &mut crate::tiles::TilesBuffer,
     ) -> Option<SeamId> {
         match self.active_structure {
             ActiveWorldStructure::Indoor => {
@@ -242,11 +245,16 @@ impl WorldSeamManager {
 
                         // Preload far side (outdoor chunk) when approaching within trigger distance
                         if dist <= self.seam_trigger_distance {
-                            chunk_streamer.update_for_player_pos(seam.outdoor_tile_x, seam.outdoor_tile_y, chunk_provider);
+                            chunk_streamer.update_for_player_pos(seam.outdoor_tile_x, seam.outdoor_tile_y, chunk_provider, outdoor_tiles);
+                        }
+
+                        // Unlock hysteresis if we moved away
+                        if Some(seam.id) == self.last_crossed_seam && dist > self.crossing_threshold {
+                            self.last_crossed_seam = None;
                         }
 
                         // Crossing check
-                        if dist <= self.crossing_threshold && crossed_seam.is_none() {
+                        if dist <= self.crossing_threshold && crossed_seam.is_none() && Some(seam.id) != self.last_crossed_seam {
                             crossed_seam = Some(seam);
                         }
                     }
@@ -255,9 +263,10 @@ impl WorldSeamManager {
                 if let Some(seam) = crossed_seam {
                     let (new_out_x, new_out_y) = seam.transform.room_to_outdoor(*player_x, *player_y);
                     self.active_structure = ActiveWorldStructure::Outdoor;
+                    self.last_crossed_seam = Some(seam.id);
                     *player_x = new_out_x;
                     *player_y = new_out_y;
-                    chunk_streamer.update_for_player_pos(new_out_x, new_out_y, chunk_provider);
+                    chunk_streamer.update_for_player_pos(new_out_x, new_out_y, chunk_provider, outdoor_tiles);
                     return Some(seam.id);
                 }
             }
@@ -281,8 +290,13 @@ impl WorldSeamManager {
                         indoor_streamer.preload_room_tree(seam.room_id, room_provider);
                     }
 
+                    // Unlock hysteresis if we moved away
+                    if Some(seam.id) == self.last_crossed_seam && dist > self.crossing_threshold {
+                        self.last_crossed_seam = None;
+                    }
+
                     // Crossing check
-                    if dist <= self.crossing_threshold && crossed_seam.is_none() {
+                    if dist <= self.crossing_threshold && crossed_seam.is_none() && Some(seam.id) != self.last_crossed_seam {
                         crossed_seam = Some(seam);
                     }
                 }
@@ -290,6 +304,7 @@ impl WorldSeamManager {
                 if let Some(seam) = crossed_seam {
                     let (new_room_x, new_room_y) = seam.transform.outdoor_to_room(*player_x, *player_y);
                     self.active_structure = ActiveWorldStructure::Indoor;
+                    self.last_crossed_seam = Some(seam.id);
                     indoor_streamer.set_current_room(seam.room_id, room_provider);
                     *player_x = new_room_x;
                     *player_y = new_room_y;
@@ -360,6 +375,7 @@ mod tests {
     fn test_seam_trigger_distance_preloading() {
         let mut room_graph = create_test_room_graph();
         let mut chunk_provider = FlatChunkProvider::new(1, 0.0);
+        let mut dummy_tiles = Box::new(crate::tiles::TilesBuffer::new());
 
         let mut indoor_streamer = IndoorRoomStreamer::new(0, 1, 1);
         let mut chunk_streamer = OutdoorChunkStreamer::new(1, 2);
@@ -388,6 +404,7 @@ mod tests {
             &mut room_graph,
             &mut chunk_streamer,
             &mut chunk_provider,
+            &mut *dummy_tiles,
         );
         assert!(crossed.is_none());
         assert!(!chunk_streamer.is_chunk_resident(5, 5));
@@ -401,6 +418,7 @@ mod tests {
             &mut room_graph,
             &mut chunk_streamer,
             &mut chunk_provider,
+            &mut *dummy_tiles,
         );
         assert!(crossed.is_none()); // NO crossing yet
         assert_eq!(seam_manager.active_structure(), ActiveWorldStructure::Indoor);
@@ -429,6 +447,7 @@ mod tests {
             &mut room_graph,
             &mut chunk_streamer,
             &mut chunk_provider,
+            &mut *dummy_tiles,
         );
         assert!(crossed_out.is_none());
         assert_eq!(seam_manager_out.active_structure(), ActiveWorldStructure::Outdoor);
@@ -443,6 +462,7 @@ mod tests {
     fn test_seam_crossing_handoff_and_position_continuity() {
         let mut room_graph = create_test_room_graph();
         let mut chunk_provider = FlatChunkProvider::new(1, 0.0);
+        let mut dummy_tiles = Box::new(crate::tiles::TilesBuffer::new());
 
         let mut indoor_streamer = IndoorRoomStreamer::new(0, 1, 1);
         let mut chunk_streamer = OutdoorChunkStreamer::new(1, 2);
@@ -468,14 +488,29 @@ mod tests {
             &mut room_graph,
             &mut chunk_streamer,
             &mut chunk_provider,
+            &mut *dummy_tiles,
         );
 
         assert_eq!(crossed, Some(1));
         assert_eq!(seam_manager.active_structure(), ActiveWorldStructure::Outdoor);
 
         // Converted player position: (9.8 + 90.0, 0.0 + 50.0) = (99.8, 50.0)
+        // Converted player position: (9.8 + 90.0, 0.0 + 50.0) = (99.8, 50.0)
         assert!((player_x - 99.8).abs() < 1e-4);
         assert!((player_y - 50.0).abs() < 1e-4);
+
+        // Move away to clear hysteresis lock
+        let mut away_x = 102.0;
+        let mut away_y = 50.0;
+        seam_manager.update_and_check_crossing(
+            &mut away_x,
+            &mut away_y,
+            &mut indoor_streamer,
+            &mut room_graph,
+            &mut chunk_streamer,
+            &mut chunk_provider,
+            &mut *dummy_tiles,
+        );
 
         // Now move back towards outdoor seam at (100.0, 50.0)
         player_x = 100.2;
@@ -488,6 +523,7 @@ mod tests {
             &mut room_graph,
             &mut chunk_streamer,
             &mut chunk_provider,
+            &mut *dummy_tiles,
         );
 
         assert_eq!(crossed_back, Some(1));
@@ -505,6 +541,7 @@ mod tests {
     fn test_single_room_multiple_independent_seams() {
         let mut room_graph = create_test_room_graph();
         let mut chunk_provider = FlatChunkProvider::new(1, 0.0);
+        let mut dummy_tiles = Box::new(crate::tiles::TilesBuffer::new());
 
         let mut indoor_streamer = IndoorRoomStreamer::new(0, 1, 1);
         let mut chunk_streamer = OutdoorChunkStreamer::new(1, 2);
@@ -536,6 +573,7 @@ mod tests {
             &mut room_graph,
             &mut chunk_streamer,
             &mut chunk_provider,
+            &mut *dummy_tiles,
         );
 
         // Outdoor chunk (3, 3) preloaded, but NOT (15, 15)
@@ -551,14 +589,16 @@ mod tests {
             &mut room_graph,
             &mut chunk_streamer,
             &mut chunk_provider,
+            &mut *dummy_tiles,
         );
         assert_eq!(crossed_a, Some(1));
         assert_eq!(seam_manager.active_structure(), ActiveWorldStructure::Outdoor);
         assert!((player_x - 100.2).abs() < 1e-4);
         assert!((player_y - 100.0).abs() < 1e-4);
 
-        // Reset back to Indoor in room 0, now walk towards Seam B at (17.0, 5.0) -> distance to Seam B (20.0, 5.0) is 3.0 <= trigger 5.0
+        // Reset back to Indoor in room 0, clear hysteresis
         seam_manager.set_active_structure(ActiveWorldStructure::Indoor);
+        seam_manager.last_crossed_seam = None; // Manual override for test setup
         player_x = 17.0;
         player_y = 5.0;
 
@@ -569,6 +609,7 @@ mod tests {
             &mut room_graph,
             &mut chunk_streamer,
             &mut chunk_provider,
+            &mut *dummy_tiles,
         );
 
         // Outdoor chunk (15, 15) NOW preloaded!
@@ -583,6 +624,7 @@ mod tests {
             &mut room_graph,
             &mut chunk_streamer,
             &mut chunk_provider,
+            &mut *dummy_tiles,
         );
         assert_eq!(crossed_b, Some(2));
         assert_eq!(seam_manager.active_structure(), ActiveWorldStructure::Outdoor);
