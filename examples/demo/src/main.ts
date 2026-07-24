@@ -150,11 +150,16 @@ async function main(): Promise<void> {
 
   // Wire textures into world-tiles and sprites renderers
   try {
-    const wallRes = await fetch('/assets/textures/wall.ktx2');
-    if (wallRes.ok) {
-      const buffer = await wallRes.arrayBuffer();
+    const stoneWallRes = await fetch('/assets/textures/stone-wall.ktx2');
+    if (stoneWallRes.ok) {
+      const buffer = await stoneWallRes.arrayBuffer();
       const loaded = await loadKtx2Texture(gl, buffer);
       renderer.tileRenderer?.setTexture(1, loaded.texture); // stone wall (tile_id 1)
+    }
+    const stoneFloorRes = await fetch('/assets/textures/stone-floor.ktx2');
+    if (stoneFloorRes.ok) {
+      const buffer = await stoneFloorRes.arrayBuffer();
+      const loaded = await loadKtx2Texture(gl, buffer);
       renderer.tileRenderer?.setTexture(2, loaded.texture); // stone floor (tile_id 2)
     }
     const grassRes = await fetch('/assets/textures/grass.ktx2');
