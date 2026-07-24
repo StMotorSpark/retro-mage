@@ -183,6 +183,7 @@ impl ChunkProvider for FlatChunkProvider {
 pub struct ResidentChunk {
     pub data: ChunkData,
     pub last_accessed: u64,
+    pub block_index: usize,
 }
 
 /// Sane default radius for loading outdoor chunks (2 chunks = 5x5 window).
@@ -201,6 +202,7 @@ pub struct OutdoorChunkStreamer {
     pub max_resident_chunks: usize,
     resident_chunks: std::collections::HashMap<(i32, i32), ResidentChunk>,
     access_counter: u64,
+    available_blocks: Vec<usize>,
 }
 
 impl OutdoorChunkStreamer {
@@ -215,17 +217,19 @@ impl OutdoorChunkStreamer {
             max_resident_chunks: max_resident,
             resident_chunks: std::collections::HashMap::new(),
             access_counter: 0,
+            available_blocks: (0..max_resident).rev().collect(),
         }
     }
 
     /// Create a new streamer with custom load radius, evict radius, and hard cap on resident chunks.
-    pub fn new_with_cap(load_radius: i32, evict_radius: i32, max_resident_chunks: usize) -> Self {
+    pub fn new_with_cap(load_radius: i32, evict_radius: i32, max_resident: usize) -> Self {
         Self {
             load_radius,
             evict_radius,
-            max_resident_chunks,
+            max_resident_chunks: max_resident,
             resident_chunks: std::collections::HashMap::new(),
             access_counter: 0,
+            available_blocks: (0..max_resident).rev().collect(),
         }
     }
 
@@ -293,9 +297,10 @@ impl OutdoorChunkStreamer {
         player_x: f32,
         player_y: f32,
         provider: &mut P,
+        outdoor_tiles: &mut crate::tiles::TilesBuffer,
     ) {
         let (cx, cy) = Self::world_to_chunk_coord(player_x, player_y);
-        self.update_for_player_chunk(cx, cy, provider);
+        self.update_for_player_chunk(cx, cy, provider, outdoor_tiles);
     }
 
     /// Update resident set based on player's global chunk coordinate (player_chunk_x, player_chunk_y).
@@ -304,6 +309,7 @@ impl OutdoorChunkStreamer {
         player_chunk_x: i32,
         player_chunk_y: i32,
         provider: &mut P,
+        outdoor_tiles: &mut crate::tiles::TilesBuffer,
     ) {
         self.access_counter += 1;
         let current_access = self.access_counter;
@@ -319,11 +325,30 @@ impl OutdoorChunkStreamer {
                 } else {
                     match provider.request_chunk(cx, cy) {
                         ChunkResult::Ready(data) => {
+                            let block_index = self.available_blocks.pop().unwrap_or(0);
+                            let offset = block_index * CHUNK_TILES;
+                            for i in 0..CHUNK_TILES {
+                                let lx = i % CHUNK_SIZE;
+                                let ly = i / CHUNK_SIZE;
+                                let world_x = (cx * CHUNK_SIZE as i32 + lx as i32) as f32;
+                                let world_y = (cy * CHUNK_SIZE as i32 + ly as i32) as f32;
+                                outdoor_tiles.set_tile(
+                                    offset + i,
+                                    world_x,
+                                    0.0, // height logic ignores Y axis for now or we could use heights[i] but standard is 0.0
+                                    world_y,
+                                    data.tiles[i] as f32,
+                                    0.0,
+                                    data.solid[i] as f32,
+                                    0.0,
+                                );
+                            }
                             self.resident_chunks.insert(
                                 (cx, cy),
                                 ResidentChunk {
                                     data,
                                     last_accessed: current_access,
+                                    block_index,
                                 },
                             );
                         }
@@ -344,10 +369,16 @@ impl OutdoorChunkStreamer {
             }
         }
         for key in to_evict {
-            self.resident_chunks.remove(&key);
+            if let Some(removed) = self.resident_chunks.remove(&key) {
+                self.available_blocks.push(removed.block_index);
+                let offset = removed.block_index * CHUNK_TILES;
+                for i in 0..CHUNK_TILES {
+                    outdoor_tiles.set_tile(offset + i, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+                }
+            }
         }
 
-        // 3. Hard cap + LRU fallback: if count > max_resident_chunks,
+        // 3. Hard cap + LRU fallback: if count > max_resident_chunks: max_resident,
         // evict least-recently-accessed chunks outside load_radius first.
         if self.resident_chunks.len() > self.max_resident_chunks {
             let mut candidates: Vec<((i32, i32), u64)> = self
@@ -372,7 +403,13 @@ impl OutdoorChunkStreamer {
                 if self.resident_chunks.len() <= self.max_resident_chunks {
                     break;
                 }
-                self.resident_chunks.remove(&key);
+                if let Some(removed) = self.resident_chunks.remove(&key) {
+                    self.available_blocks.push(removed.block_index);
+                    let offset = removed.block_index * CHUNK_TILES;
+                    for i in 0..CHUNK_TILES {
+                        outdoor_tiles.set_tile(offset + i, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+                    }
+                }
             }
         }
     }
@@ -475,7 +512,8 @@ mod tests {
         let mut streamer = OutdoorChunkStreamer::new(2, 3);
         let mut provider = FlatChunkProvider::default();
 
-        streamer.update_for_player_chunk(0, 0, &mut provider);
+        let mut dummy_tiles = Box::new(crate::tiles::TilesBuffer::new());
+        streamer.update_for_player_chunk(0, 0, &mut provider, &mut *dummy_tiles);
 
         // Load radius = 2 => [-2..=2] x [-2..=2] = 25 chunks resident
         assert_eq!(streamer.resident_chunk_count(), 25);
@@ -497,22 +535,24 @@ mod tests {
         let mut provider = FlatChunkProvider::default();
 
         // 1. Player at (0, 0): load radius 2 loads [-2..=2] x [-2..=2]
-        streamer.update_for_player_chunk(0, 0, &mut provider);
+        let mut dummy_tiles = Box::new(crate::tiles::TilesBuffer::new());
+        streamer.update_for_player_chunk(0, 0, &mut provider, &mut *dummy_tiles);
         assert_eq!(streamer.resident_chunk_count(), 25);
 
         // 2. Player moves to (1, 0): loads [-1..=3] x [-2..=2]
         // Chunks at x = -2 (distance 3 from x = 1) remain resident because 3 <= evict_radius(3)
-        streamer.update_for_player_chunk(1, 0, &mut provider);
+        streamer.update_for_player_chunk(1, 0, &mut provider, &mut *dummy_tiles);
         assert!(streamer.is_chunk_resident(-2, 0));
         assert!(streamer.is_chunk_resident(3, 0));
         assert_eq!(streamer.resident_chunk_count(), 30); // 6 x 5 window
 
         // 3. Player moves back to (0, 0): no thrashing, (-2, 0) was never evicted
-        streamer.update_for_player_chunk(0, 0, &mut provider);
+        let mut dummy_tiles = Box::new(crate::tiles::TilesBuffer::new());
+        streamer.update_for_player_chunk(0, 0, &mut provider, &mut *dummy_tiles);
         assert!(streamer.is_chunk_resident(-2, 0));
 
         // 4. Player moves far away to (4, 0): distance to (-2, 0) is |-2 - 4| = 6 > evict_radius(3)
-        streamer.update_for_player_chunk(4, 0, &mut provider);
+        streamer.update_for_player_chunk(4, 0, &mut provider, &mut *dummy_tiles);
         assert!(!streamer.is_chunk_resident(-2, 0));
         assert!(streamer.is_chunk_resident(4, 0));
     }
@@ -524,7 +564,8 @@ mod tests {
         let mut provider = FlatChunkProvider::default();
 
         // Step 1: Player at (0, 0) loads 3x3 = 9 chunks
-        streamer.update_for_player_chunk(0, 0, &mut provider);
+        let mut dummy_tiles = Box::new(crate::tiles::TilesBuffer::new());
+        streamer.update_for_player_chunk(0, 0, &mut provider, &mut *dummy_tiles);
         assert_eq!(streamer.resident_chunk_count(), 9);
 
         // Step 2: Player moves to (1, 0).
@@ -532,7 +573,7 @@ mod tests {
         // Total candidate resident chunks would be 12.
         // Candidates outside load_radius 1 of (1,0) are (-1,-1), (-1,0), (-1,1) (accessed at tick 1).
         // Cap is 10, so 2 oldest chunks are evicted via LRU fallback.
-        streamer.update_for_player_chunk(1, 0, &mut provider);
+        streamer.update_for_player_chunk(1, 0, &mut provider, &mut *dummy_tiles);
         assert_eq!(streamer.resident_chunk_count(), 10);
 
         // Chunks inside load radius 1 of (1, 0) MUST remain resident
@@ -557,7 +598,8 @@ mod tests {
 
         // Move player across 15 chunk steps along a line
         for step in 0..15 {
-            streamer.update_for_player_chunk(step, step / 2, &mut provider);
+            let mut dummy_tiles = Box::new(crate::tiles::TilesBuffer::new());
+            streamer.update_for_player_chunk(step, step / 2, &mut provider, &mut *dummy_tiles);
             assert!(
                 streamer.resident_chunk_count() <= budget,
                 "Step {}: resident count {} exceeded budget {}",

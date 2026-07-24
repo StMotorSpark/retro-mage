@@ -116,7 +116,7 @@ pub fn compute_movement_delta(
     let forward_x = yaw.sin();
     let forward_z = -yaw.cos();
     let right_x = yaw.cos();
-    let right_z = -yaw.sin();
+    let right_z = yaw.sin();
 
     let dx = (move_y * forward_x + move_x * right_x) * speed * dt;
     let dz = (move_y * forward_z + move_x * right_z) * speed * dt;

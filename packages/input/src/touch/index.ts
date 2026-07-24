@@ -129,7 +129,7 @@ export function createTouchSource(container: HTMLElement, options: TouchSourceOp
 
     setMoveKnobOffset(dx, dy);
     state.move.x = dx / MOVE_MAX_RADIUS;
-    state.move.y = dy / MOVE_MAX_RADIUS;
+    state.move.y = -dy / MOVE_MAX_RADIUS;
   }
 
   function handleMoveTouchEnd(event: TouchEvent): void {
@@ -270,7 +270,7 @@ export function createTouchSource(container: HTMLElement, options: TouchSourceOp
       // Y is inverted relative to raw swipe direction: swiping up should
       // look down (natural drag-to-look), not up.
       const lookX = (pendingLookDx / LOOK_MAX_RADIUS) * lookSensitivity;
-      const lookY = -(pendingLookDy / LOOK_MAX_RADIUS) * lookSensitivity;
+      const lookY = (pendingLookDy / LOOK_MAX_RADIUS) * lookSensitivity;
       pendingLookDx = 0;
       pendingLookDy = 0;
 
