@@ -53,10 +53,11 @@ impl EngineState {
     #[wasm_bindgen(constructor)]
     pub fn new() -> EngineState {
         let camera = CameraBuffer::new();
+        let mut outdoor_tiles = TilesBuffer::new();
+        let mut indoor_tiles = TilesBuffer::new();
         let mut streamer = chunk::OutdoorChunkStreamer::default();
         let mut provider = chunk::FlatChunkProvider::default();
-        // Ground plane for streaming/seams is XZ (Y is elevation) — see docs/research/known-gaps.md "Outdoor Coordinate System".
-        streamer.update_for_player_pos(camera.x[0], camera.z[0], &mut provider);
+        streamer.update_for_player_pos(camera.x[0], camera.z[0], &mut provider, &mut outdoor_tiles);
 
         let mut room_graph = room::RoomGraph::new();
         let mut indoor_streamer = room::IndoorRoomStreamer::default();
@@ -78,8 +79,8 @@ impl EngineState {
             indoor_actors: ActorsBuffer::new(),
             outdoor_actors: ActorsBuffer::new(),
             master_lights: LightsBuffer::new(),
-            indoor_tiles: TilesBuffer::new(),
-            outdoor_tiles: TilesBuffer::new(),
+            indoor_tiles,
+            outdoor_tiles,
             chunk_streamer: streamer,
             chunk_provider: provider,
             indoor_streamer,
@@ -158,6 +159,7 @@ impl EngineState {
             &mut self.room_graph,
             &mut self.chunk_streamer,
             &mut self.chunk_provider,
+            &mut self.outdoor_tiles,
         );
 
         self.camera.x[0] = px;
@@ -168,6 +170,7 @@ impl EngineState {
                 px,
                 pz,
                 &mut self.chunk_provider,
+                &mut self.outdoor_tiles,
             );
         } else {
             self.indoor_streamer
@@ -212,7 +215,7 @@ impl EngineState {
         match self.seam_manager.active_structure() {
             seam::ActiveWorldStructure::Outdoor => {
                 self.chunk_streamer
-                    .update_for_player_pos(x, z, &mut self.chunk_provider);
+                    .update_for_player_pos(x, z, &mut self.chunk_provider, &mut self.outdoor_tiles);
             }
             seam::ActiveWorldStructure::Indoor => {
                 self.indoor_streamer
@@ -311,8 +314,9 @@ impl EngineState {
         self.chunk_streamer.set_load_radius(radius);
         self.chunk_streamer.update_for_player_pos(
             self.camera.x[0],
-            self.camera.y[0],
+            self.camera.z[0], // fix y to z
             &mut self.chunk_provider,
+            &mut self.outdoor_tiles,
         );
         self.check_and_log_dev_warnings();
     }
@@ -327,8 +331,9 @@ impl EngineState {
         self.chunk_streamer.set_evict_radius(radius);
         self.chunk_streamer.update_for_player_pos(
             self.camera.x[0],
-            self.camera.y[0],
+            self.camera.z[0], // fix y to z
             &mut self.chunk_provider,
+            &mut self.outdoor_tiles,
         );
         self.check_and_log_dev_warnings();
     }
@@ -343,8 +348,9 @@ impl EngineState {
         self.chunk_streamer.set_max_resident_chunks(max);
         self.chunk_streamer.update_for_player_pos(
             self.camera.x[0],
-            self.camera.y[0],
+            self.camera.z[0], // fix y to z
             &mut self.chunk_provider,
+            &mut self.outdoor_tiles,
         );
     }
 
@@ -832,7 +838,7 @@ impl EngineState {
 
     pub fn set_camera(&mut self, x: f32, y: f32, z: f32, yaw: f32, pitch: f32) {
         self.camera.set_camera(x, y, z, yaw, pitch);
-        self.chunk_streamer.update_for_player_pos(x, z, &mut self.chunk_provider);
+        self.chunk_streamer.update_for_player_pos(x, z, &mut self.chunk_provider, &mut self.outdoor_tiles);
         self.recompute_visibility();
     }
 
@@ -1046,11 +1052,11 @@ mod tests {
 
         // Tiles
         assert!(!state.tiles_x_ptr().is_null());
-        assert_eq!(state.tiles_x_count(), 1024);
+        assert_eq!(state.tiles_x_count(), 32768);
         assert!(!state.tiles_solid_ptr().is_null());
-        assert_eq!(state.tiles_solid_count(), 1024);
+        assert_eq!(state.tiles_solid_count(), 32768);
         assert!(!state.tiles_vertical_opening_ptr().is_null());
-        assert_eq!(state.tiles_vertical_opening_count(), 1024);
+        assert_eq!(state.tiles_vertical_opening_count(), 32768);
         assert_eq!(state.tiles_count(), 0);
         state.set_indoor_tile(0, 10.0, 0.0, 20.0, 2.0, 1.0, 1.0, 0.0);
         assert_eq!(state.tiles_count(), 1);

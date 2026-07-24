@@ -1,29 +1,29 @@
 //! Tile geometry buffer storage (SoA fixed-size array for max 1024 visible tiles).
 
-pub const MAX_TILES: usize = 1024;
+pub const MAX_TILES: usize = 32768;
 
 #[derive(Debug)]
 pub struct TilesBuffer {
-    pub x: [f32; MAX_TILES],
-    pub y: [f32; MAX_TILES],
-    pub z: [f32; MAX_TILES],
-    pub tile_id: [f32; MAX_TILES],
-    pub variant: [f32; MAX_TILES],
-    pub solid: [f32; MAX_TILES],
-    pub vertical_opening: [f32; MAX_TILES],
+    pub x: Vec<f32>,
+    pub y: Vec<f32>,
+    pub z: Vec<f32>,
+    pub tile_id: Vec<f32>,
+    pub variant: Vec<f32>,
+    pub solid: Vec<f32>,
+    pub vertical_opening: Vec<f32>,
     pub count: usize,
 }
 
 impl TilesBuffer {
     pub fn new() -> Self {
         Self {
-            x: [0.0; MAX_TILES],
-            y: [0.0; MAX_TILES],
-            z: [0.0; MAX_TILES],
-            tile_id: [0.0; MAX_TILES],
-            variant: [0.0; MAX_TILES],
-            solid: [0.0; MAX_TILES],
-            vertical_opening: [0.0; MAX_TILES],
+            x: vec![0.0; MAX_TILES],
+            y: vec![0.0; MAX_TILES],
+            z: vec![0.0; MAX_TILES],
+            tile_id: vec![0.0; MAX_TILES],
+            variant: vec![0.0; MAX_TILES],
+            solid: vec![0.0; MAX_TILES],
+            vertical_opening: vec![0.0; MAX_TILES],
             count: 0,
         }
     }
@@ -84,7 +84,7 @@ mod tests {
         assert_eq!(buffer.variant.len(), MAX_TILES);
         assert_eq!(buffer.solid.len(), MAX_TILES);
         assert_eq!(buffer.vertical_opening.len(), MAX_TILES);
-        assert_eq!(MAX_TILES, 1024);
+        assert_eq!(MAX_TILES, 32768);
     }
 
     #[test]
@@ -107,7 +107,7 @@ mod tests {
     #[test]
     fn test_tiles_buffer_out_of_bounds() {
         let mut buffer = TilesBuffer::new();
-        let ok = buffer.set_tile(1024, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0);
+        let ok = buffer.set_tile(32768, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0);
         assert!(!ok);
     }
 }

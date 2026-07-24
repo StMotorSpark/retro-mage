@@ -1,12 +1,12 @@
 ---
 task: "40"
 slug: outdoor-chunk-rendering-bridge
-status: pending
+status: done
 depends-on: ["39"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-24
-outcome: ""
+outcome: "Bridged chunk streaming to outdoor_tiles, replaced array with Vec to handle 32768 limit, removed demo tile loop."
 ---
 
 # Outdoor Chunk Rendering Bridge

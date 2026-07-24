@@ -218,6 +218,7 @@ impl WorldSeamManager {
         room_provider: &mut P1,
         chunk_streamer: &mut OutdoorChunkStreamer,
         chunk_provider: &mut P2,
+        outdoor_tiles: &mut crate::tiles::TilesBuffer,
     ) -> Option<SeamId> {
         match self.active_structure {
             ActiveWorldStructure::Indoor => {
@@ -242,7 +243,7 @@ impl WorldSeamManager {
 
                         // Preload far side (outdoor chunk) when approaching within trigger distance
                         if dist <= self.seam_trigger_distance {
-                            chunk_streamer.update_for_player_pos(seam.outdoor_tile_x, seam.outdoor_tile_y, chunk_provider);
+                            chunk_streamer.update_for_player_pos(seam.outdoor_tile_x, seam.outdoor_tile_y, chunk_provider, outdoor_tiles);
                         }
 
                         // Crossing check
@@ -257,7 +258,7 @@ impl WorldSeamManager {
                     self.active_structure = ActiveWorldStructure::Outdoor;
                     *player_x = new_out_x;
                     *player_y = new_out_y;
-                    chunk_streamer.update_for_player_pos(new_out_x, new_out_y, chunk_provider);
+                    chunk_streamer.update_for_player_pos(new_out_x, new_out_y, chunk_provider, outdoor_tiles);
                     return Some(seam.id);
                 }
             }
@@ -360,6 +361,7 @@ mod tests {
     fn test_seam_trigger_distance_preloading() {
         let mut room_graph = create_test_room_graph();
         let mut chunk_provider = FlatChunkProvider::new(1, 0.0);
+        let mut dummy_tiles = Box::new(crate::tiles::TilesBuffer::new());
 
         let mut indoor_streamer = IndoorRoomStreamer::new(0, 1, 1);
         let mut chunk_streamer = OutdoorChunkStreamer::new(1, 2);
@@ -388,6 +390,7 @@ mod tests {
             &mut room_graph,
             &mut chunk_streamer,
             &mut chunk_provider,
+            &mut *dummy_tiles,
         );
         assert!(crossed.is_none());
         assert!(!chunk_streamer.is_chunk_resident(5, 5));
@@ -401,6 +404,7 @@ mod tests {
             &mut room_graph,
             &mut chunk_streamer,
             &mut chunk_provider,
+            &mut *dummy_tiles,
         );
         assert!(crossed.is_none()); // NO crossing yet
         assert_eq!(seam_manager.active_structure(), ActiveWorldStructure::Indoor);
@@ -429,6 +433,7 @@ mod tests {
             &mut room_graph,
             &mut chunk_streamer,
             &mut chunk_provider,
+            &mut *dummy_tiles,
         );
         assert!(crossed_out.is_none());
         assert_eq!(seam_manager_out.active_structure(), ActiveWorldStructure::Outdoor);
@@ -443,6 +448,7 @@ mod tests {
     fn test_seam_crossing_handoff_and_position_continuity() {
         let mut room_graph = create_test_room_graph();
         let mut chunk_provider = FlatChunkProvider::new(1, 0.0);
+        let mut dummy_tiles = Box::new(crate::tiles::TilesBuffer::new());
 
         let mut indoor_streamer = IndoorRoomStreamer::new(0, 1, 1);
         let mut chunk_streamer = OutdoorChunkStreamer::new(1, 2);
@@ -468,6 +474,7 @@ mod tests {
             &mut room_graph,
             &mut chunk_streamer,
             &mut chunk_provider,
+            &mut *dummy_tiles,
         );
 
         assert_eq!(crossed, Some(1));
@@ -488,6 +495,7 @@ mod tests {
             &mut room_graph,
             &mut chunk_streamer,
             &mut chunk_provider,
+            &mut *dummy_tiles,
         );
 
         assert_eq!(crossed_back, Some(1));
@@ -505,6 +513,7 @@ mod tests {
     fn test_single_room_multiple_independent_seams() {
         let mut room_graph = create_test_room_graph();
         let mut chunk_provider = FlatChunkProvider::new(1, 0.0);
+        let mut dummy_tiles = Box::new(crate::tiles::TilesBuffer::new());
 
         let mut indoor_streamer = IndoorRoomStreamer::new(0, 1, 1);
         let mut chunk_streamer = OutdoorChunkStreamer::new(1, 2);
@@ -536,6 +545,7 @@ mod tests {
             &mut room_graph,
             &mut chunk_streamer,
             &mut chunk_provider,
+            &mut *dummy_tiles,
         );
 
         // Outdoor chunk (3, 3) preloaded, but NOT (15, 15)
@@ -551,6 +561,7 @@ mod tests {
             &mut room_graph,
             &mut chunk_streamer,
             &mut chunk_provider,
+            &mut *dummy_tiles,
         );
         assert_eq!(crossed_a, Some(1));
         assert_eq!(seam_manager.active_structure(), ActiveWorldStructure::Outdoor);
@@ -569,6 +580,7 @@ mod tests {
             &mut room_graph,
             &mut chunk_streamer,
             &mut chunk_provider,
+            &mut *dummy_tiles,
         );
 
         // Outdoor chunk (15, 15) NOW preloaded!
@@ -583,6 +595,7 @@ mod tests {
             &mut room_graph,
             &mut chunk_streamer,
             &mut chunk_provider,
+            &mut *dummy_tiles,
         );
         assert_eq!(crossed_b, Some(2));
         assert_eq!(seam_manager.active_structure(), ActiveWorldStructure::Outdoor);
