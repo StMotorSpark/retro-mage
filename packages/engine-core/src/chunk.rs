@@ -164,7 +164,7 @@ impl FlatChunkProvider {
 
 impl Default for FlatChunkProvider {
     fn default() -> Self {
-        Self::new(3, 0.0)
+        Self::new(1, 0.0)
     }
 }
 
@@ -289,18 +289,6 @@ impl OutdoorChunkStreamer {
     /// Get list of all currently resident chunk coordinates.
     pub fn resident_keys(&self) -> Vec<(i32, i32)> {
         self.resident_chunks.keys().copied().collect()
-    }
-
-    /// Clear all resident chunks so they will be re-fetched on the next update.
-    pub fn clear(&mut self, outdoor_tiles: &mut crate::tiles::TilesBuffer) {
-        for resident in self.resident_chunks.values() {
-            let offset = resident.block_index * CHUNK_TILES;
-            for i in 0..CHUNK_TILES {
-                outdoor_tiles.set_tile(offset + i, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
-            }
-        }
-        self.resident_chunks.clear();
-        self.available_blocks = (0..self.max_resident_chunks).rev().collect();
     }
 
     /// Update resident set based on player's world position (x, y).

@@ -169,8 +169,8 @@ async function main(): Promise<void> {
   engineState.set_outdoor_actor(5, 36.0, 0.0, 42.0, 0.0, 1.0, 1.0);
 
   // A pair of solid stone wall tiles (tile_id 1) marking the seam entrance back to the dungeon
-  engineState.set_outdoor_tile(0, 31.0, 0.0, 32.0, 1, 0, 1.0, 0.0);
-  engineState.set_outdoor_tile(1, 33.0, 0.0, 32.0, 1, 0, 1.0, 0.0);
+  engineState.set_outdoor_tile(31.0, 0.0, 32.0, 1, 0, 1.0, 0.0);
+  engineState.set_outdoor_tile(33.0, 0.0, 32.0, 1, 0, 1.0, 0.0);
 
   // Set up world state reader over WASM memory
   const reader = new WorldStateReader(engineState, wasmOutput.memory);
