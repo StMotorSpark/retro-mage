@@ -557,18 +557,20 @@ mod tests {
         assert!((player_x - 99.8).abs() < 1e-4);
         assert!((player_y - 50.0).abs() < 1e-4);
 
-        // Move away to clear hysteresis lock
+        // Move away to clear hysteresis lock and crossing cooldown ticks
         let mut away_x = 102.0;
         let mut away_y = 50.0;
-        seam_manager.update_and_check_crossing(
-            &mut away_x,
-            &mut away_y,
-            &mut indoor_streamer,
-            &mut room_graph,
-            &mut chunk_streamer,
-            &mut chunk_provider,
-            &mut *dummy_tiles,
-        );
+        for _ in 0..CROSSING_COOLDOWN_TICKS {
+            seam_manager.update_and_check_crossing(
+                &mut away_x,
+                &mut away_y,
+                &mut indoor_streamer,
+                &mut room_graph,
+                &mut chunk_streamer,
+                &mut chunk_provider,
+                &mut *dummy_tiles,
+            );
+        }
 
         // Now move back towards outdoor seam at (100.0, 50.0)
         player_x = 100.2;

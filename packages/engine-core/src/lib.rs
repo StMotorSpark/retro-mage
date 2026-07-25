@@ -69,7 +69,7 @@ impl EngineState {
         let mut indoor_streamer = room::IndoorRoomStreamer::default();
         indoor_streamer.update_for_current_room(&mut room_graph);
 
-        let seam_manager = seam::WorldSeamManager::new(seam::ActiveWorldStructure::Outdoor);
+        let seam_manager = seam::WorldSeamManager::new(seam::ActiveWorldStructure::Indoor);
 
         EngineState {
             tick_count: 0.0,
@@ -391,6 +391,10 @@ impl EngineState {
     /// Set outdoor default tile ID (e.g. 3 for grass terrain).
     pub fn set_outdoor_default_tile_id(&mut self, tile_id: u16) {
         self.chunk_provider.default_tile_id = tile_id;
+        self.chunk_streamer.clear(&mut self.outdoor_tiles);
+        let x = self.camera.x[0];
+        let z = self.camera.z[0];
+        self.chunk_streamer.update_for_player_pos(x, z, &mut self.chunk_provider, &mut self.outdoor_tiles);
     }
 
     /// Indoor room hop depth (graph hops).
