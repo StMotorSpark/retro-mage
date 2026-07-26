@@ -1029,9 +1029,15 @@ impl EngineState {
                     grid_solids.entry(pos).or_insert(false);
                 }
 
-                let is_opening = tiles.vertical_opening[i] != 0.0;
+                let is_opening = tiles.vertical_opening[i] != 0.0 || tiles.direction[i] != 0.0;
                 if is_opening {
                     grid_openings.insert(pos, true);
+                    let mut p_up = pos;
+                    p_up.elev += 1;
+                    grid_openings.insert(p_up, true);
+                    let mut p_down = pos;
+                    p_down.elev -= 1;
+                    grid_openings.insert(p_down, true);
                 } else {
                     grid_openings.entry(pos).or_insert(false);
                 }
@@ -1393,8 +1399,8 @@ mod tests {
 
         // 2. Standing away from vertical opening: move player to (-5, 1, 0) on upper floor
         state.set_camera(-5.0, 1.0, 0.0, 0.0, 0.0);
-        // From (-5, 1, 0), player is out of sight range of opening (dist to (1,1,0) > DEFAULT_MAX_DRAW_DISTANCE is false, but opening is not visible if we place wall or if far)
-        // Let's test player standing far away on lower floor: camera at (-10, 0, 0)
+        // Let's test player standing behind a wall on lower floor: camera at (-10, 0, 0) with wall at (-5, 0, 0)
+        state.set_indoor_tile(5, -5.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0);
         state.set_camera(-10.0, 0.0, 0.0, 0.0, 0.0);
         // Player on lower floor standing away sees only lower floor tiles near them, zero upper floor tiles leakage
         let mut visible_y_lower = Vec::new();
@@ -1724,5 +1730,35 @@ mod tests {
         state.tick(0.5);
         let pz = unsafe { *state.camera_z_ptr() };
         assert!(pz < z_before, "Expected Z slide (forward movement), got z={}", pz);
+    }
+
+    #[test]
+    fn test_multi_floor_visibility_across_ramp() {
+        let mut state = EngineState::new();
+        state.set_active_world_structure(0);
+        state.set_ambient_light(1.0);
+
+        // Ramp at (0, 0, 0) with direction=2.0, connecting elevation 0 and 1
+        state.set_indoor_tile(0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 2.0);
+        // Upstairs floor tile at (0, 1, 1)
+        state.set_indoor_tile(1, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0);
+        // Downstairs floor tile at (0, 0, -1)
+        state.set_indoor_tile(2, 0.0, 0.0, -1.0, 1.0, 0.0, 0.0, 0.0, 0.0);
+
+        // Stand upstairs at (0, 1, 1) looking down ramp
+        state.set_camera(0.0, 1.0, 1.0, 0.0, 0.0);
+
+        let mut visible_coords = Vec::new();
+        unsafe {
+            for i in 0..state.tiles_count() {
+                let x = *state.tiles_x_ptr().add(i);
+                let y = *state.tiles_y_ptr().add(i);
+                let z = *state.tiles_z_ptr().add(i);
+                visible_coords.push((x.round() as i32, y.round() as i32, z.round() as i32));
+            }
+        }
+        assert!(visible_coords.contains(&(0, 1, 1)));
+        assert!(visible_coords.contains(&(0, 0, 0))); // Ramp tile visible
+        assert!(visible_coords.contains(&(0, 0, -1))); // Downstairs floor visible across ramp!
     }
 }

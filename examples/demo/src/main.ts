@@ -194,7 +194,7 @@ async function main(): Promise<void> {
   }
 
 
-  // Torch Point Lights (4 total): warm orange-yellow (r=1.0, g=0.7, b=0.3)
+  // Torch Point Lights (5 total): warm orange-yellow (r=1.0, g=0.7, b=0.3)
   // Entry Hall Torch 1 & 2
   engineState.set_light(0, -2.0, 1.5, 4.0, 1.0, 0.7, 0.3, 8.0, 1.0);
   engineState.set_light(1, 2.0, 1.5, 4.0, 1.0, 0.7, 0.3, 8.0, 1.0);
@@ -202,6 +202,8 @@ async function main(): Promise<void> {
   engineState.set_light(2, -7.0, 1.5, 4.5, 1.0, 0.7, 0.3, 8.0, 1.0);
   // Gate Room Torch
   engineState.set_light(3, 7.0, 1.5, 4.5, 1.0, 0.7, 0.3, 8.0, 1.0);
+  // Multi Floor Area Torch (upstairs, illuminating ramp and second floor)
+  engineState.set_light(4, 0.0, 2.5, 11.0, 1.0, 0.7, 0.3, 12.0, 1.0);
 
   // Tree Billboard Sprite Actors (6 total) in outdoor chunk area (task:38)
   // Scattered across outdoor area around seam exit (32, 32), avoiding direct path
