@@ -31,17 +31,7 @@ Still undecided: tile/sprite source folder conventions per consuming game. The o
 - Blocks: any task that adds real game assets rather than placeholder geometry
 - Relates to: [Asset Pipeline](../architecture/asset-pipeline.md), [Tech Stack](../architecture/tech-stack.md), [Rendering](../architecture/rendering.md)
 
-### Multi-Floor Collision
 
-Phase 1 collision is XZ-plane only — see [Collision](../architecture/collision.md). When the player crosses floors via stairwells, ramps, or level changes, collision must account for Y-axis (elevation): checking tiles on the player's current floor, transitioning between floors at stairwell geometry, and handling partial-floor openings like balconies.
-
-Undecided:
-- **Floor level detection**: how does `engine-core` know which floor the player is currently on? Fixed Y threshold per-room, continuous height sampling from tile heights, or explicit floor-level metadata on tiles?
-- **Stairwell traversal**: smooth Y interpolation as the player moves over stair tiles, or discrete step-up/step-down on tile boundary crossing?
-- **Interaction with vertical opening tiles**: `vertical_opening` tiles in the visibility system already track cross-floor sight — collision should respect the same geometry.
-
-- Blocks: multi-floor dungeon rooms (stairs, balconies) — deferred post-Phase-1 demo
-- Relates to: [Collision](../architecture/collision.md), [Visibility](../architecture/visibility.md), [World Model](../features/world-model.md)
 
 
 ### Unified World Coordinate Space (Option B)
@@ -74,6 +64,9 @@ Phase 2 work begins after Phase 1 demo is complete, resolved incrementally as ea
 - Relates to: [Demo Scope](../features/demo-scope.md), [World Model](../features/world-model.md), [Rendering](../architecture/rendering.md)
 
 ## Resolved
+
+### Multi-Floor Collision
+_Resolved._ See [Collision](../architecture/collision.md). Collision now evaluates Y-elevation and a cylindrical `player_height` dynamically based on the tile beneath the player (`floor(x), floor(z)`). The player's base Y matches flat tiles, smoothly interpolates across stair tiles (governed by directional metadata), and subjects the player to gravitational acceleration in `vertical_opening` holes. Configurable `player_height` guarantees head bumps stop movement, and configurable `gravity`/`max_fall_speed` dictate fall mechanics.
 
 ### Shared Indoor/Outdoor Coordinate Space
 _Resolved._ See [World Structure Partitioning](../architecture/world-structure-partitioning.md). The engine mechanically isolates indoor and outdoor space by maintaining separate `indoor_tiles`/`outdoor_tiles` and `indoor_actors`/`outdoor_actors` buffers. The active world structure branches array reads in `tick()`, entirely preventing cross-structure coordinate bleed.
