@@ -1,8 +1,8 @@
 ---
-task: "02"
+task: "43"
 slug: multi-floor-movement
 status: pending
-depends-on: ["01"]
+depends-on: ["42"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-26
@@ -54,4 +54,4 @@ Implement 3D Y-elevation logic, stair interpolation, gravity, and ceiling collis
 ## Context
 
 - Read: `docs/architecture/collision.md`
-- Depends on: task 01 (provides the config and schema)
+- Depends on: task 42 (provides the config and schema)
