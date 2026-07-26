@@ -350,6 +350,9 @@ async function main(): Promise<void> {
       indoorHopDepth: engineState.indoor_hop_depth(),
     });
 
+    const v = reader.read();
+    (window as any).__debugPos = { x: v.camera.x[0], y: v.camera.y[0], z: v.camera.z[0] };
+
     requestAnimationFrame(frame);
   };
 

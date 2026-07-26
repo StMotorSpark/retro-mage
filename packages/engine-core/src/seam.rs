@@ -569,6 +569,7 @@ mod tests {
             &mut chunk_provider,
             &mut *dummy_tiles,
         );
+        seam_manager.clear_hysteresis();
 
         // Now move back towards outdoor seam at (100.0, 50.0)
         player_x = 100.2;

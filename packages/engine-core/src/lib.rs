@@ -809,6 +809,13 @@ impl EngineState {
         MAX_TILES
     }
 
+    pub fn tiles_direction_ptr(&self) -> *const f32 {
+        self.tiles.direction.as_ptr()
+    }
+    pub fn tiles_direction_count(&self) -> usize {
+        MAX_TILES
+    }
+
     pub fn tiles_count(&self) -> usize {
         self.tiles.count
     }
@@ -1071,6 +1078,7 @@ impl EngineState {
                         self.tiles.solid[visible_tile_count] = tiles.solid[i];
                         self.tiles.vertical_opening[visible_tile_count] =
                             tiles.vertical_opening[i];
+                        self.tiles.direction[visible_tile_count] = tiles.direction[i];
                         visible_tile_count += 1;
                     }
                 }

@@ -15,6 +15,7 @@ function setupWasmEngine() {
   const wasmBytes = fs.readFileSync(wasmPath);
   const initOutput = initSync({ module: wasmBytes });
   const engine = new EngineState();
+  engine.set_active_world_structure(0);
   engine.set_ambient_light(1.0);
   return { engine, memory: initOutput.memory };
 }
@@ -67,7 +68,7 @@ describe('world-state reader', () => {
 
     expect(engine.tiles_count()).toBe(0);
     engine.set_camera(100.0, 0.0, 200.0, 0.0, 0.0);
-    engine.set_indoor_tile(0, 100.0, 0.0, 200.0, 12.0, 3.0, 1.0, 0.0);
+    engine.set_indoor_tile(0, 100.0, 0.0, 200.0, 12.0, 3.0, 1.0, 0.0, 2.0);
 
     const tilesView = readTilesView(engine, memory);
     expect(tilesView.count).toBe(1);
@@ -78,6 +79,7 @@ describe('world-state reader', () => {
     expect(tilesView.variant[0]).toBeCloseTo(3.0);
     expect(tilesView.solid[0]).toBeCloseTo(1.0);
     expect(tilesView.vertical_opening[0]).toBeCloseTo(0.0);
+    expect(tilesView.direction[0]).toBeCloseTo(2.0);
   });
 
   it('reads camera buffer view with real WASM round-trip values', () => {
