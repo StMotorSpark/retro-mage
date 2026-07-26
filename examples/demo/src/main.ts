@@ -53,8 +53,10 @@ async function main(): Promise<void> {
   engineState.add_room_to_graph(0, 'Entry Hall');
   engineState.add_room_to_graph(1, 'Armory');
   engineState.add_room_to_graph(2, 'Gate Room');
+  engineState.add_room_to_graph(3, 'Multi Floor Area');
   engineState.add_room_edge(0, 1);
   engineState.add_room_edge(0, 2);
+  engineState.add_room_edge(0, 3);
   engineState.set_indoor_current_room(0);
 
   // Doorways
@@ -62,6 +64,8 @@ async function main(): Promise<void> {
   engineState.register_indoor_doorway(-4.0, 100.0, -100.0, 100.0, 1, 0);  // Armory -> Entry
   engineState.register_indoor_doorway(4.0, 100.0, -100.0, 100.0, 0, 2);   // Entry -> Gate Room
   engineState.register_indoor_doorway(-100.0, 4.0, -100.0, 100.0, 2, 0);  // Gate Room -> Entry
+  engineState.register_indoor_doorway(-3.0, 3.0, 7.0, 9.0, 0, 3);         // Entry -> Multi Floor
+  engineState.register_indoor_doorway(-3.0, 3.0, 7.0, 9.0, 3, 0);         // Multi Floor -> Entry
 
   engineState.set_active_world_structure(0); // 0 = Indoor, 1 = Outdoor
   engineState.set_outdoor_default_tile_id(3); // tile_id 3 = grass terrain
@@ -89,64 +93,104 @@ async function main(): Promise<void> {
   // 1. Room 0: Entry Hall floor grid (y = 0.0): x in [-3, 3], z in [2, 7]
   for (let x = -3; x <= 3; x++) {
     for (let z = 2; z <= 7; z++) {
-      engineState.set_indoor_tile(tileIdx++, x, 0, z, 2, 0, 0, 0); // tile_id 2 = floor
+      engineState.set_indoor_tile(tileIdx++, x, 0, z, 2, 0, 0, 0, 0); // tile_id 2 = floor
     }
   }
 
   // Entry Hall walls (tile_id 1 = wall, solid = 1.0)
   for (let x = -4; x <= 4; x++) {
-    engineState.set_indoor_tile(tileIdx++, x, 0, 8, 1, 0, 1.0, 0); // South wall
-    engineState.set_indoor_tile(tileIdx++, x, 0, 1, 1, 0, 1.0, 0); // North wall
+    if (x !== 0 && x !== -1 && x !== 1) {
+      engineState.set_indoor_tile(tileIdx++, x, 0, 8, 1, 0, 1.0, 0, 0, 0); // South wall
+    }
+    engineState.set_indoor_tile(tileIdx++, x, 0, 1, 1, 0, 1.0, 0, 0, 0); // North wall
   }
   for (let z = 2; z <= 7; z++) {
     if (z !== 4) {
-      engineState.set_indoor_tile(tileIdx++, -4, 0, z, 1, 0, 1.0, 0); // West wall (doorway at z=4)
-      engineState.set_indoor_tile(tileIdx++, 4, 0, z, 1, 0, 1.0, 0); // East wall (doorway at z=4)
+      engineState.set_indoor_tile(tileIdx++, -4, 0, z, 1, 0, 1.0, 0, 0); // West wall (doorway at z=4)
+      engineState.set_indoor_tile(tileIdx++, 4, 0, z, 1, 0, 1.0, 0, 0); // East wall (doorway at z=4)
     }
   }
 
   // 2. Room 1: Armory floor grid (y = 0.0): x in [-9, -5], z in [3, 6]
   for (let x = -9; x <= -5; x++) {
     for (let z = 3; z <= 6; z++) {
-      engineState.set_indoor_tile(tileIdx++, x, 0, z, 2, 0, 0, 0); // floor
+      engineState.set_indoor_tile(tileIdx++, x, 0, z, 2, 0, 0, 0, 0); // floor
     }
   }
   // Doorway connection between Entry Hall & Armory
-  engineState.set_indoor_tile(tileIdx++, -4, 0, 4, 2, 0, 0, 0);
+  engineState.set_indoor_tile(tileIdx++, -4, 0, 4, 2, 0, 0, 0, 0);
 
   // Armory walls
   for (let x = -10; x <= -4; x++) {
-    engineState.set_indoor_tile(tileIdx++, x, 0, 7, 1, 0, 1.0, 0); // South wall
-    engineState.set_indoor_tile(tileIdx++, x, 0, 2, 1, 0, 1.0, 0); // North wall
+    engineState.set_indoor_tile(tileIdx++, x, 0, 7, 1, 0, 1.0, 0, 0); // South wall
+    engineState.set_indoor_tile(tileIdx++, x, 0, 2, 1, 0, 1.0, 0, 0); // North wall
   }
   for (let z = 3; z <= 6; z++) {
-    engineState.set_indoor_tile(tileIdx++, -10, 0, z, 1, 0, 1.0, 0); // West wall
+    engineState.set_indoor_tile(tileIdx++, -10, 0, z, 1, 0, 1.0, 0, 0); // West wall
     if (z !== 4) {
-      engineState.set_indoor_tile(tileIdx++, -4, 0, z, 1, 0, 1.0, 0); // East wall
+      engineState.set_indoor_tile(tileIdx++, -4, 0, z, 1, 0, 1.0, 0, 0); // East wall
     }
   }
 
   // 3. Room 2: Gate Room floor grid (y = 0.0): x in [5, 9], z in [3, 6]
   for (let x = 5; x <= 9; x++) {
     for (let z = 3; z <= 6; z++) {
-      engineState.set_indoor_tile(tileIdx++, x, 0, z, 2, 0, 0, 0); // floor
+      engineState.set_indoor_tile(tileIdx++, x, 0, z, 2, 0, 0, 0, 0); // floor
     }
   }
   // Doorway connection between Entry Hall & Gate Room
-  engineState.set_indoor_tile(tileIdx++, 4, 0, 4, 2, 0, 0, 0);
+  engineState.set_indoor_tile(tileIdx++, 4, 0, 4, 2, 0, 0, 0, 0);
   // Seam exit tile
-  engineState.set_indoor_tile(tileIdx++, 10, 0, 4, 2, 0, 0, 0);
+  engineState.set_indoor_tile(tileIdx++, 10, 0, 4, 2, 0, 0, 0, 0);
 
   // Gate Room walls
   for (let x = 4; x <= 10; x++) {
-    engineState.set_indoor_tile(tileIdx++, x, 0, 7, 1, 0, 1.0, 0); // South wall
-    engineState.set_indoor_tile(tileIdx++, x, 0, 2, 1, 0, 1.0, 0); // North wall
+    engineState.set_indoor_tile(tileIdx++, x, 0, 7, 1, 0, 1.0, 0, 0); // South wall
+    engineState.set_indoor_tile(tileIdx++, x, 0, 2, 1, 0, 1.0, 0, 0); // North wall
   }
   for (let z = 3; z <= 6; z++) {
     if (z !== 4) {
-      engineState.set_indoor_tile(tileIdx++, 4, 0, z, 1, 0, 1.0, 0); // West wall
-      engineState.set_indoor_tile(tileIdx++, 10, 0, z, 1, 0, 1.0, 0); // East wall (gate exit at z=4)
+      engineState.set_indoor_tile(tileIdx++, 4, 0, z, 1, 0, 1.0, 0, 0, 0); // West wall
+      engineState.set_indoor_tile(tileIdx++, 10, 0, z, 1, 0, 1.0, 0, 0, 0); // East wall (gate exit at z=4)
     }
+  }
+
+  // 4. Room 3: Multi Floor Area
+  // Stairs going up from z=8 to z=9 at x in [-1, 1]
+  for (let x = -1; x <= 1; x++) {
+    engineState.set_indoor_tile(tileIdx++, x, 0, 8, 2, 0, 0, 0, 2.0, 0); // direction=2.0 (ramp up towards +Z)
+  }
+
+  // Upstairs floor y=1.0: x in [-2, 2], z in [9, 12]
+  for (let x = -2; x <= 2; x++) {
+    for (let z = 9; z <= 12; z++) {
+      if (x === 0 && z === 10) {
+        // Vertical opening (hole)
+        engineState.set_indoor_tile(tileIdx++, x, 1.0, z, 2, 0, 0, 1.0, 0, 0);
+      } else {
+        // Normal floor
+        engineState.set_indoor_tile(tileIdx++, x, 1.0, z, 2, 0, 0, 0, 0, 0);
+      }
+    }
+  }
+
+  // Basement floor y=0.0 under the hole
+  for (let x = -1; x <= 1; x++) {
+    for (let z = 9; z <= 11; z++) {
+      engineState.set_indoor_tile(tileIdx++, x, 0.0, z, 2, 0, 0, 0, 0, 0);
+    }
+  }
+
+  // Low ceiling obstacle at x=1, z=10, y=2.0 (blocks player of height 1.6 from floor y=1.0)
+  engineState.set_indoor_tile(tileIdx++, 1, 2.0, 10, 1, 0, 1.0, 0, 0, 0);
+
+  // Walls for Room 3
+  for (let z = 9; z <= 12; z++) {
+    engineState.set_indoor_tile(tileIdx++, -3, 1.0, z, 1, 0, 1.0, 0, 0, 0); // West
+    engineState.set_indoor_tile(tileIdx++, 3, 1.0, z, 1, 0, 1.0, 0, 0, 0); // East
+  }
+  for (let x = -3; x <= 3; x++) {
+    engineState.set_indoor_tile(tileIdx++, x, 1.0, 13, 1, 0, 1.0, 0, 0, 0); // South
   }
 
 

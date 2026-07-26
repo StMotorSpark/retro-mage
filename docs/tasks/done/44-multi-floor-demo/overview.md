@@ -1,12 +1,12 @@
 ---
 task: "44"
 slug: multi-floor-demo
-status: pending
+status: done
 depends-on: ["43"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-26
-outcome: ""
+outcome: "Added Room 3 (Multi Floor Area) to demo map with functional stairs (direction=2), a vertical opening (hole to basement), and a low ceiling obstacle."
 ---
 
 # Multi-Floor Demo Example
