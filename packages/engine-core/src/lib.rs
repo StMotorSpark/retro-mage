@@ -26,6 +26,7 @@ use wasm_bindgen::prelude::*;
 /// Main engine state holding world-state SoA preallocated buffers.
 #[wasm_bindgen]
 pub struct EngineState {
+    pub player_velocity_y: f32,
     tick_count: f64,
     ambient_light: f32,
     max_sight_distance: f32,
@@ -76,6 +77,7 @@ impl EngineState {
             ambient_light: 0.0,
             max_sight_distance: visibility::DEFAULT_MAX_DRAW_DISTANCE,
             cull_precision_distance: visibility::DEFAULT_MAX_DRAW_DISTANCE,
+            player_velocity_y: 0.0,
             collision_config: collision::CollisionConfig::default(),
             input: InputState::default(),
             actors: ActorsBuffer::new(),
@@ -145,16 +147,21 @@ impl EngineState {
             self.collision_config.player_speed,
             dt_f32,
         );
-        let (new_px, new_pz) = collision::resolve_movement(
+        let (new_px, new_py, new_pz, new_vy) = collision::resolve_movement(
             self.camera.x[0],
+            self.camera.y[0],
             self.camera.z[0],
             dx,
+            self.player_velocity_y,
             dz,
-            self.collision_config.player_radius,
+            &self.collision_config,
+            dt_f32,
             if self.active_world_structure() == 0 { &self.indoor_tiles } else { &self.outdoor_tiles },
         );
         self.camera.x[0] = new_px;
+        self.camera.y[0] = new_py;
         self.camera.z[0] = new_pz;
+        self.player_velocity_y = new_vy;
 
         // Ground plane for streaming/seams is XZ (camera.y is elevation, not a horizontal axis) —
         // see docs/architecture/world-streaming.md and docs/architecture/collision.md.
@@ -815,11 +822,11 @@ impl EngineState {
         tile_id: f32,
         variant: f32,
         solid: f32,
-        vertical_opening: f32,
+        vertical_opening: f32, direction: f32,
     ) -> bool {
         let ok = self
             .indoor_tiles
-            .set_tile(index, x, y, z, tile_id, variant, solid, vertical_opening);
+            .set_tile(index, x, y, z, tile_id, variant, solid, vertical_opening, direction);
         if ok {
             self.recompute_visibility();
         }
@@ -835,11 +842,11 @@ impl EngineState {
         tile_id: f32,
         variant: f32,
         solid: f32,
-        vertical_opening: f32,
+        vertical_opening: f32, direction: f32,
     ) -> bool {
         let ok = self
             .outdoor_tiles
-            .set_tile(index, x, y, z, tile_id, variant, solid, vertical_opening);
+            .set_tile(index, x, y, z, tile_id, variant, solid, vertical_opening, direction);
         if ok {
             self.recompute_visibility();
         }
@@ -1187,7 +1194,7 @@ mod tests {
         assert!(!state.tiles_vertical_opening_ptr().is_null());
         assert_eq!(state.tiles_vertical_opening_count(), 32768);
         assert_eq!(state.tiles_count(), 0);
-        state.set_indoor_tile(0, 10.0, 0.0, 20.0, 2.0, 1.0, 1.0, 0.0);
+        state.set_indoor_tile(0, 10.0, 0.0, 20.0, 2.0, 1.0, 1.0, 0.0, 0.0);
         assert_eq!(state.tiles_count(), 1);
         unsafe {
             assert_eq!(*state.tiles_x_ptr(), 10.0);
@@ -1247,11 +1254,11 @@ mod tests {
         // Tile 2: (0, 0, 3) - behind wall (occluded by solid wall at z=2) -> excluded
         // Tile 3: (0, 0, 10) - unoccluded direction, but beyond sight radius (dist 10.0 > 3.2) -> excluded
         // Tile 4: (2, 0, 0) - side floor (unoccluded, dist 2.0 <= 3.2) -> visible
-        state.set_indoor_tile(0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0);
-        state.set_indoor_tile(1, 0.0, 0.0, 2.0, 2.0, 0.0, 1.0, 0.0); // Solid wall at z=2
-        state.set_indoor_tile(2, 0.0, 0.0, 3.0, 1.0, 0.0, 0.0, 0.0);
-        state.set_indoor_tile(3, 0.0, 0.0, 10.0, 1.0, 0.0, 0.0, 0.0);
-        state.set_indoor_tile(4, 2.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0);
+        state.set_indoor_tile(0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0);
+        state.set_indoor_tile(1, 0.0, 0.0, 2.0, 2.0, 0.0, 1.0, 0.0, 0.0); // Solid wall at z=2
+        state.set_indoor_tile(2, 0.0, 0.0, 3.0, 1.0, 0.0, 0.0, 0.0, 0.0);
+        state.set_indoor_tile(3, 0.0, 0.0, 10.0, 1.0, 0.0, 0.0, 0.0, 0.0);
+        state.set_indoor_tile(4, 2.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0);
 
         // Actors:
         // Actor 0: (0, 0, 1) - near side -> visible
@@ -1306,9 +1313,9 @@ mod tests {
         state.set_ambient_light(1.0); // Full sight radius
 
         // Set up wall at (0, 0, 2) and tile behind wall at (0, 0, 3)
-        state.set_indoor_tile(0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0);
-        state.set_indoor_tile(1, 0.0, 0.0, 2.0, 2.0, 0.0, 1.0, 0.0); // Wall
-        state.set_indoor_tile(2, 0.0, 0.0, 3.0, 1.0, 0.0, 0.0, 0.0); // Behind wall
+        state.set_indoor_tile(0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0);
+        state.set_indoor_tile(1, 0.0, 0.0, 2.0, 2.0, 0.0, 1.0, 0.0, 0.0); // Wall
+        state.set_indoor_tile(2, 0.0, 0.0, 3.0, 1.0, 0.0, 0.0, 0.0, 0.0); // Behind wall
 
         // Frame 1: player at (0, 0, 0)
         state.set_camera(0.0, 0.0, 0.0, 0.0, 0.0);
@@ -1331,16 +1338,16 @@ mod tests {
         // Floor 1 (upper floor, y = 1.0):
         // Tile 0: Player stand tile at (0, 1, 0)
         // Tile 1: Balcony opening tile at (1, 1, 0) with vertical_opening = 1.0
-        state.set_indoor_tile(0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0);
-        state.set_indoor_tile(1, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0); // Vertical opening!
+        state.set_indoor_tile(0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0);
+        state.set_indoor_tile(1, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0); // Vertical opening!
 
         // Floor 0 (lower floor, y = 0.0):
         // Tile 2: Tile directly under opening at (1, 0, 0)
         // Tile 3: Tile forward on lower floor at (2, 0, 0)
         // Tile 4: Tile under solid floor at (0, 0, 0)
-        state.set_indoor_tile(2, 1.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0);
-        state.set_indoor_tile(3, 2.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0);
-        state.set_indoor_tile(4, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0);
+        state.set_indoor_tile(2, 1.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0);
+        state.set_indoor_tile(3, 2.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0);
+        state.set_indoor_tile(4, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0);
 
         // Actor 0 on lower floor forward (2, 0, 0)
         // Actor 1 on lower floor under solid floor (0, 0, 0)
@@ -1428,9 +1435,9 @@ mod tests {
         // Tile 0: (0, 0, 1) - solid wall at z=1 (dist 1.0)
         // Tile 1: (0, 0, 2) - floor tile behind wall at z=1 (dist 2.0)
         // Tile 2: (0, 0, 4) - floor tile further behind wall (dist 4.0)
-        state.set_indoor_tile(0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0); // Solid wall at z=1
-        state.set_indoor_tile(1, 0.0, 0.0, 2.0, 1.0, 0.0, 0.0, 0.0); // Behind wall (dist 2.0)
-        state.set_indoor_tile(2, 0.0, 0.0, 4.0, 1.0, 0.0, 0.0, 0.0); // Further behind wall (dist 4.0)
+        state.set_indoor_tile(0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0); // Solid wall at z=1
+        state.set_indoor_tile(1, 0.0, 0.0, 2.0, 1.0, 0.0, 0.0, 0.0, 0.0); // Behind wall (dist 2.0)
+        state.set_indoor_tile(2, 0.0, 0.0, 4.0, 1.0, 0.0, 0.0, 0.0, 0.0); // Further behind wall (dist 4.0)
 
         // 1. With default cull_precision_distance (32.0): exact occlusion everywhere
         // Only wall at z=1 is visible; z=2 and z=4 are occluded.
@@ -1671,7 +1678,7 @@ mod tests {
         state.set_camera(0.0, 0.0, 0.0, 0.0, 0.0);
         // Solid wall tile at (0, 0, -3): tile AABB Z face at z = -3 + 0.5 = -2.5
         // With radius 0.3, player stops at z >= -2.5 + 0.3 = -2.2
-        state.set_indoor_tile(0, 0.0, 0.0, -3.0, 1.0, 0.0, 1.0, 0.0);
+        state.set_indoor_tile(0, 0.0, 0.0, -3.0, 1.0, 0.0, 1.0, 0.0, 0.0);
         state.set_input(0.0, 1.0, 0.0, 0.0, 0.0, 0, 0);
         // Run for 10 seconds — without collision player would travel 40 tiles
         state.tick(10.0);
@@ -1686,7 +1693,7 @@ mod tests {
         state.set_ambient_light(1.0);
         state.set_camera(0.0, 0.0, 0.0, 0.0, 0.0);
         // Floor tile (solid=0) directly ahead — should not block
-        state.set_indoor_tile(0, 0.0, 0.0, -1.0, 1.0, 0.0, 0.0, 0.0);
+        state.set_indoor_tile(0, 0.0, 0.0, -1.0, 1.0, 0.0, 0.0, 0.0, 0.0);
         state.set_input(0.0, 1.0, 0.0, 0.0, 0.0, 0, 0);
         state.tick(0.1);
         let pz = unsafe { *state.camera_z_ptr() };
@@ -1701,7 +1708,7 @@ mod tests {
         // Place player left of a wall running along the Z axis
         // Solid wall at (1, 0, 0): blocks +X movement but not -Z movement
         state.set_camera(-0.5, 0.0, 2.0, 0.0, 0.0); // yaw=0 → facing -Z
-        state.set_indoor_tile(0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0);
+        state.set_indoor_tile(0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0);
         // Move diagonally: forward (-Z) and strafe right (+X)
         // The +X component hits the wall but -Z should succeed (slide)
         state.set_input(1.0, 1.0, 0.0, 0.0, 0.0, 0, 0); // move_x=1 (strafe right), move_y=1 (forward)

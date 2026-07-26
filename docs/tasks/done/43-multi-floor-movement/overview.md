@@ -1,12 +1,12 @@
 ---
 task: "43"
 slug: multi-floor-movement
-status: pending
+status: done
 depends-on: ["42"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-26
-outcome: ""
+outcome: "Implemented multi-floor collision logic: base Y calculation, stair interpolation, gravity over vertical openings, and ceiling bump prevention. Unit tests passed."
 ---
 
 # Multi-Floor Movement
