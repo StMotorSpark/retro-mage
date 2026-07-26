@@ -216,13 +216,13 @@ pub fn resolve_movement(
         new_pz = curr_z;
     }
 
-    let floor_x = new_px.floor();
-    let floor_z = new_pz.floor();
+    let floor_x = new_px.round();
+    let floor_z = new_pz.round();
     let mut tile_idx = None;
     let mut max_y = -f32::INFINITY;
 
     for i in 0..master_tiles.count {
-        if master_tiles.x[i].floor() == floor_x && master_tiles.z[i].floor() == floor_z {
+        if master_tiles.x[i].round() == floor_x && master_tiles.z[i].round() == floor_z {
             let ty = master_tiles.y[i];
             if ty <= py + 0.5 && ty > max_y {
                 max_y = ty;
@@ -247,13 +247,13 @@ pub fn resolve_movement(
                 let dx = new_px - floor_x;
                 let dz = new_pz - floor_z;
                 if direction == 1.0 {
-                    master_tiles.y[i] + (1.0 - dz)
+                    master_tiles.y[i] + (0.5 - dz).clamp(0.0, 1.0)
                 } else if direction == 2.0 {
-                    master_tiles.y[i] + dz
+                    master_tiles.y[i] + (dz + 0.5).clamp(0.0, 1.0)
                 } else if direction == 3.0 {
-                    master_tiles.y[i] + dx
+                    master_tiles.y[i] + (dx + 0.5).clamp(0.0, 1.0)
                 } else if direction == 4.0 {
-                    master_tiles.y[i] + (1.0 - dx)
+                    master_tiles.y[i] + (0.5 - dx).clamp(0.0, 1.0)
                 } else {
                     master_tiles.y[i]
                 }
@@ -509,7 +509,7 @@ mod tests {
         // Stair direction 1 (North, z- is higher)
         tiles.set_tile(0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0);
         let config = CollisionConfig::default();
-        let (_nx, ny, _nz, _vy) = resolve_movement(0.0, 0.0, 0.5, 0.0, 0.0, 0.0, &config, 0.1, &tiles);
+        let (_nx, ny, _nz, _vy) = resolve_movement(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, &config, 0.1, &tiles);
         assert!((ny - 0.5).abs() < 1e-4);
     }
 
