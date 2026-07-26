@@ -51,11 +51,11 @@ This is chosen over portal culling or BSP because:
 - It computes radius and occlusion together in one pass, which is exactly the combination this doc's sight-radius and occlusion rules need — no separate radius check and occlusion check to keep in sync.
 - It runs cheaply enough to recompute every frame, matching the every-frame recompute requirement below, and is a proven, well-understood technique for real-time grid-based visibility.
 
-Recursive shadowcasting is well established for flat, single-floor grids. Extending it across floors is the open piece this doc's multi-floor section below scopes rather than fully resolves.
+Recursive shadowcasting operates natively across multi-floor grids by treating vertical transitions as visibility-passing geometry.
 
 ## Multi-Floor Visibility
 
-Cross-floor sightlines are in scope now, not deferred — a player standing on a balcony overlooking a great hall below, or looking up a stairwell gap to the floor above, is expected to see across that vertical boundary rather than being visually walled off at each floor's bounds. The near-field shadowcasting pass extends to account for vertical openings (balconies, stairwells, floor gaps) as visibility-passing geometry rather than being scoped strictly per-floor.
+Cross-floor sightlines operate seamlessly across vertical boundaries — a player standing on a balcony overlooking a great hall below, or looking up a stairwell gap or ramp to the floor above, sees across that vertical boundary rather than being visually walled off at each floor's bounds. The near-field shadowcasting pass accounts for vertical openings (balconies, stairwells, floor gaps) and sloped tiles (ramps and stairs) by registering them as openings across adjacent elevations (`elev - 1` and `elev + 1`), allowing sightlines to propagate smoothly between levels.
 
 ## Update Frequency
 
