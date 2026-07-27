@@ -9,7 +9,8 @@ use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
 
 use crate::instance_runtime::LevelInstanceRuntime;
-use crate::world::{Bounds, LevelActor, LevelDefinition, LevelLight, LevelTile, PersistencePolicy, RuntimeState, TileOpenings, Transform, Vec3};
+use crate::world::{Bounds, LevelActor, LevelAnchor, LevelDefinition, LevelLight, LevelTile, PersistencePolicy, RuntimeState, TileOpenings, Transform, Vec3};
+use crate::world_manifest::{AnchorRef, AnchorSharingPolicy, DefinitionDescriptor, LevelLink, LinkDirection, LinkTarget, LinkTransform, WorldTopology};
 
 pub const DEFAULT_WORLD_TILES: usize = 4096;
 pub const DEFAULT_WORLD_ACTORS: usize = 256;
@@ -21,6 +22,7 @@ struct DefinitionBuilder { definition: LevelDefinition }
 #[wasm_bindgen]
 pub struct WorldTransport {
     runtime: LevelInstanceRuntime,
+    topology: WorldTopology,
     builders: HashMap<String, DefinitionBuilder>,
     tile_x: Vec<f32>, tile_y: Vec<f32>, tile_z: Vec<f32>, tile_id: Vec<f32>, tile_material: Vec<f32>, tile_variant: Vec<f32>, tile_orientation: Vec<f32>, tile_solid: Vec<f32>, tile_north: Vec<f32>, tile_east: Vec<f32>, tile_south: Vec<f32>, tile_west: Vec<f32>, tile_opening: Vec<f32>,
     actor_x: Vec<f32>, actor_y: Vec<f32>, actor_z: Vec<f32>, actor_facing: Vec<f32>, actor_sprite: Vec<f32>, actor_active: Vec<f32>,
@@ -36,7 +38,7 @@ impl WorldTransport {
 
     pub fn with_capacity(tile_capacity: usize, actor_capacity: usize, light_capacity: usize, instance_capacity: usize) -> Self {
         Self {
-            runtime: LevelInstanceRuntime::new(), builders: HashMap::new(),
+            runtime: LevelInstanceRuntime::new(), topology: WorldTopology::default(), builders: HashMap::new(),
             tile_x: vec![0.; tile_capacity], tile_y: vec![0.; tile_capacity], tile_z: vec![0.; tile_capacity], tile_id: vec![0.; tile_capacity], tile_material: vec![0.; tile_capacity], tile_variant: vec![0.; tile_capacity], tile_orientation: vec![0.; tile_capacity], tile_solid: vec![0.; tile_capacity], tile_north: vec![0.; tile_capacity], tile_east: vec![0.; tile_capacity], tile_south: vec![0.; tile_capacity], tile_west: vec![0.; tile_capacity], tile_opening: vec![0.; tile_capacity],
             actor_x: vec![0.; actor_capacity], actor_y: vec![0.; actor_capacity], actor_z: vec![0.; actor_capacity], actor_facing: vec![0.; actor_capacity], actor_sprite: vec![0.; actor_capacity], actor_active: vec![0.; actor_capacity],
             light_x: vec![0.; light_capacity], light_y: vec![0.; light_capacity], light_z: vec![0.; light_capacity], light_r: vec![0.; light_capacity], light_g: vec![0.; light_capacity], light_b: vec![0.; light_capacity], light_intensity: vec![0.; light_capacity], light_active: vec![0.; light_capacity],
@@ -66,9 +68,17 @@ impl WorldTransport {
         builder.definition.lights.push(LevelLight { position: Vec3 { x, y, z }, color: [r, g, b], intensity, active }); true
     }
 
+    pub fn definition_anchor(&mut self, definition_id: &str, anchor_id: &str, x: f32, y: f32, z: f32, min_x: f32, min_y: f32, min_z: f32, max_x: f32, max_y: f32, max_z: f32, direction: u32) -> bool {
+        let Some(builder) = self.builders.get_mut(definition_id) else { return false; };
+        let direction = match direction { 0 => crate::world::AnchorDirection::In, 1 => crate::world::AnchorDirection::Out, _ => crate::world::AnchorDirection::Both };
+        builder.definition.anchors.push(LevelAnchor { id: anchor_id.into(), transform: Transform::from_translation_yaw_scale(Vec3 { x, y, z }, 0.0, 1.0), volume: Bounds { min: Vec3 { x: min_x, y: min_y, z: min_z }, max: Vec3 { x: max_x, y: max_y, z: max_z } }, direction }); true
+    }
+
     pub fn finish_definition(&mut self, id: &str) -> bool {
         let Some(builder) = self.builders.remove(id) else { return false; };
-        self.runtime.register_definition(builder.definition).is_ok()
+        let descriptor = DefinitionDescriptor { id: builder.definition.id.clone(), version: builder.definition.version.clone(), anchors: builder.definition.anchors.clone() };
+        if self.runtime.register_definition(builder.definition).is_err() { return false; }
+        self.topology.register_definition(descriptor).is_ok()
     }
 
     pub fn register_instance(&mut self, id: &str, definition_id: &str, x: f32, y: f32, z: f32, qx: f32, qy: f32, qz: f32, qw: f32, scale: f32, persistence: u32) -> bool {
@@ -76,8 +86,18 @@ impl WorldTransport {
         let policy = match persistence { 0 => PersistencePolicy::Persistent, 2 => PersistencePolicy::Regenerated, _ => PersistencePolicy::Session };
         let transform = Transform { translation: Vec3 { x, y, z }, rotation: crate::world::Quaternion { x: qx, y: qy, z: qz, w: qw }, scale };
         if self.runtime.create_instance(id, definition_id, transform, policy).is_err() { return false; }
+        let Some(definition) = self.runtime.definition(definition_id) else { return false; };
+        let instance = crate::world::LevelInstance { id: id.into(), definition_id: definition_id.into(), definition_version: definition.version.clone(), transform, state: RuntimeState::Known, persistence: policy, render_resident: false, collision_active: false, simulation_active: false };
+        if self.topology.register_instance(crate::world_manifest::InstanceDescriptor { instance }).is_err() { return false; }
         self.sync(); true
     }
+
+    pub fn register_bidirectional_link(&mut self, id: &str, source_instance_id: &str, source_anchor_id: &str, target_instance_id: &str, target_anchor_id: &str) -> bool {
+        self.topology.register_link(LevelLink { id: id.into(), source: AnchorRef { instance_id: source_instance_id.into(), anchor_id: source_anchor_id.into() }, target: LinkTarget::Instance(AnchorRef { instance_id: target_instance_id.into(), anchor_id: target_anchor_id.into() }), direction: LinkDirection::Bidirectional, anchor_sharing: AnchorSharingPolicy::Exclusive, transform: LinkTransform::Spatial }).is_ok()
+    }
+
+    pub fn topology_instance_count(&self) -> usize { self.topology.instances().count() }
+    pub fn topology_has_link(&self, id: &str) -> bool { self.topology.link(id).is_some() }
 
     pub fn set_instance_state(&mut self, id: &str, state: u32, render_resident: bool, collision_active: bool, simulation_active: bool) -> bool {
         let Some(instance) = self.runtime.instance_mut(id) else { return false; };
@@ -150,5 +170,28 @@ mod tests {
         t.finish_definition("r");
         assert!(t.register_instance("i", "r", 0., 0., 0., 0., 0., 0., 1., 1., 0));
         assert!(t.overflowed()); assert_eq!(t.tile_count(), 0);
+    }
+
+    #[test]
+    fn registers_authored_anchors_instances_and_bidirectional_link() {
+        let mut t = WorldTransport::with_capacity(4, 1, 1, 2);
+        assert!(t.begin_definition("dungeon", "1", -1., 0., -1., 2., 2., 2.));
+        assert!(t.definition_anchor("dungeon", "out", 1., 0., 0., -0.5, 0., -0.5, 0.5, 2., 0.5, 2));
+        assert!(t.finish_definition("dungeon"));
+        assert!(t.begin_definition("outdoor", "1", -1., 0., -1., 2., 2., 2.));
+        assert!(t.definition_anchor("outdoor", "in", 0., 0., 0., -0.5, 0., -0.5, 0.5, 2., 0.5, 2));
+        assert!(t.finish_definition("outdoor"));
+        assert!(t.register_instance("dungeon-instance", "dungeon", 0., 0., 0., 0., 0., 0., 1., 1., 1));
+        assert!(t.register_instance("outdoor-instance", "outdoor", 3., 0., 0., 0., 0., 0., 1., 1., 1));
+        assert!(t.register_bidirectional_link("link", "dungeon-instance", "out", "outdoor-instance", "in"));
+        assert_eq!(t.topology_instance_count(), 2);
+        assert!(t.topology_has_link("link"));
+    }
+
+    #[test]
+    fn rejects_invalid_authored_definition_at_finish() {
+        let mut t = WorldTransport::default();
+        assert!(t.begin_definition("bad", "1", 2., 0., 0., 1., 1., 1.));
+        assert!(!t.finish_definition("bad"));
     }
 }

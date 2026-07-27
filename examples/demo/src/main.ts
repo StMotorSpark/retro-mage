@@ -1,8 +1,8 @@
-import init, { EngineState } from 'engine-core';
+import init, { EngineState, WorldTransport } from 'engine-core';
 import { createRenderer, loadKtx2Texture, WorldStateReader } from 'render';
 import { createInputSource, FACE1 } from 'input';
 import { PerfOverlay } from './perf-overlay.js';
-import { createDemoLevelProvider, demoManifest } from './demo-world.js';
+import { createDemoLevelProvider, demoManifest, registerDemoWorld } from './demo-world.js';
 
 declare global {
   interface Window {
@@ -32,6 +32,10 @@ async function main(): Promise<void> {
   const wasmOutput = await init();
 
   const engineState = new EngineState();
+  const worldTransport = new WorldTransport();
+
+  // App owns authored definitions/provider/manifest. Submit resolved content through browser/WASM API.
+  registerDemoWorld(worldTransport);
 
   // App owns definitions/provider/manifest. Engine receives resolved content below.
   const levelProvider = createDemoLevelProvider();
@@ -84,24 +88,6 @@ async function main(): Promise<void> {
 
   engineState.set_active_world_structure(0); // 0 = Indoor, 1 = Outdoor
   engineState.set_outdoor_default_tile_id(3); // tile_id 3 = grass terrain
-
-  // Register Seam: Gate Room exit tile (10, 4) ↔ outdoor global anchor (32, 32).
-  // offset_x/offset_y are raw SeamTransform translation values derived from the
-  // pinned-point formula: offset = outdoor_anchor − room_anchor (with rotation=0).
-  // indoor_tiles and outdoor_tiles are now fully separate buffers (see
-  // docs/architecture/world-structure-partitioning.md), so indoor geometry cannot
-  // bleed into outdoor space regardless of coordinate proximity.
-  engineState.register_seam(
-    1,
-    2,
-    10.0,
-    4.0,
-    32.0,
-    32.0,
-    22.0,
-    28.0,
-    0.0
-  );
 
   let tileIdx = 0;
 

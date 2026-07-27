@@ -1,12 +1,12 @@
 ---
 task: "61"
 slug: authored-demo-provider
-status: pending
+status: done
 depends-on: ["55", "56", "59"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-27
-outcome: ""
+outcome: "Built authored dungeon/outdoor LevelDefinition content with validated tiles, materials, collision, actors, lights, anchors, provider resolution, and manifest topology. Added scalar WASM registration for anchors, instances, and bidirectional links; removed demo proof-path legacy seam registration. Cargo and demo typecheck/build pass."
 ---
 
 # Build Authored Dungeon and Outdoor Provider
