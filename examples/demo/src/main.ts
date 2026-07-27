@@ -2,6 +2,13 @@ import init, { EngineState } from 'engine-core';
 import { createRenderer, loadKtx2Texture, WorldStateReader } from 'render';
 import { createInputSource, FACE1 } from 'input';
 import { PerfOverlay } from './perf-overlay.js';
+import { createDemoLevelProvider, demoManifest } from './demo-world.js';
+
+declare global {
+  interface Window {
+    __debugPos?: { x: number; y: number; z: number };
+  }
+}
 
 /**
  * Demo app: 3-room indoor dungeon scene (Entry Hall, Armory, Gate Room)
@@ -25,6 +32,14 @@ async function main(): Promise<void> {
   const wasmOutput = await init();
 
   const engineState = new EngineState();
+
+  // App owns definitions/provider/manifest. Engine receives resolved content below.
+  const levelProvider = createDemoLevelProvider();
+  const dungeonDefinition = levelProvider.resolve('dungeon');
+  const outdoorDefinition = levelProvider.resolve('outdoor');
+  if (demoManifest.link.preload !== 'before-visible' || dungeonDefinition.anchors.length !== 1 || outdoorDefinition.anchors.length !== 1) {
+    throw new Error('Invalid seamless demo manifest.');
+  }
 
   // Populate 3-room indoor dungeon scene into engine-core
   // Camera starting pose at (0, 0, 6) looking down -Z into starting room (Room 0: Entry Hall).
@@ -100,9 +115,9 @@ async function main(): Promise<void> {
   // Entry Hall walls (tile_id 1 = wall, solid = 1.0)
   for (let x = -4; x <= 4; x++) {
     if (x !== 0 && x !== -1 && x !== 1) {
-      engineState.set_indoor_tile(tileIdx++, x, 0, 8, 1, 0, 1.0, 0, 0, 0); // South wall
+      engineState.set_indoor_tile(tileIdx++, x, 0, 8, 1, 0, 1.0, 0, 0); // South wall
     }
-    engineState.set_indoor_tile(tileIdx++, x, 0, 1, 1, 0, 1.0, 0, 0, 0); // North wall
+    engineState.set_indoor_tile(tileIdx++, x, 0, 1, 1, 0, 1.0, 0, 0); // North wall
   }
   for (let z = 2; z <= 7; z++) {
     if (z !== 4) {
@@ -150,15 +165,15 @@ async function main(): Promise<void> {
   }
   for (let z = 3; z <= 6; z++) {
     if (z !== 4) {
-      engineState.set_indoor_tile(tileIdx++, 4, 0, z, 1, 0, 1.0, 0, 0, 0); // West wall
-      engineState.set_indoor_tile(tileIdx++, 10, 0, z, 1, 0, 1.0, 0, 0, 0); // East wall (gate exit at z=4)
+      engineState.set_indoor_tile(tileIdx++, 4, 0, z, 1, 0, 1.0, 0, 0); // West wall
+      engineState.set_indoor_tile(tileIdx++, 10, 0, z, 1, 0, 1.0, 0, 0); // East wall (gate exit at z=4)
     }
   }
 
   // 4. Room 3: Multi Floor Area
   // Stairs going up from z=8 to z=9 at x in [-1, 1]
   for (let x = -1; x <= 1; x++) {
-    engineState.set_indoor_tile(tileIdx++, x, 0, 8, 2, 0, 0, 0, 2.0, 0); // direction=2.0 (ramp up towards +Z)
+    engineState.set_indoor_tile(tileIdx++, x, 0, 8, 2, 0, 0, 0, 2.0); // direction=2.0 (ramp up towards +Z)
   }
 
   // Upstairs floor y=1.0: x in [-2, 2], z in [9, 12]
@@ -166,10 +181,10 @@ async function main(): Promise<void> {
     for (let z = 9; z <= 12; z++) {
       if (x === 0 && z === 10) {
         // Vertical opening (hole)
-        engineState.set_indoor_tile(tileIdx++, x, 1.0, z, 2, 0, 0, 1.0, 0, 0);
+        engineState.set_indoor_tile(tileIdx++, x, 1.0, z, 2, 0, 0, 1.0, 0);
       } else {
         // Normal floor
-        engineState.set_indoor_tile(tileIdx++, x, 1.0, z, 2, 0, 0, 0, 0, 0);
+        engineState.set_indoor_tile(tileIdx++, x, 1.0, z, 2, 0, 0, 0, 0);
       }
     }
   }
@@ -177,20 +192,20 @@ async function main(): Promise<void> {
   // Basement floor y=0.0 under the hole
   for (let x = -1; x <= 1; x++) {
     for (let z = 9; z <= 11; z++) {
-      engineState.set_indoor_tile(tileIdx++, x, 0.0, z, 2, 0, 0, 0, 0, 0);
+      engineState.set_indoor_tile(tileIdx++, x, 0.0, z, 2, 0, 0, 0, 0);
     }
   }
 
   // Low ceiling obstacle at x=1, z=10, y=2.0 (blocks player of height 1.6 from floor y=1.0)
-  engineState.set_indoor_tile(tileIdx++, 1, 2.0, 10, 1, 0, 1.0, 0, 0, 0);
+  engineState.set_indoor_tile(tileIdx++, 1, 2.0, 10, 1, 0, 1.0, 0, 0);
 
   // Walls for Room 3
   for (let z = 9; z <= 12; z++) {
-    engineState.set_indoor_tile(tileIdx++, -3, 1.0, z, 1, 0, 1.0, 0, 0, 0); // West
-    engineState.set_indoor_tile(tileIdx++, 3, 1.0, z, 1, 0, 1.0, 0, 0, 0); // East
+    engineState.set_indoor_tile(tileIdx++, -3, 1.0, z, 1, 0, 1.0, 0, 0); // West
+    engineState.set_indoor_tile(tileIdx++, 3, 1.0, z, 1, 0, 1.0, 0, 0); // East
   }
   for (let x = -3; x <= 3; x++) {
-    engineState.set_indoor_tile(tileIdx++, x, 1.0, 13, 1, 0, 1.0, 0, 0, 0); // South
+    engineState.set_indoor_tile(tileIdx++, x, 1.0, 13, 1, 0, 1.0, 0, 0); // South
   }
 
 
@@ -215,8 +230,8 @@ async function main(): Promise<void> {
   engineState.set_outdoor_actor(5, 36.0, 0.0, 42.0, 0.0, 1.0, 1.0);
 
   // A pair of solid stone wall tiles (tile_id 1) marking the seam entrance back to the dungeon
-  engineState.set_outdoor_tile(31.0, 0.0, 32.0, 1, 0, 1.0, 0.0);
-  engineState.set_outdoor_tile(33.0, 0.0, 32.0, 1, 0, 1.0, 0.0);
+  engineState.set_outdoor_tile(0, 31.0, 0.0, 32.0, 1, 0, 1.0, 0.0, 0.0);
+  engineState.set_outdoor_tile(1, 33.0, 0.0, 32.0, 1, 0, 1.0, 0.0, 0.0);
 
   // Set up world state reader over WASM memory
   const reader = new WorldStateReader(engineState, wasmOutput.memory);
@@ -353,7 +368,7 @@ async function main(): Promise<void> {
     });
 
     const v = reader.read();
-    (window as any).__debugPos = { x: v.camera.x[0], y: v.camera.y[0], z: v.camera.z[0] };
+    window.__debugPos = { x: v.camera.x[0] ?? 0, y: v.camera.y[0] ?? 0, z: v.camera.z[0] ?? 0 };
 
     requestAnimationFrame(frame);
   };

@@ -1,12 +1,12 @@
 ---
 task: "53"
 slug: seamless-demo-proof
-status: pending
+status: done
 depends-on: ["51", "52"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-27
-outcome: ""
+outcome: "Added app-owned dungeon/outdoor definitions, provider boundary, explicit bidirectional anchor manifest, and production PWA demo wiring. Added integration coverage for manifest crossing, preload failure-safe source behavior, and transformed global collision; verified typecheck, build, and 98 Rust tests."
 ---
 
 # Build Seamless Two-Level Demo Proof
@@ -24,13 +24,13 @@ Create the smallest playable authored dungeon-to-outdoor transition that proves 
 
 ## Definition of Done
 
-- [ ] Dungeon and outdoor content are separate level definitions.
-- [ ] One definition/provider path is application-owned and engine-agnostic.
-- [ ] Target geometry is visible before crossing.
-- [ ] Crossing has no load screen, geometry pop, or coordinate discontinuity.
-- [ ] Collision works on both sides.
-- [ ] Return traversal works.
-- [ ] Integration tests cover loading, failure-safe source behavior, and crossing.
+- [x] Dungeon and outdoor content are separate level definitions.
+- [x] One definition/provider path is application-owned and engine-agnostic.
+- [x] Target geometry is visible before crossing.
+- [x] Crossing has no load screen, geometry pop, or coordinate discontinuity.
+- [x] Collision works on both sides.
+- [x] Return traversal works.
+- [x] Integration tests cover loading, failure-safe source behavior, and crossing.
 
 ## Out of Scope
 
