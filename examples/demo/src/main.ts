@@ -107,7 +107,7 @@ async function main(): Promise<void> {
     engineState.tick(dtMs / 1000);
 
     const cameraBeforeCrossing = legacyReader.read().camera;
-    if (worldTransport.try_crossing(cameraBeforeCrossing.x[0] ?? 0, cameraBeforeCrossing.y[0] ?? 0, cameraBeforeCrossing.z[0] ?? 0)) {
+    if ((input.move.x !== 0 || input.move.y !== 0) && worldTransport.try_crossing(cameraBeforeCrossing.x[0] ?? 0, cameraBeforeCrossing.y[0] ?? 0, cameraBeforeCrossing.z[0] ?? 0)) {
       engineState.set_camera(worldTransport.crossing_pose_x(), worldTransport.crossing_pose_y(), worldTransport.crossing_pose_z(), cameraBeforeCrossing.yaw[0] ?? 0, cameraBeforeCrossing.pitch[0] ?? 0);
       worldTransport.sync_collision(engineState);
     }

@@ -103,7 +103,7 @@ impl WorldTransport {
     pub fn topology_has_link(&self, id: &str) -> bool { self.runtime.topology().link(id).is_some() }
 
     pub fn set_instance_state(&mut self, id: &str, state: u32, render_resident: bool, collision_active: bool, simulation_active: bool) -> bool {
-        let state = match state { 2 => RuntimeState::Resident, 3 => RuntimeState::Active, 4 => RuntimeState::Evictable, 5 => RuntimeState::Evicted, _ => RuntimeState::Known };
+        let state = match state { 2 => RuntimeState::Resident, 3 => RuntimeState::Active, 4 => RuntimeState::Evictable, 5 => RuntimeState::Evicted, 6 => RuntimeState::Failed, _ => RuntimeState::Known };
         if self.runtime.set_transport_state(id, state, render_resident, collision_active, simulation_active).is_err() { return false; }
         self.sync(); true
     }

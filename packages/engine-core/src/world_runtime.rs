@@ -80,7 +80,7 @@ impl WorldRuntime {
                 } else { None };
                 source
             }));
-            if !still_inside.map(|anchor| self.topology.anchor_contains_world(anchor, player_pose.translation, 0.75).unwrap_or(false)).unwrap_or(false) { self.crossing_armed = true; }
+            if !still_inside.map(|anchor| self.topology.anchor_contains_world(anchor, player_pose.translation, 5.0).unwrap_or(false)).unwrap_or(false) { self.crossing_armed = true; }
             if !self.crossing_armed { return Ok(None); }
         }
         let Some(current) = self.residency.current().map(str::to_owned) else { return Ok(None) };
@@ -88,7 +88,7 @@ impl WorldRuntime {
             let from = if link.source.instance_id == current { Some(&link.source) } else if link.direction == crate::world_manifest::LinkDirection::Bidirectional {
                 match &link.target { crate::world_manifest::LinkTarget::Instance(target) if target.instance_id == current => Some(target), _ => None }
             } else { None }?;
-            self.topology.anchor_contains_world(from, player_pose.translation, 0.0).ok().filter(|inside| *inside).map(|_| (link.id.clone(), from.clone()))
+            self.topology.anchor_contains_world(from, player_pose.translation, 5.0).ok().filter(|inside| *inside).map(|_| (link.id.clone(), from.clone()))
         });
         let Some((link_id, from)) = candidate else { return Ok(None) };
         let resolution = self.resolve_crossing(&link_id, &from, player_pose)?;
