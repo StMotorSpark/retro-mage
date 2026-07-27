@@ -52,7 +52,7 @@ Each entry links to a design doc and includes the doc's one-line summary. Docs d
 
 | Doc | Summary |
 |-----|---------|
-| [`docs/research/known-gaps.md`](./research/known-gaps.md) | Tracks design and implementation capabilities that remain intentionally deferred while the global level-instance runtime and seamless transition proof are established. |
+| [`docs/research/known-gaps.md`](./research/known-gaps.md) | Tracks intentionally deferred capabilities and unresolved implementation details around the global level-instance runtime and seamless transition proof. |
 
 ---
 
