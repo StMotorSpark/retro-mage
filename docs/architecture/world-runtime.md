@@ -8,6 +8,7 @@ relates-to:
   - "[World Streaming](./world-streaming.md)"
   - "[WASM Bridge](./wasm-bridge.md)"
   - "[Repo Structure](./repo-structure.md)"
+  - "[Crossing Policy](./crossing-policy.md)"
 ---
 
 # World Runtime
@@ -59,7 +60,7 @@ The current instance and any immediately traversable transition pair are pinned.
 
 ## Preload and Crossing Gate
 
-The engine evaluates link preload policies using anchor relevance, visibility range, player proximity, and application priority. A target is loaded before its geometry can become visually relevant when possible.
+The engine and application keep preload policy separate from crossing policy. Preload uses anchor relevance, visibility range, player proximity, and application priority; explicit application loads can satisfy the same readiness contract. Crossing uses the active endpoint's narrow anchor volume, directional movement, and link re-arm hysteresis. A target is loaded before its geometry can become visually relevant when possible.
 
 Crossing requires:
 
@@ -68,6 +69,8 @@ Crossing requires:
 - render data ready
 - collision data ready
 - safe arrival pose validated
+- crossing policy accepts the player's position and movement direction
+- link is armed after its previous traversal
 
 If loading fails, the source remains playable and the application receives the failure. The transition can remain closed, retry, or present application-owned fallback content.
 
@@ -82,3 +85,4 @@ The engine owns transient instance state while an instance is resident. The appl
 - [World Streaming](./world-streaming.md) — residency policies
 - [WASM Bridge](./wasm-bridge.md) — simulation data crossing into rendering
 - [Repo Structure](./repo-structure.md) — package ownership boundaries
+- [Crossing Policy](./crossing-policy.md) — narrow directional traversal and re-arm hysteresis

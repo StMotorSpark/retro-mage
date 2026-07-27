@@ -2,6 +2,10 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './examples/demo/tests',
+  // SwiftShader/browser contexts are stable serially; CI keeps proof deterministic.
+  // Parallel-worker hardening remains deferred until suite size justifies it.
+  workers: process.env.CI ? 1 : undefined,
+  fullyParallel: false,
   timeout: 90_000,
   expect: { timeout: 60_000 },
   reporter: 'list',

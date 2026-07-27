@@ -3,7 +3,8 @@ use engine_core::global_collision::{CollisionInstance, GlobalCollisionWorld};
 use engine_core::level_provider::{FixtureProvider, LevelProvider, LevelProviderMetadata, ProviderUpdate};
 use engine_core::residency::ResidencyManager;
 use engine_core::world::{AnchorDirection, Bounds, LevelAnchor, LevelDefinition, LevelInstance, PersistencePolicy, RuntimeState, Transform, Vec3};
-use engine_core::world_manifest::{AnchorRef, AnchorSharingPolicy, DefinitionDescriptor, InstanceDescriptor, LevelLink, LinkDirection, LinkTarget, LinkTransform, StartLocation, WorldManifest, WorldTopology};
+use engine_core::world_manifest::{AnchorRef, AnchorSharingPolicy, CrossingPolicy, DefinitionDescriptor, InstanceDescriptor, LevelLink, LinkDirection, LinkTarget, LinkTransform, StartLocation, WorldManifest, WorldTopology};
+use engine_core::world_runtime::WorldRuntime;
 
 fn anchor(id: &str, x: f32) -> LevelAnchor {
     LevelAnchor { id: id.into(), transform: Transform { translation: Vec3 { x, y: 0.0, z: 0.0 }, ..Transform::IDENTITY }, volume: Bounds { min: Vec3 { x: -0.5, y: 0.0, z: -0.5 }, max: Vec3 { x: 0.5, y: 1.0, z: 0.5 } }, direction: AnchorDirection::Both }
@@ -25,7 +26,7 @@ fn manifest() -> WorldManifest {
     WorldManifest {
         definitions: vec![DefinitionDescriptor { id: "dungeon".into(), version: "1".into(), anchors: dungeon().anchors }, DefinitionDescriptor { id: "outdoor".into(), version: "1".into(), anchors: outdoor().anchors }],
         instances: vec![instance("dungeon-instance", "dungeon"), instance("outdoor-instance", "outdoor")],
-        links: vec![LevelLink { id: "dungeon-outdoor".into(), source: AnchorRef { instance_id: "dungeon-instance".into(), anchor_id: "outdoor-gate".into() }, target: LinkTarget::Instance(AnchorRef { instance_id: "outdoor-instance".into(), anchor_id: "dungeon-gate".into() }), direction: LinkDirection::Bidirectional, anchor_sharing: AnchorSharingPolicy::Exclusive, transform: LinkTransform::Spatial }],
+        links: vec![LevelLink { id: "dungeon-outdoor".into(), source: AnchorRef { instance_id: "dungeon-instance".into(), anchor_id: "outdoor-gate".into() }, target: LinkTarget::Instance(AnchorRef { instance_id: "outdoor-instance".into(), anchor_id: "dungeon-gate".into() }), direction: LinkDirection::Bidirectional, anchor_sharing: AnchorSharingPolicy::Exclusive, transform: LinkTransform::Spatial, crossing_policy: CrossingPolicy::default() }],
         starting_locations: vec![StartLocation { instance_id: "dungeon-instance".into(), anchor_id: "outdoor-gate".into() }],
     }
 }
@@ -59,6 +60,30 @@ fn provider_preload_failure_keeps_source_active() {
     assert_eq!(residency.state("dungeon-instance"), Some(RuntimeState::Active));
     assert_eq!(residency.state("outdoor-instance"), Some(RuntimeState::Failed));
     assert!(residency.collision_active("dungeon-instance"));
+}
+
+#[test]
+fn spatial_target_is_placed_before_residency_and_stays_fixed_across_crossings() {
+    let mut runtime = WorldRuntime::new(manifest()).unwrap();
+    runtime.set_current(Some("dungeon-instance")).unwrap();
+    runtime.resolve_definition("dungeon-instance", dungeon()).unwrap();
+    runtime.resolve_definition("outdoor-instance", outdoor()).unwrap();
+
+    let placed = runtime.instance("outdoor-instance").unwrap().transform;
+    assert_eq!(placed.translation, Vec3 { x: 6.0, y: 0.0, z: 0.0 });
+    assert_eq!(runtime.instance("outdoor-instance").unwrap().state, RuntimeState::Resident);
+
+    runtime.activate("dungeon-instance").unwrap();
+    let pose = Transform { translation: Vec3 { x: 3.2, y: 0.5, z: 0.0 }, ..Transform::IDENTITY };
+    assert!(runtime.try_crossing(pose, Vec3 { x: -1.0, y: 0.0, z: 0.0 }).unwrap().is_some());
+    assert_eq!(runtime.instance("outdoor-instance").unwrap().transform, placed);
+
+    // Leave doorway volume, then return through reverse endpoint.
+    let reverse_pose = Transform { translation: Vec3 { x: 3.2, y: 0.5, z: 0.0 }, ..Transform::IDENTITY };
+    assert!(runtime.try_crossing(reverse_pose, Vec3 { x: -1.0, y: 0.0, z: 0.0 }).unwrap().is_none());
+    let _ = runtime.try_crossing(Transform { translation: Vec3 { x: 4.1, y: 0.5, z: 0.0 }, ..Transform::IDENTITY }, Vec3::ZERO);
+    assert!(runtime.try_crossing(reverse_pose, Vec3 { x: -1.0, y: 0.0, z: 0.0 }).unwrap().is_some());
+    assert_eq!(runtime.instance("outdoor-instance").unwrap().transform, placed);
 }
 
 #[test]

@@ -75,6 +75,7 @@ async function strafe(page: Page, dx: number, reached: (snapshot: DebugSnapshot)
 
 test('target is visible before crossing and forward/reverse traversal stays continuous', async ({ page }) => {
   await waitForDemo(page);
+  await expect.poll(async () => (await debug(page)).instances.find((instance) => instance.id === 'outdoor-instance')?.state, { timeout: 10_000 }).toBe(2);
   const before = await debug(page);
   expect(before.activeInstance).toBe('dungeon-instance');
   expect(before.targetVisible).toBe(true);
@@ -87,15 +88,21 @@ test('target is visible before crossing and forward/reverse traversal stays cont
   expect(forward.pose.x).toBeGreaterThan(startX + 1);
   expect(forward.renderFrame).toBeGreaterThan(before.renderFrame);
 
-  await strafe(page, 70, (snapshot) => snapshot.activeInstance === 'dungeon-instance');
+  // Clear re-arm hysteresis before attempting return traversal.
+  await strafe(page, 30, (snapshot) => snapshot.pose.x > forward.pose.x + 0.75);
+  const outside = await debug(page);
+  expect(outside.activeInstance).toBe('outdoor-instance');
+
+  await strafe(page, -70, (snapshot) => snapshot.activeInstance === 'dungeon-instance');
   const reverse = await debug(page);
   expect(reverse.activeInstance).toBe('dungeon-instance');
-  expect(reverse.pose.x).toBeGreaterThan(forward.pose.x + 1);
+  expect(reverse.pose.x).toBeLessThan(outside.pose.x - 0.5);
   expect(reverse.sourcePlayable).toBe(true);
 });
 
 test('source remains playable when target preload fails', async ({ page }) => {
   await waitForDemo(page, '/?failOutdoor=1');
+  await expect.poll(async () => (await debug(page)).instances.find((instance) => instance.id === 'outdoor-instance')?.state, { timeout: 10_000 }).toBe(6);
   const failed = await debug(page);
   expect(failed.targetVisible).toBe(false);
   expect(failed.sourcePlayable).toBe(true);

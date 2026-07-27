@@ -9,8 +9,9 @@ use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
 
 use crate::world_runtime::WorldRuntime;
+use crate::level_provider::{LevelProviderFailure, LevelProviderMetadata, LevelProviderOutcome, LevelProviderResult, OpaqueProviderData, ProviderUpdate};
 use crate::world::{Bounds, LevelActor, LevelAnchor, LevelDefinition, LevelLight, LevelTile, PersistencePolicy, RuntimeState, TileOpenings, Transform, Vec3};
-use crate::world_manifest::{AnchorRef, AnchorSharingPolicy, DefinitionDescriptor, LevelLink, LinkDirection, LinkTarget, LinkTransform};
+use crate::world_manifest::{AnchorRef, AnchorSharingPolicy, CrossingPolicy, DefinitionDescriptor, LevelLink, LinkDirection, LinkTarget, LinkTransform};
 
 pub const DEFAULT_WORLD_TILES: usize = 4096;
 pub const DEFAULT_WORLD_ACTORS: usize = 256;
@@ -70,9 +71,13 @@ impl WorldTransport {
     }
 
     pub fn definition_anchor(&mut self, definition_id: &str, anchor_id: &str, x: f32, y: f32, z: f32, min_x: f32, min_y: f32, min_z: f32, max_x: f32, max_y: f32, max_z: f32, direction: u32) -> bool {
+        self.definition_anchor_oriented(definition_id, anchor_id, x, y, z, 0.0, min_x, min_y, min_z, max_x, max_y, max_z, direction)
+    }
+
+    pub fn definition_anchor_oriented(&mut self, definition_id: &str, anchor_id: &str, x: f32, y: f32, z: f32, yaw: f32, min_x: f32, min_y: f32, min_z: f32, max_x: f32, max_y: f32, max_z: f32, direction: u32) -> bool {
         let Some(builder) = self.builders.get_mut(definition_id) else { return false; };
         let direction = match direction { 0 => crate::world::AnchorDirection::In, 1 => crate::world::AnchorDirection::Out, _ => crate::world::AnchorDirection::Both };
-        builder.definition.anchors.push(LevelAnchor { id: anchor_id.into(), transform: Transform::from_translation_yaw_scale(Vec3 { x, y, z }, 0.0, 1.0), volume: Bounds { min: Vec3 { x: min_x, y: min_y, z: min_z }, max: Vec3 { x: max_x, y: max_y, z: max_z } }, direction }); true
+        builder.definition.anchors.push(LevelAnchor { id: anchor_id.into(), transform: Transform::from_translation_yaw_scale(Vec3 { x, y, z }, yaw, 1.0), volume: Bounds { min: Vec3 { x: min_x, y: min_y, z: min_z }, max: Vec3 { x: max_x, y: max_y, z: max_z } }, direction }); true
     }
 
     pub fn finish_definition(&mut self, id: &str) -> bool {
@@ -91,12 +96,36 @@ impl WorldTransport {
         let Some(definition) = self.definitions.get(definition_id).cloned() else { return false; };
         let instance = crate::world::LevelInstance { id: id.into(), definition_id: definition_id.into(), definition_version: definition.version.clone(), transform, state: RuntimeState::Known, persistence: policy, render_resident: false, collision_active: false, simulation_active: false };
         if self.runtime.register_instance(crate::world_manifest::InstanceDescriptor { instance }).is_err() { return false; }
-        if self.runtime.resolve_definition(id, definition).is_err() { return false; }
         self.sync(); true
     }
 
+    /// Start explicit application-owned provider resolution for an instance.
+    /// Zero means the instance or request could not be started.
+    pub fn begin_load(&mut self, id: &str, source: &str) -> u64 {
+        let metadata = LevelProviderMetadata { source: OpaqueProviderData(source.as_bytes().to_vec()), ..Default::default() };
+        match self.runtime.begin_load(id, metadata) { Ok(request) => request.request_id, Err(_) => 0 }
+    }
+
+    /// Commit a provider-resolved definition for its active request.
+    pub fn accept_definition(&mut self, request_id: u64, id: &str) -> bool {
+        let Some(instance) = self.runtime.instance(id) else { return false; };
+        let Some(definition) = self.definitions.get(&instance.definition_id).cloned() else { return false; };
+        let result = LevelProviderResult { request_id, instance_id: id.into(), outcome: LevelProviderOutcome::Ready(definition) };
+        matches!(self.runtime.accept(result), Ok(ProviderUpdate::Ready(_))) && { self.sync(); true }
+    }
+
+    /// Commit an application/provider failure for its active request.
+    pub fn fail_load(&mut self, request_id: u64, id: &str, message: &str) -> bool {
+        let result = LevelProviderResult { request_id, instance_id: id.into(), outcome: LevelProviderOutcome::Failed(LevelProviderFailure::Application(message.into())) };
+        matches!(self.runtime.accept(result), Ok(ProviderUpdate::Failed(_))) && { self.sync(); true }
+    }
+
+    pub fn cancel_load(&mut self, id: &str) -> bool {
+        self.runtime.cancel_load(id).map(|_| { self.sync(); true }).unwrap_or(false)
+    }
+
     pub fn register_bidirectional_link(&mut self, id: &str, source_instance_id: &str, source_anchor_id: &str, target_instance_id: &str, target_anchor_id: &str) -> bool {
-        self.runtime.register_link(LevelLink { id: id.into(), source: AnchorRef { instance_id: source_instance_id.into(), anchor_id: source_anchor_id.into() }, target: LinkTarget::Instance(AnchorRef { instance_id: target_instance_id.into(), anchor_id: target_anchor_id.into() }), direction: LinkDirection::Bidirectional, anchor_sharing: AnchorSharingPolicy::Exclusive, transform: LinkTransform::Spatial }).is_ok()
+        self.runtime.register_link(LevelLink { id: id.into(), source: AnchorRef { instance_id: source_instance_id.into(), anchor_id: source_anchor_id.into() }, target: LinkTarget::Instance(AnchorRef { instance_id: target_instance_id.into(), anchor_id: target_anchor_id.into() }), direction: LinkDirection::Bidirectional, anchor_sharing: AnchorSharingPolicy::Exclusive, transform: LinkTransform::Spatial, crossing_policy: CrossingPolicy::default() }).is_ok()
     }
 
     pub fn topology_instance_count(&self) -> usize { self.runtime.topology().instances().count() }
@@ -114,9 +143,9 @@ impl WorldTransport {
 
     /// Engine-owned anchor-volume crossing. Returns true only after target
     /// residency/readiness gate and activation succeed.
-    pub fn try_crossing(&mut self, x: f32, y: f32, z: f32) -> bool {
+    pub fn try_crossing(&mut self, x: f32, y: f32, z: f32, movement_x: f32, movement_z: f32) -> bool {
         let pose = Transform { translation: Vec3 { x, y, z }, rotation: crate::world::Quaternion::IDENTITY, scale: 1.0 };
-        match self.runtime.try_crossing(pose) {
+        match self.runtime.try_crossing(pose, Vec3 { x: movement_x, y: 0.0, z: movement_z }) {
             Ok(Some(resolution)) => { self.crossing_pose = resolution.player_pose; self.sync(); true }
             _ => false,
         }
@@ -190,6 +219,9 @@ mod tests {
         assert!(t.definition_light("room", 2., 1., 0., 1., 0.5, 0.25, 2., true));
         assert!(t.finish_definition("room"));
         assert!(t.register_instance("east", "room", 10., 0., 0., 0., 0., 0., 1., 1., 0));
+        let request = t.begin_load("east", "test");
+        assert!(request > 0);
+        assert!(t.accept_definition(request, "east"));
         assert_eq!(t.tile_count(), 1); assert_eq!(t.actor_count(), 1); assert_eq!(t.light_count(), 1);
         assert_eq!(t.tile_x[0], 11.); assert_eq!(t.instance_state(0), 2); assert!(!t.overflowed());
     }
@@ -200,6 +232,9 @@ mod tests {
         assert!(t.definition_tile("r", 0., 0., 0., 1, 1, 0, 0, true, false, false, false, false, false));
         t.finish_definition("r");
         assert!(t.register_instance("i", "r", 0., 0., 0., 0., 0., 0., 1., 1., 0));
+        let request = t.begin_load("i", "test");
+        assert!(request > 0);
+        assert!(t.accept_definition(request, "i"));
         assert!(t.overflowed()); assert_eq!(t.tile_count(), 0);
     }
 
@@ -226,6 +261,9 @@ mod tests {
         assert!(t.definition_tile("room", 0., 0., 0., 1, 1, 0, 0, true, false, false, false, false, false));
         assert!(t.finish_definition("room"));
         assert!(t.register_instance("room-instance", "room", 0., 0., 0., 0., 0., 0., 1., 1., 0));
+        let request = t.begin_load("room-instance", "test");
+        assert!(request > 0);
+        assert!(t.accept_definition(request, "room-instance"));
         assert!(t.set_instance_state("room-instance", 3, true, true, true));
         t.refresh();
         assert_eq!(t.instance_state(0), 3);

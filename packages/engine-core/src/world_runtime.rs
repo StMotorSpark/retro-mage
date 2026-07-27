@@ -8,7 +8,7 @@
 use crate::global_collision::GlobalCollisionWorld;
 use crate::instance_runtime::GlobalLevelContent;
 use crate::level_provider::{FixtureProvider, LevelProvider, LevelProviderMetadata, LevelProviderRequest, LevelProviderResult, ProviderUpdate};
-use crate::world::LevelDefinition;
+use crate::world::{LevelDefinition, Vec3};
 use crate::residency::{PersistenceHandoff, ResidencyError, ResidencyStore};
 use crate::world::{LevelInstance, RuntimeState};
 use crate::world_manifest::{AnchorRef, CrossingResolution, InstanceDescriptor, WorldManifest, WorldManifestError, WorldTopology};
@@ -72,15 +72,15 @@ impl WorldRuntime {
 
     /// Resolve and commit spatial link crossing from player proximity. Runtime
     /// owns anchor selection, readiness gate, hysteresis, and activation.
-    pub fn try_crossing(&mut self, player_pose: crate::world::Transform) -> Result<Option<CrossingResolution>, WorldRuntimeError> {
+    pub fn try_crossing(&mut self, player_pose: crate::world::Transform, movement: Vec3) -> Result<Option<CrossingResolution>, WorldRuntimeError> {
         if !self.crossing_armed {
             let still_inside = self.residency.current().and_then(|current| self.topology.links().find_map(|link| {
                 let source = if link.source.instance_id == current { Some(&link.source) } else if link.direction == crate::world_manifest::LinkDirection::Bidirectional {
                     match &link.target { crate::world_manifest::LinkTarget::Instance(target) if target.instance_id == current => Some(target), _ => None }
                 } else { None };
-                source
+                source.map(|anchor| (anchor, link.crossing_policy))
             }));
-            if !still_inside.map(|anchor| self.topology.anchor_contains_world(anchor, player_pose.translation, 5.0).unwrap_or(false)).unwrap_or(false) { self.crossing_armed = true; }
+            if !still_inside.map(|(anchor, policy)| self.topology.anchor_contains_world(anchor, player_pose.translation, policy.padding + policy.rearm_distance).unwrap_or(false)).unwrap_or(false) { self.crossing_armed = true; }
             if !self.crossing_armed { return Ok(None); }
         }
         let Some(current) = self.residency.current().map(str::to_owned) else { return Ok(None) };
@@ -88,7 +88,13 @@ impl WorldRuntime {
             let from = if link.source.instance_id == current { Some(&link.source) } else if link.direction == crate::world_manifest::LinkDirection::Bidirectional {
                 match &link.target { crate::world_manifest::LinkTarget::Instance(target) if target.instance_id == current => Some(target), _ => None }
             } else { None }?;
-            self.topology.anchor_contains_world(from, player_pose.translation, 5.0).ok().filter(|inside| *inside).map(|_| (link.id.clone(), from.clone()))
+            let inside = self.topology.anchor_contains_world(from, player_pose.translation, link.crossing_policy.padding).ok().unwrap_or(false);
+            let directional = if !link.crossing_policy.require_direction { true } else {
+                let center = self.topology.anchor_center_world(from).ok()?;
+                let toward = Vec3 { x: center.x - player_pose.translation.x, y: center.y - player_pose.translation.y, z: center.z - player_pose.translation.z };
+                movement.x * toward.x + movement.y * toward.y + movement.z * toward.z > 0.0
+            };
+            (inside && directional).then(|| (link.id.clone(), from.clone()))
         });
         let Some((link_id, from)) = candidate else { return Ok(None) };
         let resolution = self.resolve_crossing(&link_id, &from, player_pose)?;
@@ -133,18 +139,32 @@ impl WorldRuntime {
     pub fn resolve_crossing(&mut self, link_id: &str, from: &AnchorRef, player_pose: crate::world::Transform) -> Result<CrossingResolution, WorldRuntimeError> {
         let target_id = self.materialize_link_target(link_id)?;
         let resolution = self.topology.resolve_crossing(link_id, from, player_pose)?;
-        self.residency.set_transform(&target_id, resolution.instance_transform)?;
-        self.sync_topology_instance(&target_id);
+        // Spatial targets are placed during preload. Never relocate resident
+        // geometry at crossing time; explicit links retain teleport placement.
+        if matches!(self.topology.link(link_id).map(|link| &link.transform), Some(crate::world_manifest::LinkTransform::Explicit { .. })) {
+            self.residency.set_transform(&target_id, resolution.instance_transform)?;
+            self.sync_topology_instance(&target_id);
+        }
         Ok(resolution)
     }
 
     pub fn begin_load(&mut self, id: &str, metadata: LevelProviderMetadata) -> Result<LevelProviderRequest, WorldRuntimeError> {
+        // Spatial placement is committed before provider data can become resident.
+        // Crossing only activates this already-placed content.
+        if let Some(transform) = self.topology.spatial_target_transform(id)? {
+            self.residency.set_transform(id, transform)?;
+            self.sync_topology_instance(id);
+        }
         let request = self.residency.begin_load(id, metadata)?;
         self.sync_topology_instance(id);
         Ok(request)
     }
 
     pub fn resolve<P: LevelProvider + ?Sized>(&mut self, provider: &mut P, id: &str, metadata: LevelProviderMetadata) -> Result<ProviderUpdate, WorldRuntimeError> {
+        if let Some(transform) = self.topology.spatial_target_transform(id)? {
+            self.residency.set_transform(id, transform)?;
+            self.sync_topology_instance(id);
+        }
         let update = self.residency.resolve(provider, id, metadata)?;
         self.sync_topology_instance(id);
         Ok(update)

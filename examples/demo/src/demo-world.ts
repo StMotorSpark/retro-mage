@@ -22,7 +22,7 @@ export interface DemoLight {
 
 export interface DemoAnchor {
   id: string;
-  x: number; y: number; z: number;
+  x: number; y: number; z: number; yaw: number;
   volume: { min: [number, number, number]; max: [number, number, number] };
   direction: AnchorDirection;
 }
@@ -58,7 +58,7 @@ export interface DemoWorldManifest {
 
 const floor = (x: number, z: number, tileId: number, materialId: number): DemoTile => ({ x, y: 0, z, tileId, materialId, variant: 0, orientation: 0, solid: false });
 const wall = (x: number, z: number, tileId = 1, materialId = 1): DemoTile => ({ x, y: 0, z, tileId, materialId, variant: 0, orientation: 0, solid: true });
-const anchor = (id: string, x: number, z: number, direction: AnchorDirection): DemoAnchor => ({ id, x, y: 0, z, volume: { min: [-0.5, 0, -0.5], max: [0.5, 2, 0.5] }, direction });
+const anchor = (id: string, x: number, z: number, direction: AnchorDirection, yaw: number): DemoAnchor => ({ id, x, y: 0, z, yaw, volume: { min: [-0.5, 0, -0.5], max: [0.5, 2, 0.5] }, direction });
 
 function dungeonTiles(): DemoTile[] {
   const tiles: DemoTile[] = [];
@@ -83,7 +83,7 @@ const dungeon: DemoLevelDefinition = {
     { x: 7, y: 1.5, z: 4, color: [1, 0.7, 0.3], intensity: 8, active: true },
     { x: 9, y: 1.5, z: 6, color: [1, 0.7, 0.3], intensity: 8, active: true },
   ],
-  anchors: [anchor('outdoor-gate', 10, 4, 'both')], providerMetadata: { kind: 'authored-dungeon' },
+  anchors: [anchor('outdoor-gate', 10, 4, 'both', -Math.PI / 2)], providerMetadata: { kind: 'authored-dungeon' },
 };
 
 const outdoor: DemoLevelDefinition = {
@@ -91,7 +91,7 @@ const outdoor: DemoLevelDefinition = {
   tiles: outdoorTiles(),
   actors: ([[15, -4], [22, -2], [12, 4], [20, 7], [8, 12], [18, 11]] as const).map(([x, z], index) => ({ x, y: 0, z, actorId: `tree-${index}`, spriteId: 1, facing: 0, active: true, spawn: true })),
   lights: [{ x: 12, y: 3, z: 4, color: [0.8, 0.9, 1], intensity: 1, active: true }],
-  anchors: [anchor('dungeon-gate', 0, 0, 'both')], providerMetadata: { kind: 'authored-outdoor' },
+  anchors: [anchor('dungeon-gate', 0, 0, 'both', -Math.PI / 2)], providerMetadata: { kind: 'authored-outdoor' },
 };
 
 export const demoDefinitions: readonly DemoLevelDefinition[] = [dungeon, outdoor];
@@ -117,19 +117,31 @@ export class DemoLevelProvider {
     if (!valid(definition)) throw new Error(`Invalid demo definition: ${definitionId}`);
     return definition;
   }
+
+  resolveAsync(definitionId: DemoLevelId, options: { delayMs: number; fail: boolean; signal?: AbortSignal }): Promise<DemoLevelDefinition> {
+    return new Promise((resolve, reject) => {
+      const timer = window.setTimeout(() => {
+        if (options.fail) reject(new Error(`Provider failed: ${definitionId}`));
+        else resolve(this.resolve(definitionId));
+      }, options.delayMs);
+      options.signal?.addEventListener('abort', () => {
+        window.clearTimeout(timer);
+        reject(new DOMException('Provider request cancelled', 'AbortError'));
+      }, { once: true });
+    });
+  }
 }
 
 export function createDemoLevelProvider(): DemoLevelProvider { return new DemoLevelProvider(); }
 
-/** Submit authored content + topology through scalar browser/WASM API. */
-export function registerDemoWorld(transport: WorldTransport, provider = createDemoLevelProvider()): void {
-  for (const definition of demoManifest.definitions) {
-    const resolved = provider.resolve(definition.id);
+/** Submit authored definitions + topology; instance content loads separately. */
+export function registerDemoWorld(transport: WorldTransport): void {
+  for (const resolved of demoManifest.definitions) {
     if (!transport.begin_definition(resolved.id, resolved.version, ...resolved.bounds.min, ...resolved.bounds.max)) throw new Error(`Failed to begin ${resolved.id}`);
     for (const tile of resolved.tiles) if (!transport.definition_tile(resolved.id, tile.x, tile.y, tile.z, tile.tileId, tile.materialId, tile.variant, tile.orientation, tile.solid, tile.openings?.north ?? false, tile.openings?.east ?? false, tile.openings?.south ?? false, tile.openings?.west ?? false, tile.openings?.vertical ?? false)) throw new Error(`Failed tile in ${resolved.id}`);
     for (const actor of resolved.actors) if (!transport.definition_actor(resolved.id, actor.x, actor.y, actor.z, actor.actorId, actor.spriteId, actor.facing, actor.active, actor.spawn)) throw new Error(`Failed actor in ${resolved.id}`);
     for (const light of resolved.lights) if (!transport.definition_light(resolved.id, light.x, light.y, light.z, ...light.color, light.intensity, light.active)) throw new Error(`Failed light in ${resolved.id}`);
-    for (const a of resolved.anchors) if (!transport.definition_anchor(resolved.id, a.id, a.x, a.y, a.z, ...a.volume.min, ...a.volume.max, a.direction === 'in' ? 0 : a.direction === 'out' ? 1 : 2)) throw new Error(`Failed anchor in ${resolved.id}`);
+    for (const a of resolved.anchors) if (!transport.definition_anchor_oriented(resolved.id, a.id, a.x, a.y, a.z, a.yaw, ...a.volume.min, ...a.volume.max, a.direction === 'in' ? 0 : a.direction === 'out' ? 1 : 2)) throw new Error(`Failed anchor in ${resolved.id}`);
     if (!transport.finish_definition(resolved.id)) throw new Error(`Failed to finish ${resolved.id}`);
   }
   for (const instance of demoManifest.instances) if (!transport.register_instance(instance.id, instance.definitionId, ...instance.position, 0, 0, 0, 1, 1, 1)) throw new Error(`Failed instance ${instance.id}`);

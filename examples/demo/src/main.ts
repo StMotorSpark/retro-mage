@@ -2,7 +2,7 @@ import init, { EngineState, WorldTransport } from 'engine-core';
 import { createRenderer, loadKtx2Texture, WorldStateReader, WorldTransportReader } from 'render';
 import { createInputSource, FACE1 } from 'input';
 import { PerfOverlay } from './perf-overlay.js';
-import { createDemoLevelProvider, demoManifest, registerDemoWorld } from './demo-world.js';
+import { createDemoLevelProvider, demoManifest, registerDemoWorld, type DemoLevelId } from './demo-world.js';
 
 interface DemoDebugSnapshot {
   ready: boolean;
@@ -14,6 +14,7 @@ interface DemoDebugSnapshot {
   targetVisible: boolean;
   instances: Array<{ id: string; state: number; renderResident: boolean; collisionActive: boolean }>;
   sourcePlayable: boolean;
+  debugMovement?: { x: number; z: number; yaw: number };
 }
 
 declare global {
@@ -39,24 +40,29 @@ async function main(): Promise<void> {
   const worldTransport = new WorldTransport();
   const provider = createDemoLevelProvider();
 
-  // Application owns provider + manifest. Transport receives resolved authored content.
-  registerDemoWorld(worldTransport, provider);
+  // Application owns provider + manifest. Definitions/topology register first;
+  // instance content arrives through explicit async provider requests.
+  registerDemoWorld(worldTransport);
   if (demoManifest.link.preload !== 'before-visible') throw new Error('Demo link must preload before visible.');
-
-  // Both sides stay render-resident near link. Target geometry therefore exists before crossing.
-  for (const instance of demoManifest.instances) {
-    if (failOutdoor && instance.id === 'outdoor-instance') {
-      worldTransport.set_instance_state(instance.id, 6, false, false, false);
-      console.warn('Outdoor preload failed by debug request; source remains playable.');
-    } else if (!worldTransport.set_instance_state(instance.id, 3, true, true, true)) {
-      if (instance.id === 'dungeon-instance') throw new Error('Failed to activate source dungeon.');
-      console.warn(`Outdoor preload failed for ${instance.id}; source remains playable.`);
-    }
-  }
   if (!worldTransport.set_current_instance('dungeon-instance')) throw new Error('Failed to set source current instance.');
 
-  // Collision projection comes from same authoritative runtime content as render.
-  worldTransport.sync_collision(engineState);
+  const load = (instanceId: string, definitionId: DemoLevelId, delayMs: number, fail: boolean): void => {
+    const requestId = worldTransport.begin_load(instanceId, `demo-${definitionId}`);
+    if (requestId === 0n) throw new Error(`Failed to begin load for ${instanceId}`);
+    const controller = new AbortController();
+    void provider.resolveAsync(definitionId, { delayMs, fail, signal: controller.signal }).then(() => {
+      if (!worldTransport.accept_definition(requestId, instanceId)) throw new Error(`Failed to accept ${instanceId}`);
+      if (instanceId === 'dungeon-instance' && !worldTransport.set_instance_state(instanceId, 3, true, true, true)) throw new Error('Failed to activate source dungeon.');
+      worldTransport.sync_collision(engineState);
+    }).catch((error: unknown) => {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      if (!worldTransport.fail_load(requestId, instanceId, error instanceof Error ? error.message : String(error))) throw new Error(`Failed to reject ${instanceId}`);
+      worldTransport.sync_collision(engineState);
+      if (instanceId === 'outdoor-instance') console.warn('Outdoor preload failed by debug request; source remains playable.');
+    });
+  };
+  load('dungeon-instance', 'dungeon', 40, false);
+  load('outdoor-instance', 'outdoor', 250, failOutdoor);
 
   engineState.set_camera(0, 0, 4, 0, 0);
   engineState.set_ambient_light(0.05);
@@ -107,7 +113,9 @@ async function main(): Promise<void> {
     engineState.tick(dtMs / 1000);
 
     const cameraBeforeCrossing = legacyReader.read().camera;
-    if ((input.move.x !== 0 || input.move.y !== 0) && worldTransport.try_crossing(cameraBeforeCrossing.x[0] ?? 0, cameraBeforeCrossing.y[0] ?? 0, cameraBeforeCrossing.z[0] ?? 0)) {
+    const movementX = input.move.y * Math.sin(cameraBeforeCrossing.yaw[0] ?? 0) + input.move.x * Math.cos(cameraBeforeCrossing.yaw[0] ?? 0);
+    const movementZ = -input.move.y * Math.cos(cameraBeforeCrossing.yaw[0] ?? 0) + input.move.x * Math.sin(cameraBeforeCrossing.yaw[0] ?? 0);
+    if ((input.move.x !== 0 || input.move.y !== 0) && worldTransport.try_crossing(cameraBeforeCrossing.x[0] ?? 0, cameraBeforeCrossing.y[0] ?? 0, cameraBeforeCrossing.z[0] ?? 0, movementX, movementZ)) {
       engineState.set_camera(worldTransport.crossing_pose_x(), worldTransport.crossing_pose_y(), worldTransport.crossing_pose_z(), cameraBeforeCrossing.yaw[0] ?? 0, cameraBeforeCrossing.pitch[0] ?? 0);
       worldTransport.sync_collision(engineState);
     }
@@ -141,6 +149,7 @@ async function main(): Promise<void> {
       targetVisible: world.scene.instanceIds.includes('outdoor-instance'),
       instances,
       sourcePlayable: instances.some((instance) => instance.id === 'dungeon-instance' && instance.collisionActive),
+      debugMovement: { x: movementX, z: movementZ, yaw: camera.yaw[0] ?? 0 },
     };
     requestAnimationFrame(frame);
   };

@@ -53,7 +53,9 @@ pub struct ResidencyStore {
 }
 
 impl ResidencyStore {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self { records: HashMap::new(), provider: LevelProviderCoordinator::new(), current: None, transition_pairs: HashSet::new(), explicit_pins: HashSet::new() }
+    }
 
     pub fn register(&mut self, instance: LevelInstance) -> Result<(), ResidencyError> {
         instance.validate().map_err(ResidencyError::InvalidDefinition)?;

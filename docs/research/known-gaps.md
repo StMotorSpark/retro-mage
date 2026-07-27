@@ -11,6 +11,7 @@ relates-to:
   - "[WASM Bridge](../architecture/wasm-bridge.md)"
   - "[Collision](../architecture/collision.md)"
   - "[Demo Scope](../features/demo-scope.md)"
+  - "[Crossing Policy](../architecture/crossing-policy.md)"
   - "[Test-Driven Development](../principles/test-driven-development.md)"
 ---
 
@@ -28,8 +29,7 @@ This doc records unresolved implementation details and deliberately deferred cap
 - Memory budgets and platform-specific eviction heuristics require measurement against representative content.
 - Link overlap collision ownership needs a concrete policy implementation beyond explicit masks/ownership metadata.
 - Collision projection currently reaches `EngineState` through an explicit transport snapshot sync; automatic runtime-owned projection remains undefined.
-- Demo preload uses a synchronous authored fixture; a real pending-provider completion path remains unproved.
-- Anchor crossing uses a fixed proximity padding value; link-specific crossing/preload distance policy remains undefined.
+- Demo preload uses a deterministic asynchronous provider path with explicit application-triggered loads; general runtime-driven preload scheduling remains unimplemented.
 
 ## Rendering and Bridge
 
@@ -49,7 +49,7 @@ This doc records unresolved implementation details and deliberately deferred cap
 
 ## Content and Platform
 
-- Parallel Playwright workers intermittently destroy the browser execution context during the seamless proof; serial execution is stable, so CI worker policy requires measurement and hardening.
+- Parallel Playwright workers intermittently destroy the browser execution context during the seamless proof; CI enforces one worker for deterministic proof execution. Parallel hardening remains deferred until suite size justifies the investigation.
 
 - Consuming-game texture and level source folder conventions remain application-owned.
 - Audio, animated sprites, additional biomes, and structured content authoring lack feature docs.
@@ -82,4 +82,5 @@ These decisions are recorded in their authoritative design docs:
 - [WASM Bridge](../architecture/wasm-bridge.md) — scene transport boundary
 - [Collision](../architecture/collision.md) — multi-floor capability boundary
 - [Demo Scope](../features/demo-scope.md) — first proof scene
+- [Crossing Policy](../architecture/crossing-policy.md) — traversal activation and hysteresis contract
 - [Test-Driven Development](../principles/test-driven-development.md) — testing expectations
