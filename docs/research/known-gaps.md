@@ -27,6 +27,9 @@ This doc records unresolved implementation details and deliberately deferred cap
 - Infinite procedural regions are outside the initial finite-bounds runtime contract.
 - Memory budgets and platform-specific eviction heuristics require measurement against representative content.
 - Link overlap collision ownership needs a concrete policy implementation beyond explicit masks/ownership metadata.
+- Collision projection currently reaches `EngineState` through an explicit transport snapshot sync; automatic runtime-owned projection remains undefined.
+- Demo preload uses a synchronous authored fixture; a real pending-provider completion path remains unproved.
+- Anchor crossing uses a fixed proximity padding value; link-specific crossing/preload distance policy remains undefined.
 
 ## Rendering and Bridge
 
@@ -45,6 +48,8 @@ This doc records unresolved implementation details and deliberately deferred cap
 - Combat, enemy behavior, health, death, inventory, and interaction systems lack feature definitions.
 
 ## Content and Platform
+
+- Parallel Playwright workers intermittently destroy the browser execution context during the seamless proof; serial execution is stable, so CI worker policy requires measurement and hardening.
 
 - Consuming-game texture and level source folder conventions remain application-owned.
 - Audio, animated sprites, additional biomes, and structured content authoring lack feature docs.
@@ -71,6 +76,7 @@ These decisions are recorded in their authoritative design docs:
 - [World Model](../features/world-model.md) — global spatial model
 - [Level Transitions](../features/level-transitions.md) — connection contract
 - [World Runtime](../architecture/world-runtime.md) — lifecycle and provider boundaries
+- [Example Deployment](../architecture/example-deployment.md) — PWA and deployed demo behavior
 - [World Streaming](../architecture/world-streaming.md) — residency behavior
 - [Rendering](../architecture/rendering.md) — renderer capabilities
 - [WASM Bridge](../architecture/wasm-bridge.md) — scene transport boundary
