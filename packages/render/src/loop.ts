@@ -139,6 +139,11 @@ export function createLoop(
         const aspect = offscreen.height > 0 ? offscreen.width / offscreen.height : 1.0;
         mat4Perspective(projMatrix, Math.PI / 3.0, aspect, 0.1, 100.0);
 
+        // Engine supplies global coordinates. A scene submission can replace the
+        // legacy single-buffer fields without adding level/seam transform logic here.
+        const scene = views.scene;
+        const renderTiles = scene?.tiles ?? views.tiles;
+        const renderActors = scene?.actors ?? views.actors;
         const cam = views.camera;
         const cx = cam.count > 0 ? (cam.x[0] ?? 0) : 0;
         const cy = (cam.count > 0 ? (cam.y[0] ?? 0) : 0) + EYE_HEIGHT_OFFSET;
@@ -152,10 +157,10 @@ export function createLoop(
           skyboxRenderer.render(viewMatrix, projMatrix);
         }
         if (tileRenderer) {
-          tileRenderer.render(views.tiles, viewMatrix, projMatrix);
+          tileRenderer.render(renderTiles, viewMatrix, projMatrix);
         }
         if (spriteRenderer) {
-          spriteRenderer.render(views.actors, viewMatrix, projMatrix);
+          spriteRenderer.render(renderActors, viewMatrix, projMatrix);
         }
       }
     }

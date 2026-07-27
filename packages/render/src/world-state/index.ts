@@ -41,3 +41,4 @@ export * from './actors.js';
 export * from './lights.js';
 export * from './tiles.js';
 export * from './camera.js';
+export * from './scene.js';
