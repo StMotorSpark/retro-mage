@@ -1,12 +1,12 @@
 ---
 task: "67"
 slug: shared-collision-projection
-status: pending
+status: done
 depends-on: ["65", "58"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-27
-outcome: ""
+outcome: "Collision now projects from authoritative transformed runtime content shared with render. WorldTransport installs lifecycle-filtered collision snapshots into EngineState; demo no longer submits per-tile solids; projection consistency and traversal tests pass."
 ---
 
 # Derive Collision From Shared Runtime Content

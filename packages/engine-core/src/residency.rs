@@ -109,9 +109,9 @@ impl ResidencyStore {
         let mut world = crate::global_collision::GlobalCollisionWorld::new();
         for record in self.records.values() {
             if record.descriptor.collision_active {
-                if let Some(definition) = record.definition.as_deref() {
+                if let Some(content) = record.global.as_ref() {
                     world.set_instance(
-                        crate::global_collision::CollisionInstance::from_level(&record.descriptor, definition),
+                        crate::global_collision::CollisionInstance::from_content(&record.descriptor.id, content),
                         true,
                     );
                 }

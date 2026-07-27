@@ -4,6 +4,7 @@
 
 use std::collections::HashMap;
 
+use crate::instance_runtime::GlobalLevelContent;
 use crate::world::{Bounds, LevelDefinition, LevelInstance, Transform, Vec3};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -28,9 +29,9 @@ pub struct CollisionInstance {
 }
 
 impl CollisionInstance {
-    /// Build global AABBs from unit tile cells in definition local space.
-    pub fn from_level(instance: &LevelInstance, definition: &LevelDefinition) -> Self {
-        let solids = definition.tiles.iter().filter(|tile| tile.solid).map(|tile| {
+    /// Project collision from same transformed content consumed by rendering.
+    pub fn from_content(instance_id: &str, content: &GlobalLevelContent) -> Self {
+        let solids = content.tiles.iter().filter(|tile| tile.solid).map(|tile| {
             let center = tile.position;
             let local = Bounds {
                 min: Vec3 { x: center.x - 0.5, y: center.y, z: center.z - 0.5 },
@@ -41,7 +42,7 @@ impl CollisionInstance {
             for x in [local.min.x, local.max.x] {
                 for y in [local.min.y, local.max.y] {
                     for z in [local.min.z, local.max.z] {
-                        let p = instance.transform.transform_point(Vec3 { x, y, z });
+                        let p = Vec3 { x, y, z };
                         min.x = min.x.min(p.x); min.y = min.y.min(p.y); min.z = min.z.min(p.z);
                         max.x = max.x.max(p.x); max.y = max.y.max(p.y); max.z = max.z.max(p.z);
                     }
@@ -49,7 +50,14 @@ impl CollisionInstance {
             }
             SolidAabb { min, max }
         }).collect();
-        Self { id: instance.id.clone(), solids }
+        Self { id: instance_id.to_owned(), solids }
+    }
+
+    /// Compatibility constructor; runtime projection uses `from_content`.
+    pub fn from_level(instance: &LevelInstance, definition: &LevelDefinition) -> Self {
+        let content = GlobalLevelContent::from_definition(definition, &instance.transform)
+            .expect("validated level transform");
+        Self::from_content(&instance.id, &content)
     }
 }
 
@@ -137,6 +145,20 @@ mod tests {
         world.set_instance(CollisionInstance::from_level(&instance, &definition), true);
         let pose = Transform { translation: Vec3 { x: 8.0, y: 0.0, z: 5.0 }, ..Transform::IDENTITY };
         assert!(world.collides(pose, 0.3, 1.6));
+    }
+
+    #[test]
+    fn projection_uses_render_global_tile_positions_without_second_transform() {
+        let content = GlobalLevelContent {
+            bounds: Bounds { min: Vec3::ZERO, max: Vec3 { x: 12.0, y: 2.0, z: 2.0 } },
+            tiles: vec![crate::world::LevelTile { position: Vec3 { x: 10.0, y: 0.0, z: 1.0 }, tile_id: 1, material_id: 2, variant: 0, orientation: 0, solid: true, openings: Default::default(), stairs: None }],
+            actors: vec![], lights: vec![], polygons: vec![],
+        };
+        let projection = CollisionInstance::from_content("global", &content);
+        assert_eq!(projection.solids[0].min.x, 9.5);
+        assert_eq!(projection.solids[0].max.x, 10.5);
+        assert_eq!(projection.solids[0].min.z, 0.5);
+        assert_eq!(projection.solids[0].max.z, 1.5);
     }
 
     #[test]

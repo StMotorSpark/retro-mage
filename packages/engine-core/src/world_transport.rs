@@ -127,6 +127,12 @@ impl WorldTransport {
     pub fn crossing_pose_y(&self) -> f32 { self.crossing_pose.translation.y }
     pub fn crossing_pose_z(&self) -> f32 { self.crossing_pose.translation.z }
 
+    /// Install collision projection from same authoritative runtime content used
+    /// by `sync` render export. Re-run after lifecycle/crossing changes.
+    pub fn sync_collision(&mut self, engine: &mut crate::EngineState) {
+        engine.set_global_collision_world(self.runtime.collision_world());
+    }
+
     pub fn refresh(&mut self) { self.sync(); }
     pub fn clear(&mut self) { self.tiles = 0; self.actors = 0; self.lights = 0; self.instances = 0; self.instance_ids.clear(); self.overflow = false; }
     pub fn overflowed(&self) -> bool { self.overflow }

@@ -44,32 +44,19 @@ async function main(): Promise<void> {
   if (demoManifest.link.preload !== 'before-visible') throw new Error('Demo link must preload before visible.');
 
   // Both sides stay render-resident near link. Target geometry therefore exists before crossing.
-  const activeInstances = new Set<string>();
   for (const instance of demoManifest.instances) {
     if (failOutdoor && instance.id === 'outdoor-instance') {
       worldTransport.set_instance_state(instance.id, 6, false, false, false);
       console.warn('Outdoor preload failed by debug request; source remains playable.');
-    } else if (worldTransport.set_instance_state(instance.id, 3, true, true, true)) activeInstances.add(instance.id);
-    else if (instance.id === 'dungeon-instance') throw new Error('Failed to activate source dungeon.');
-    else console.warn(`Outdoor preload failed for ${instance.id}; source remains playable.`);
+    } else if (!worldTransport.set_instance_state(instance.id, 3, true, true, true)) {
+      if (instance.id === 'dungeon-instance') throw new Error('Failed to activate source dungeon.');
+      console.warn(`Outdoor preload failed for ${instance.id}; source remains playable.`);
+    }
   }
   if (!worldTransport.set_current_instance('dungeon-instance')) throw new Error('Failed to set source current instance.');
 
-  // Global collision consumes same provider data and instance transforms as render transport.
-  for (const instance of demoManifest.instances) {
-    if (!activeInstances.has(instance.id)) continue;
-    const definition = provider.resolve(instance.definitionId);
-    for (const tile of definition.tiles) {
-      if (!tile.solid) continue;
-      const [ox, oy, oz] = instance.position;
-      engineState.submit_global_collision_solid(
-        instance.id,
-        ox + tile.x - 0.5, oy + tile.y, oz + tile.z - 0.5,
-        ox + tile.x + 0.5, oy + tile.y + 1, oz + tile.z + 0.5,
-        true,
-      );
-    }
-  }
+  // Collision projection comes from same authoritative runtime content as render.
+  worldTransport.sync_collision(engineState);
 
   engineState.set_camera(0, 0, 4, 0, 0);
   engineState.set_ambient_light(0.05);
@@ -122,6 +109,7 @@ async function main(): Promise<void> {
     const cameraBeforeCrossing = legacyReader.read().camera;
     if (worldTransport.try_crossing(cameraBeforeCrossing.x[0] ?? 0, cameraBeforeCrossing.y[0] ?? 0, cameraBeforeCrossing.z[0] ?? 0)) {
       engineState.set_camera(worldTransport.crossing_pose_x(), worldTransport.crossing_pose_y(), worldTransport.crossing_pose_z(), cameraBeforeCrossing.yaw[0] ?? 0, cameraBeforeCrossing.pitch[0] ?? 0);
+      worldTransport.sync_collision(engineState);
     }
     const world = transportReader.read();
     const camera = legacyReader.read().camera;
