@@ -29,7 +29,7 @@ This doc records unresolved implementation details and deliberately deferred cap
 - Memory budgets and platform-specific eviction heuristics require measurement against representative content.
 - Link overlap collision ownership needs a concrete policy implementation beyond explicit masks/ownership metadata.
 - Collision projection currently reaches `EngineState` through an explicit transport snapshot sync; automatic runtime-owned projection remains undefined.
-- The streaming scheduler contract is defined in [Streaming Scheduler](../architecture/streaming-scheduler.md), but runtime-driven relevance evaluation, bounded request scheduling, and automatic retention/eviction remain unimplemented.
+
 
 ## Rendering and Bridge
 

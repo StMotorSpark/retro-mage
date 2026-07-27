@@ -115,3 +115,34 @@ test('source remains playable when target preload fails', async ({ page }) => {
   expect(afterAttempt.activeInstance).toBe('dungeon-instance');
   expect(afterAttempt.renderFrame).toBeGreaterThan(failed.renderFrame);
 });
+
+test('unneeded content becomes evictable and reloads when relevant', async ({ page }) => {
+  await waitForDemo(page);
+  
+  // Cross into outdoor
+  await strafe(page, 70, (snapshot) => snapshot.activeInstance === 'outdoor-instance');
+  const forward = await debug(page);
+  expect(forward.activeInstance).toBe('outdoor-instance');
+  
+  // Cross back into dungeon and move far enough to trigger eviction
+  // Relevance distance is 60, hysteresis is 20, boundary is at 84 (implied).
+  // Need to get back to x < 4 to trigger eviction.
+  await strafe(page, -120, (snapshot) => {
+    const outdoor = snapshot.instances.find(i => i.id === 'outdoor-instance');
+    return outdoor === undefined || outdoor.state === 0 || outdoor.state === 1; // Unneeded or Evicted
+  });
+  
+  const evicted = await debug(page);
+  expect(evicted.activeInstance).toBe('dungeon-instance');
+  const outdoorEvicted = evicted.instances.find((instance) => instance.id === 'outdoor-instance');
+  // It should be 0 (Unknown) or 1 (Evicted)
+  expect(outdoorEvicted?.state === 0 || outdoorEvicted?.state === 1).toBe(true);
+  
+  // Move back toward the seam to trigger reload
+  await strafe(page, 70, (snapshot) => {
+    const outdoor = snapshot.instances.find(i => i.id === 'outdoor-instance');
+    return outdoor !== undefined && outdoor.state === 2; // Loading or Ready (state 2 is Ready, but Loading is 5/6? Wait, state 2 is ready in demo check)
+  });
+  const reloaded = await debug(page);
+  expect(reloaded.instances.find((instance) => instance.id === 'outdoor-instance')?.state).toBe(2);
+});

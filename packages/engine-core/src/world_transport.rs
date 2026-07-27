@@ -22,6 +22,7 @@ struct DefinitionBuilder { definition: LevelDefinition }
 
 #[wasm_bindgen]
 pub struct WorldTransport {
+    scheduler: crate::streaming_scheduler::StreamingScheduler,
     runtime: WorldRuntime,
     definitions: HashMap<String, LevelDefinition>,
     builders: HashMap<String, DefinitionBuilder>,
@@ -39,13 +40,14 @@ impl WorldTransport {
     pub fn new() -> Self { Self::with_capacity(DEFAULT_WORLD_TILES, DEFAULT_WORLD_ACTORS, DEFAULT_WORLD_LIGHTS, DEFAULT_WORLD_INSTANCES) }
 
     pub fn with_capacity(tile_capacity: usize, actor_capacity: usize, light_capacity: usize, instance_capacity: usize) -> Self {
+        let policy = crate::streaming_scheduler::SchedulerPolicy { relevance_distance: 60.0, retention_hysteresis: 20.0, default_concurrency: 2 };
         Self {
             runtime: WorldRuntime::new(crate::world_manifest::WorldManifest { definitions: vec![], instances: vec![], links: vec![], starting_locations: vec![] }).expect("empty world manifest"), definitions: HashMap::new(), builders: HashMap::new(),
             tile_x: vec![0.; tile_capacity], tile_y: vec![0.; tile_capacity], tile_z: vec![0.; tile_capacity], tile_id: vec![0.; tile_capacity], tile_material: vec![0.; tile_capacity], tile_variant: vec![0.; tile_capacity], tile_orientation: vec![0.; tile_capacity], tile_solid: vec![0.; tile_capacity], tile_north: vec![0.; tile_capacity], tile_east: vec![0.; tile_capacity], tile_south: vec![0.; tile_capacity], tile_west: vec![0.; tile_capacity], tile_opening: vec![0.; tile_capacity],
             actor_x: vec![0.; actor_capacity], actor_y: vec![0.; actor_capacity], actor_z: vec![0.; actor_capacity], actor_facing: vec![0.; actor_capacity], actor_sprite: vec![0.; actor_capacity], actor_active: vec![0.; actor_capacity],
             light_x: vec![0.; light_capacity], light_y: vec![0.; light_capacity], light_z: vec![0.; light_capacity], light_r: vec![0.; light_capacity], light_g: vec![0.; light_capacity], light_b: vec![0.; light_capacity], light_intensity: vec![0.; light_capacity], light_active: vec![0.; light_capacity],
             instance_ids: Vec::with_capacity(instance_capacity), instance_states: vec![0; instance_capacity], instance_render: vec![0.; instance_capacity], instance_collision: vec![0.; instance_capacity], instance_simulation: vec![0.; instance_capacity],
-            tiles: 0, actors: 0, lights: 0, instances: 0, overflow: false, crossing_pose: Transform::IDENTITY,
+            tiles: 0, actors: 0, lights: 0, instances: 0, overflow: false, crossing_pose: Transform::IDENTITY, scheduler: crate::streaming_scheduler::StreamingScheduler::new(policy),
         }
     }
 
@@ -106,18 +108,18 @@ impl WorldTransport {
         match self.runtime.begin_load(id, metadata) { Ok(request) => request.request_id, Err(_) => 0 }
     }
 
-    /// Commit a provider-resolved definition for its active request.
     pub fn accept_definition(&mut self, request_id: u64, id: &str) -> bool {
         let Some(instance) = self.runtime.instance(id) else { return false; };
         let Some(definition) = self.definitions.get(&instance.definition_id).cloned() else { return false; };
         let result = LevelProviderResult { request_id, instance_id: id.into(), outcome: LevelProviderOutcome::Ready(definition) };
-        matches!(self.runtime.accept(result), Ok(ProviderUpdate::Ready(_))) && { self.sync(); true }
+        self.scheduler.handle_completion(&mut self.runtime, result);
+        self.sync(); true
     }
 
-    /// Commit an application/provider failure for its active request.
     pub fn fail_load(&mut self, request_id: u64, id: &str, message: &str) -> bool {
         let result = LevelProviderResult { request_id, instance_id: id.into(), outcome: LevelProviderOutcome::Failed(LevelProviderFailure::Application(message.into())) };
-        matches!(self.runtime.accept(result), Ok(ProviderUpdate::Failed(_))) && { self.sync(); true }
+        self.scheduler.handle_completion(&mut self.runtime, result);
+        self.sync(); true
     }
 
     pub fn cancel_load(&mut self, id: &str) -> bool {
@@ -282,4 +284,48 @@ mod tests {
         assert!(t.begin_definition("bad", "1", 2., 0., 0., 1., 1., 1.));
         assert!(!t.finish_definition("bad"));
     }
+}
+
+#[wasm_bindgen]
+impl WorldTransport {
+    pub fn update_scheduler(&mut self, player_x: f32, player_y: f32, player_z: f32) {
+        let player_pose = Transform { translation: Vec3 { x: player_x, y: player_y, z: player_z }, rotation: crate::world::Quaternion::IDENTITY, scale: 1.0 };
+        let active_pins = std::collections::HashSet::new();
+        let mut residency_states = std::collections::HashMap::new();
+        let mut priorities = std::collections::HashMap::new();
+        for desc in self.runtime.topology().instances() {
+            residency_states.insert(desc.instance.id.clone(), self.runtime.state(&desc.instance.id).unwrap_or(crate::world::RuntimeState::Known));
+            priorities.insert(desc.instance.id.clone(), 0);
+        }
+        let ctx = crate::streaming_scheduler::PlannerContext {
+            current_instance: self.runtime.current_instance(),
+            player_pose,
+            topology: self.runtime.topology(),
+            active_pins: &active_pins,
+            residency_states: &residency_states,
+            priorities: &priorities,
+            policy: &self.scheduler.policy,
+        };
+        let decisions = crate::streaming_scheduler::evaluate_intent(ctx);
+        self.scheduler.update(&mut self.runtime, &decisions);
+        self.sync();
+    }
+
+    pub fn scheduler_active_request_count(&self) -> usize { self.scheduler.active_requests.len() }
+    pub fn scheduler_active_request_instance(&self, index: usize) -> String { self.scheduler.active_requests.iter().nth(index).cloned().unwrap_or_default() }
+    pub fn scheduler_active_request_id(&self, index: usize) -> f64 {
+        let instance = self.scheduler_active_request_instance(index);
+        self.scheduler.diagnostics.get(&instance).and_then(|d| d.request_id).unwrap_or(0) as f64
+    }
+    
+    pub fn scheduler_diagnostic_intent(&self, id: &str) -> u32 {
+        match self.scheduler.diagnostics.get(id).map(|d| d.intent).unwrap_or(crate::streaming_scheduler::ResidencyIntent::Unneeded) {
+            crate::streaming_scheduler::ResidencyIntent::Unneeded => 0,
+            crate::streaming_scheduler::ResidencyIntent::Prefetch => 1,
+            crate::streaming_scheduler::ResidencyIntent::Required => 2,
+            crate::streaming_scheduler::ResidencyIntent::Pinned => 3,
+        }
+    }
+    
+    pub fn scheduler_queue_depth(&self) -> usize { self.scheduler.queue.len() }
 }

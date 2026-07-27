@@ -15,6 +15,9 @@ interface DemoDebugSnapshot {
   instances: Array<{ id: string; state: number; renderResident: boolean; collisionActive: boolean }>;
   sourcePlayable: boolean;
   debugMovement?: { x: number; z: number; yaw: number };
+  queueDepth: number;
+  activeLoads: number;
+  pins: number;
 }
 
 declare global {
@@ -46,23 +49,7 @@ async function main(): Promise<void> {
   if (demoManifest.link.preload !== 'before-visible') throw new Error('Demo link must preload before visible.');
   if (!worldTransport.set_current_instance('dungeon-instance')) throw new Error('Failed to set source current instance.');
 
-  const load = (instanceId: string, definitionId: DemoLevelId, delayMs: number, fail: boolean): void => {
-    const requestId = worldTransport.begin_load(instanceId, `demo-${definitionId}`);
-    if (requestId === 0n) throw new Error(`Failed to begin load for ${instanceId}`);
-    const controller = new AbortController();
-    void provider.resolveAsync(definitionId, { delayMs, fail, signal: controller.signal }).then(() => {
-      if (!worldTransport.accept_definition(requestId, instanceId)) throw new Error(`Failed to accept ${instanceId}`);
-      if (instanceId === 'dungeon-instance' && !worldTransport.set_instance_state(instanceId, 3, true, true, true)) throw new Error('Failed to activate source dungeon.');
-      worldTransport.sync_collision(engineState);
-    }).catch((error: unknown) => {
-      if (error instanceof DOMException && error.name === 'AbortError') return;
-      if (!worldTransport.fail_load(requestId, instanceId, error instanceof Error ? error.message : String(error))) throw new Error(`Failed to reject ${instanceId}`);
-      worldTransport.sync_collision(engineState);
-      if (instanceId === 'outdoor-instance') console.warn('Outdoor preload failed by debug request; source remains playable.');
-    });
-  };
-  load('dungeon-instance', 'dungeon', 40, false);
-  load('outdoor-instance', 'outdoor', 250, failOutdoor);
+  const pendingLoads = new Map<string, AbortController>();
 
   engineState.set_camera(0, 0, 4, 0, 0);
   engineState.set_ambient_light(0.05);
@@ -113,6 +100,37 @@ async function main(): Promise<void> {
     engineState.tick(dtMs / 1000);
 
     const cameraBeforeCrossing = legacyReader.read().camera;
+    worldTransport.update_scheduler(cameraBeforeCrossing.x[0] ?? 0, cameraBeforeCrossing.y[0] ?? 0, cameraBeforeCrossing.z[0] ?? 0);
+    const activeCount = worldTransport.scheduler_active_request_count();
+    const currentActiveIds = new Set<string>();
+    for (let i = 0; i < activeCount; i++) {
+      const instanceId = worldTransport.scheduler_active_request_instance(i);
+      currentActiveIds.add(instanceId);
+      if (!pendingLoads.has(instanceId)) {
+        const requestId = BigInt(worldTransport.scheduler_active_request_id(i));
+        const definitionId = instanceId.replace('-instance', '') as DemoLevelId;
+        const controller = new AbortController();
+        pendingLoads.set(instanceId, controller);
+        void provider.resolveAsync(definitionId, { delayMs: definitionId === 'outdoor' ? 250 : 40, fail: definitionId === 'outdoor' && failOutdoor, signal: controller.signal }).then(() => {
+          if (!worldTransport.accept_definition(requestId, instanceId)) throw new Error(`Failed to accept ${instanceId}`);
+          if (instanceId === 'dungeon-instance' && !worldTransport.set_instance_state(instanceId, 3, true, true, true)) throw new Error('Failed to activate source dungeon.');
+          worldTransport.sync_collision(engineState);
+          pendingLoads.delete(instanceId);
+        }).catch((error: unknown) => {
+          pendingLoads.delete(instanceId);
+          if (error instanceof DOMException && error.name === 'AbortError') return;
+          if (!worldTransport.fail_load(requestId, instanceId, error instanceof Error ? error.message : String(error))) throw new Error(`Failed to reject ${instanceId}`);
+          worldTransport.sync_collision(engineState);
+          if (instanceId === 'outdoor-instance') console.warn('Outdoor preload failed by debug request; source remains playable.');
+        });
+      }
+    }
+    for (const [id, controller] of pendingLoads) {
+      if (!currentActiveIds.has(id)) {
+        controller.abort();
+        pendingLoads.delete(id);
+      }
+    }
     const movementX = input.move.y * Math.sin(cameraBeforeCrossing.yaw[0] ?? 0) + input.move.x * Math.cos(cameraBeforeCrossing.yaw[0] ?? 0);
     const movementZ = -input.move.y * Math.cos(cameraBeforeCrossing.yaw[0] ?? 0) + input.move.x * Math.sin(cameraBeforeCrossing.yaw[0] ?? 0);
     if ((input.move.x !== 0 || input.move.y !== 0) && worldTransport.try_crossing(cameraBeforeCrossing.x[0] ?? 0, cameraBeforeCrossing.y[0] ?? 0, cameraBeforeCrossing.z[0] ?? 0, movementX, movementZ)) {
@@ -150,6 +168,9 @@ async function main(): Promise<void> {
       instances,
       sourcePlayable: instances.some((instance) => instance.id === 'dungeon-instance' && instance.collisionActive),
       debugMovement: { x: movementX, z: movementZ, yaw: camera.yaw[0] ?? 0 },
+      queueDepth: worldTransport.scheduler_queue_depth(),
+      activeLoads: activeCount,
+      pins: instances.filter(i => worldTransport.scheduler_diagnostic_intent(i.id) === 3).length,
     };
     requestAnimationFrame(frame);
   };

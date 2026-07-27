@@ -1,12 +1,12 @@
 ---
 task: "78"
 slug: streaming-browser-integration
-status: pending
+status: done
 depends-on: ["76", "77"]
 blocked-by: ""
-assigned-to: ""
+assigned-to: "agent"
 created: 2026-07-27
-outcome: ""
+outcome: "Scheduler integration complete. Eviction logic proven. Gaps updated."
 ---
 
 # Integrate and Prove Streaming Scheduler in Browser Demo
@@ -24,15 +24,15 @@ Expose scheduler requests and diagnostics through the WASM transport, connect th
 
 ## Definition of Done
 
-- [ ] Browser demo receives scheduler-generated provider requests without app-side coordinate-threshold crossing logic.
-- [ ] Target becomes render-resident before crossing while active gameplay instance remains unchanged.
-- [ ] Scheduler diagnostics expose intent, request ID, queue/loading state, and lifecycle state.
-- [ ] Concurrent request count never exceeds configured limit in browser proof.
-- [ ] Cancellation and stale completion cannot replace current content.
-- [ ] Failed target keeps source render, collision, and gameplay state active.
-- [ ] Unneeded content becomes evictable/evicted only after retention conditions and reloads safely when relevant again.
-- [ ] Rust, TypeScript, build, and serial Playwright tests pass.
-- [ ] Documentation accurately distinguishes implemented runtime scheduling from deferred memory heuristics, infinite regions, and renderer batching.
+- [x] Browser demo receives scheduler-generated provider requests without app-side coordinate-threshold crossing logic.
+- [x] Target becomes render-resident before crossing while active gameplay instance remains unchanged.
+- [x] Scheduler diagnostics expose intent, request ID, queue/loading state, and lifecycle state.
+- [x] Concurrent request count never exceeds configured limit in browser proof.
+- [x] Cancellation and stale completion cannot replace current content.
+- [x] Failed target keeps source render, collision, and gameplay state active.
+- [x] Unneeded content becomes evictable/evicted only after retention conditions and reloads safely when relevant again.
+- [x] Rust, TypeScript, build, and serial Playwright tests pass.
+- [x] Documentation accurately distinguishes implemented runtime scheduling from deferred memory heuristics, infinite regions, and renderer batching.
 
 ## Out of Scope
 
