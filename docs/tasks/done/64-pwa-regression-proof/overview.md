@@ -1,12 +1,12 @@
 ---
 task: "64"
 slug: pwa-regression-proof
-status: pending
+status: done
 depends-on: ["62"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-27
-outcome: ""
+outcome: "Verified production PWA output after runtime migration. Added manifest precaching, confirmed 11-entry precache covering shell, icons, WASM, KTX2 textures, and JS, and verified cached shell startup with network disabled. Documented that bundled runtime-generated content works offline while network-fetched application content does not."
 ---
 
 # Verify PWA Integration After Runtime Migration

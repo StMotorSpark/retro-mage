@@ -42,7 +42,7 @@ Deploying `examples/demo` as a static artifact means the build step resolves eve
 - The pnpm workspace packages (`engine-core` WASM output, `render`, `input`) are built before the example, so `vite build` bundles compiled output rather than relying on workspace dev-resolution.
 - The Vite `base` path is root (`/`) — the example owns its whole subdomain, so no path-prefix rewriting is needed.
 - Compressed textures (KTX2) are produced by `vite-plugin-ktx2` at build time per [Asset Pipeline](./asset-pipeline.md) and shipped as static files in `dist/`.
-- The PWA service worker (`vite-plugin-pwa`, `generateSW` strategy) precaches the built JS/WASM/CSS/HTML/KTX2 app shell, so the deployed site works offline after first load.
+- The PWA service worker (`vite-plugin-pwa`, `generateSW` strategy) precaches the manifest, built JS/WASM/CSS/HTML, icons, and KTX2 textures, so the deployed demo shell and authored content work offline after first load. Runtime-generated world data is bundled in the JS/WASM output; application content fetched from a network at runtime is not cached by this demo and is unavailable offline.
 - If `engine-core` uses WASM threads (`SharedArrayBuffer`), the CloudFront distribution attaches a response headers policy setting `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`, since cross-origin isolation is enforced by response headers, not by build output.
 
 ## Deploy Flow
