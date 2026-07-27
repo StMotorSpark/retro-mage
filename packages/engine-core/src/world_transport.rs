@@ -1,0 +1,154 @@
+//! Browser-facing transport for authoritative global world content.
+//!
+//! JS submits level content through scalar calls; Rust contract structs never cross
+//! the boundary. Output uses fixed-capacity SoA buffers. Overflow is sticky and
+//! observable; no content is silently truncated.
+
+use std::collections::HashMap;
+
+use wasm_bindgen::prelude::*;
+
+use crate::instance_runtime::LevelInstanceRuntime;
+use crate::world::{Bounds, LevelActor, LevelDefinition, LevelLight, LevelTile, PersistencePolicy, RuntimeState, TileOpenings, Transform, Vec3};
+
+pub const DEFAULT_WORLD_TILES: usize = 4096;
+pub const DEFAULT_WORLD_ACTORS: usize = 256;
+pub const DEFAULT_WORLD_LIGHTS: usize = 128;
+pub const DEFAULT_WORLD_INSTANCES: usize = 64;
+
+struct DefinitionBuilder { definition: LevelDefinition }
+
+#[wasm_bindgen]
+pub struct WorldTransport {
+    runtime: LevelInstanceRuntime,
+    builders: HashMap<String, DefinitionBuilder>,
+    tile_x: Vec<f32>, tile_y: Vec<f32>, tile_z: Vec<f32>, tile_id: Vec<f32>, tile_material: Vec<f32>, tile_variant: Vec<f32>, tile_orientation: Vec<f32>, tile_solid: Vec<f32>, tile_north: Vec<f32>, tile_east: Vec<f32>, tile_south: Vec<f32>, tile_west: Vec<f32>, tile_opening: Vec<f32>,
+    actor_x: Vec<f32>, actor_y: Vec<f32>, actor_z: Vec<f32>, actor_facing: Vec<f32>, actor_sprite: Vec<f32>, actor_active: Vec<f32>,
+    light_x: Vec<f32>, light_y: Vec<f32>, light_z: Vec<f32>, light_r: Vec<f32>, light_g: Vec<f32>, light_b: Vec<f32>, light_intensity: Vec<f32>, light_active: Vec<f32>,
+    instance_ids: Vec<String>, instance_states: Vec<u32>, instance_render: Vec<f32>, instance_collision: Vec<f32>, instance_simulation: Vec<f32>,
+    tiles: usize, actors: usize, lights: usize, instances: usize, overflow: bool,
+}
+
+#[wasm_bindgen]
+impl WorldTransport {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Self { Self::with_capacity(DEFAULT_WORLD_TILES, DEFAULT_WORLD_ACTORS, DEFAULT_WORLD_LIGHTS, DEFAULT_WORLD_INSTANCES) }
+
+    pub fn with_capacity(tile_capacity: usize, actor_capacity: usize, light_capacity: usize, instance_capacity: usize) -> Self {
+        Self {
+            runtime: LevelInstanceRuntime::new(), builders: HashMap::new(),
+            tile_x: vec![0.; tile_capacity], tile_y: vec![0.; tile_capacity], tile_z: vec![0.; tile_capacity], tile_id: vec![0.; tile_capacity], tile_material: vec![0.; tile_capacity], tile_variant: vec![0.; tile_capacity], tile_orientation: vec![0.; tile_capacity], tile_solid: vec![0.; tile_capacity], tile_north: vec![0.; tile_capacity], tile_east: vec![0.; tile_capacity], tile_south: vec![0.; tile_capacity], tile_west: vec![0.; tile_capacity], tile_opening: vec![0.; tile_capacity],
+            actor_x: vec![0.; actor_capacity], actor_y: vec![0.; actor_capacity], actor_z: vec![0.; actor_capacity], actor_facing: vec![0.; actor_capacity], actor_sprite: vec![0.; actor_capacity], actor_active: vec![0.; actor_capacity],
+            light_x: vec![0.; light_capacity], light_y: vec![0.; light_capacity], light_z: vec![0.; light_capacity], light_r: vec![0.; light_capacity], light_g: vec![0.; light_capacity], light_b: vec![0.; light_capacity], light_intensity: vec![0.; light_capacity], light_active: vec![0.; light_capacity],
+            instance_ids: Vec::with_capacity(instance_capacity), instance_states: vec![0; instance_capacity], instance_render: vec![0.; instance_capacity], instance_collision: vec![0.; instance_capacity], instance_simulation: vec![0.; instance_capacity],
+            tiles: 0, actors: 0, lights: 0, instances: 0, overflow: false,
+        }
+    }
+
+    /// Start definition registration. Bounds are local-space.
+    pub fn begin_definition(&mut self, id: &str, version: &str, min_x: f32, min_y: f32, min_z: f32, max_x: f32, max_y: f32, max_z: f32) -> bool {
+        if id.trim().is_empty() || version.trim().is_empty() { return false; }
+        self.builders.insert(id.into(), DefinitionBuilder { definition: LevelDefinition { id: id.into(), version: version.into(), bounds: Bounds { min: Vec3 { x: min_x, y: min_y, z: min_z }, max: Vec3 { x: max_x, y: max_y, z: max_z } }, tiles: vec![], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], metadata: Default::default() } }); true
+    }
+
+    pub fn definition_tile(&mut self, definition_id: &str, x: f32, y: f32, z: f32, tile_id: u32, material_id: u32, variant: u16, orientation: u8, solid: bool, north: bool, east: bool, south: bool, west: bool, vertical: bool) -> bool {
+        let Some(builder) = self.builders.get_mut(definition_id) else { return false; };
+        builder.definition.tiles.push(LevelTile { position: Vec3 { x, y, z }, tile_id, material_id, variant, orientation, solid, openings: TileOpenings { north, east, south, west, vertical }, stairs: None }); true
+    }
+
+    pub fn definition_actor(&mut self, definition_id: &str, x: f32, y: f32, z: f32, actor_id: &str, sprite_id: u32, facing: f32, active: bool, spawn: bool) -> bool {
+        let Some(builder) = self.builders.get_mut(definition_id) else { return false; };
+        builder.definition.actors.push(LevelActor { position: Vec3 { x, y, z }, actor_id: actor_id.into(), sprite_id, facing, active, spawn }); true
+    }
+
+    pub fn definition_light(&mut self, definition_id: &str, x: f32, y: f32, z: f32, r: f32, g: f32, b: f32, intensity: f32, active: bool) -> bool {
+        let Some(builder) = self.builders.get_mut(definition_id) else { return false; };
+        builder.definition.lights.push(LevelLight { position: Vec3 { x, y, z }, color: [r, g, b], intensity, active }); true
+    }
+
+    pub fn finish_definition(&mut self, id: &str) -> bool {
+        let Some(builder) = self.builders.remove(id) else { return false; };
+        self.runtime.register_definition(builder.definition).is_ok()
+    }
+
+    pub fn register_instance(&mut self, id: &str, definition_id: &str, x: f32, y: f32, z: f32, qx: f32, qy: f32, qz: f32, qw: f32, scale: f32, persistence: u32) -> bool {
+        if self.instances >= self.instance_ids.capacity() { self.overflow = true; return false; }
+        let policy = match persistence { 0 => PersistencePolicy::Persistent, 2 => PersistencePolicy::Regenerated, _ => PersistencePolicy::Session };
+        let transform = Transform { translation: Vec3 { x, y, z }, rotation: crate::world::Quaternion { x: qx, y: qy, z: qz, w: qw }, scale };
+        if self.runtime.create_instance(id, definition_id, transform, policy).is_err() { return false; }
+        self.sync(); true
+    }
+
+    pub fn set_instance_state(&mut self, id: &str, state: u32, render_resident: bool, collision_active: bool, simulation_active: bool) -> bool {
+        let Some(instance) = self.runtime.instance_mut(id) else { return false; };
+        instance.descriptor.state = match state { 1 => RuntimeState::Loading, 2 => RuntimeState::Resident, 3 => RuntimeState::Active, 4 => RuntimeState::Evictable, 5 => RuntimeState::Evicted, 6 => RuntimeState::Failed, _ => RuntimeState::Known };
+        instance.descriptor.render_resident = render_resident; instance.descriptor.collision_active = collision_active; instance.descriptor.simulation_active = simulation_active; self.sync(); true
+    }
+
+    pub fn refresh(&mut self) { self.sync(); }
+    pub fn clear(&mut self) { self.tiles = 0; self.actors = 0; self.lights = 0; self.instances = 0; self.instance_ids.clear(); self.overflow = false; }
+    pub fn overflowed(&self) -> bool { self.overflow }
+    pub fn tile_count(&self) -> usize { self.tiles }
+    pub fn actor_count(&self) -> usize { self.actors }
+    pub fn light_count(&self) -> usize { self.lights }
+    pub fn instance_count(&self) -> usize { self.instances }
+    pub fn tile_capacity(&self) -> usize { self.tile_x.len() }
+    pub fn actor_capacity(&self) -> usize { self.actor_x.len() }
+    pub fn light_capacity(&self) -> usize { self.light_x.len() }
+    pub fn instance_capacity(&self) -> usize { self.instance_states.len() }
+    pub fn instance_id(&self, index: usize) -> String { self.instance_ids.get(index).cloned().unwrap_or_default() }
+    pub fn instance_state(&self, index: usize) -> u32 { self.instance_states.get(index).copied().unwrap_or(0) }
+    pub fn instance_render_resident(&self, index: usize) -> bool { self.instance_render.get(index).copied().unwrap_or(0.) != 0. }
+    pub fn instance_collision_active(&self, index: usize) -> bool { self.instance_collision.get(index).copied().unwrap_or(0.) != 0. }
+    pub fn instance_simulation_active(&self, index: usize) -> bool { self.instance_simulation.get(index).copied().unwrap_or(0.) != 0. }
+}
+
+macro_rules! ptr_api { ($($name:ident: $field:ident),* $(,)?) => {
+    #[wasm_bindgen]
+    impl WorldTransport { $(pub fn $name(&self) -> *const f32 { self.$field.as_ptr() })* }
+}; }
+ptr_api!(tiles_x_ptr: tile_x, tiles_y_ptr: tile_y, tiles_z_ptr: tile_z, tiles_tile_id_ptr: tile_id, tiles_material_id_ptr: tile_material, tiles_variant_ptr: tile_variant, tiles_orientation_ptr: tile_orientation, tiles_solid_ptr: tile_solid, tiles_north_ptr: tile_north, tiles_east_ptr: tile_east, tiles_south_ptr: tile_south, tiles_west_ptr: tile_west, tiles_opening_ptr: tile_opening, actors_x_ptr: actor_x, actors_y_ptr: actor_y, actors_z_ptr: actor_z, actors_facing_ptr: actor_facing, actors_sprite_id_ptr: actor_sprite, actors_active_ptr: actor_active, lights_x_ptr: light_x, lights_y_ptr: light_y, lights_z_ptr: light_z, lights_r_ptr: light_r, lights_g_ptr: light_g, lights_b_ptr: light_b, lights_intensity_ptr: light_intensity, lights_active_ptr: light_active);
+
+impl WorldTransport {
+    fn sync(&mut self) {
+        self.tiles = 0; self.actors = 0; self.lights = 0; self.instances = 0; self.instance_ids.clear();
+        let entries: Vec<_> = self.runtime.instances().filter(|(_, instance)| instance.descriptor.render_resident).map(|(id, instance)| (id.to_owned(), instance.global.clone())).collect();
+        for (id, content) in entries {
+            if self.instances >= self.instance_states.len() { self.overflow = true; break; }
+            let instance = self.runtime.instance(&id).expect("instance exists"); self.instance_ids.push(id); self.instance_states[self.instances] = state_code(instance.descriptor.state); self.instance_render[self.instances] = instance.descriptor.render_resident as u8 as f32; self.instance_collision[self.instances] = instance.descriptor.collision_active as u8 as f32; self.instance_simulation[self.instances] = instance.descriptor.simulation_active as u8 as f32; self.instances += 1;
+            for tile in content.tiles { if self.tiles >= self.tile_x.len() { self.overflow = true; break; } let i = self.tiles; self.tile_x[i]=tile.position.x; self.tile_y[i]=tile.position.y; self.tile_z[i]=tile.position.z; self.tile_id[i]=tile.tile_id as f32; self.tile_material[i]=tile.material_id as f32; self.tile_variant[i]=tile.variant as f32; self.tile_orientation[i]=tile.orientation as f32; self.tile_solid[i]=tile.solid as u8 as f32; self.tile_north[i]=tile.openings.north as u8 as f32; self.tile_east[i]=tile.openings.east as u8 as f32; self.tile_south[i]=tile.openings.south as u8 as f32; self.tile_west[i]=tile.openings.west as u8 as f32; self.tile_opening[i]=tile.openings.vertical as u8 as f32; self.tiles+=1; }
+            for actor in content.actors { if self.actors >= self.actor_x.len() { self.overflow=true; break; } let i=self.actors; self.actor_x[i]=actor.position.x; self.actor_y[i]=actor.position.y; self.actor_z[i]=actor.position.z; self.actor_facing[i]=actor.facing; self.actor_sprite[i]=actor.sprite_id as f32; self.actor_active[i]=actor.active as u8 as f32; self.actors+=1; }
+            for light in content.lights { if self.lights >= self.light_x.len() { self.overflow=true; break; } let i=self.lights; self.light_x[i]=light.position.x; self.light_y[i]=light.position.y; self.light_z[i]=light.position.z; self.light_r[i]=light.color[0]; self.light_g[i]=light.color[1]; self.light_b[i]=light.color[2]; self.light_intensity[i]=light.intensity; self.light_active[i]=light.active as u8 as f32; self.lights+=1; }
+        }
+    }
+}
+
+fn state_code(state: RuntimeState) -> u32 { match state { RuntimeState::Known => 0, RuntimeState::Loading => 1, RuntimeState::Resident => 2, RuntimeState::Active => 3, RuntimeState::Evictable => 4, RuntimeState::Evicted => 5, RuntimeState::Failed => 6 } }
+
+impl Default for WorldTransport { fn default() -> Self { Self::new() } }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn transforms_and_exports_contract_content() {
+        let mut t = WorldTransport::with_capacity(1, 1, 1, 1);
+        assert!(t.begin_definition("room", "1", 0., 0., 0., 2., 2., 2.));
+        assert!(t.definition_tile("room", 1., 0., 2., 7, 3, 2, 1, true, false, false, false, false, true));
+        assert!(t.definition_actor("room", 0., 1., 0., "guard", 4, 1.5, true, true));
+        assert!(t.definition_light("room", 2., 1., 0., 1., 0.5, 0.25, 2., true));
+        assert!(t.finish_definition("room"));
+        assert!(t.register_instance("east", "room", 10., 0., 0., 0., 0., 0., 1., 1., 0));
+        assert_eq!(t.tile_count(), 1); assert_eq!(t.actor_count(), 1); assert_eq!(t.light_count(), 1);
+        assert_eq!(t.tile_x[0], 11.); assert_eq!(t.instance_state(0), 2); assert!(!t.overflowed());
+    }
+    #[test]
+    fn overflow_sticky_and_counts_never_exceed_capacity() {
+        let mut t = WorldTransport::with_capacity(0, 0, 0, 1);
+        t.begin_definition("r", "1", 0., 0., 0., 1., 1., 1.0);
+        assert!(t.definition_tile("r", 0., 0., 0., 1, 1, 0, 0, true, false, false, false, false, false));
+        t.finish_definition("r");
+        assert!(t.register_instance("i", "r", 0., 0., 0., 0., 0., 0., 1., 1., 0));
+        assert!(t.overflowed()); assert_eq!(t.tile_count(), 0);
+    }
+}

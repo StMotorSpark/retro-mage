@@ -1,12 +1,12 @@
 ---
 task: "56"
 slug: wasm-world-transport
-status: pending
+status: done
 depends-on: ["54", "55"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-27
-outcome: ""
+outcome: "Added scalar JS/WASM world transport registration APIs, transformed global SoA buffers for tiles/actors/lights, instance lifecycle metadata, fixed capacities, sticky overflow signaling, and memory-safe TypeScript reader. Added Rust transport coverage plus existing Rust/render suites pass."
 ---
 
 # Add JS/WASM World Transport

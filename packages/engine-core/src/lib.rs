@@ -18,6 +18,7 @@ pub mod visibility;
 pub mod world;
 pub mod world_manifest;
 pub mod world_runtime;
+pub mod world_transport;
 
 pub use collision::CollisionConfig;
 pub use global_collision::{CollisionInstance, GlobalCollisionWorld, SolidAabb};

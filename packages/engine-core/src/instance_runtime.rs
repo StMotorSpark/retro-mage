@@ -149,6 +149,10 @@ impl LevelInstanceRuntime {
     pub fn instance_count(&self) -> usize {
         self.instances.len()
     }
+
+    pub fn instances(&self) -> impl Iterator<Item = (&str, &RuntimeLevelInstance)> {
+        self.instances.iter().map(|(id, instance)| (id.as_str(), instance))
+    }
 }
 
 #[cfg(test)]

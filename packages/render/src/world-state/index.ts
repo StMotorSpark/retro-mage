@@ -18,7 +18,7 @@ export class WorldStateReader {
 
   constructor(
     private engine: CombinedEngineState,
-    private memory: WebAssembly.Memory
+    private memory: WebAssembly.Memory,
   ) {}
 
   /**
@@ -42,3 +42,4 @@ export * from './lights.js';
 export * from './tiles.js';
 export * from './camera.js';
 export * from './scene.js';
+export * from './transport.js';
