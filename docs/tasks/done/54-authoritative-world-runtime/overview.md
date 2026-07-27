@@ -1,12 +1,12 @@
 ---
 task: "54"
 slug: authoritative-world-runtime
-status: pending
+status: done
 depends-on: ["45", "46", "47", "48", "49", "50"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-27
-outcome: ""
+outcome: "Added WorldRuntime composition root joining manifest topology, provider resolution, authoritative lifecycle records, transformed global content, collision, and simulation queries. Renamed lifecycle storage to ResidencyStore with compatibility alias, synchronized topology descriptors, preserved pin/cancel/failure/persistence behavior, and added integration coverage."
 ---
 
 # Establish One Authoritative World Runtime

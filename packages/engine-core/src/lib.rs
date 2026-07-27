@@ -17,10 +17,12 @@ pub mod tiles;
 pub mod visibility;
 pub mod world;
 pub mod world_manifest;
+pub mod world_runtime;
 
 pub use collision::CollisionConfig;
 pub use global_collision::{CollisionInstance, GlobalCollisionWorld, SolidAabb};
 pub use streaming_config::StreamingConfig;
+pub use world_runtime::WorldRuntime;
 
 use std::collections::HashMap;
 use actors::{ActorsBuffer, MAX_ACTORS};

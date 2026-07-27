@@ -44,7 +44,7 @@ struct Record {
 
 /// Runtime lifecycle controller for application-supplied level instances.
 #[derive(Debug, Default)]
-pub struct ResidencyManager {
+pub struct ResidencyStore {
     records: HashMap<String, Record>,
     provider: LevelProviderCoordinator,
     current: Option<String>,
@@ -52,7 +52,7 @@ pub struct ResidencyManager {
     explicit_pins: HashSet<String>,
 }
 
-impl ResidencyManager {
+impl ResidencyStore {
     pub fn new() -> Self { Self::default() }
 
     pub fn register(&mut self, instance: LevelInstance) -> Result<(), ResidencyError> {
@@ -71,6 +71,18 @@ impl ResidencyManager {
     pub fn collision_active(&self, id: &str) -> bool { self.records.get(id).is_some_and(|r| r.descriptor.collision_active) }
     pub fn simulation_active(&self, id: &str) -> bool { self.records.get(id).is_some_and(|r| r.descriptor.simulation_active) }
     pub fn content(&self, id: &str) -> Option<&GlobalLevelContent> { self.records.get(id).and_then(|r| r.global.as_ref()) }
+
+    /// All render-resident content, already transformed into global coordinates.
+    pub fn resident_content(&self) -> impl Iterator<Item = (&str, &GlobalLevelContent)> {
+        self.records.iter().filter_map(|(id, record)| {
+            record.descriptor.render_resident.then_some((id.as_str(), record.global.as_ref()?))
+        })
+    }
+
+    /// Instance IDs currently participating in collision.
+    pub fn active_collision_ids(&self) -> impl Iterator<Item = &str> {
+        self.records.iter().filter_map(|(id, record)| record.descriptor.collision_active.then_some(id.as_str()))
+    }
 
     /// Snapshot collision-active transformed geometry. Render residency alone
     /// never contributes solids.
@@ -249,6 +261,9 @@ impl ResidencyManager {
 
     fn record_mut(&mut self, id: &str) -> Result<&mut Record, ResidencyError> { self.records.get_mut(id).ok_or_else(|| ResidencyError::UnknownInstance(id.into())) }
 }
+
+/// Compatibility name for callers that used the pre-composition-root lifecycle type.
+pub type ResidencyManager = ResidencyStore;
 
 // Keep provider failure type part of this module's public API surface for apps
 // handling failed preload notifications.

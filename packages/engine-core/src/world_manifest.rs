@@ -210,6 +210,8 @@ impl WorldTopology {
     }
 
     pub fn instance(&self, id: &str) -> Option<&InstanceDescriptor> { self.instances.get(id) }
+    pub(crate) fn instance_mut(&mut self, id: &str) -> Option<&mut InstanceDescriptor> { self.instances.get_mut(id) }
+    pub fn instances(&self) -> impl Iterator<Item = &InstanceDescriptor> { self.instances.values() }
     pub fn link(&self, id: &str) -> Option<&LevelLink> { self.links.get(id) }
     pub fn starting_locations(&self) -> &[StartLocation] { &self.starting_locations }
 

@@ -1,0 +1,164 @@
+//! Authoritative world composition root.
+//!
+//! `WorldRuntime` is the one engine-owned authority joining application topology,
+//! provider resolution, placed instances, transformed content, and lifecycle.
+//! Render residency, collision activity, and simulation activity remain separate
+//! flags on each authoritative instance record.
+
+use crate::global_collision::GlobalCollisionWorld;
+use crate::instance_runtime::GlobalLevelContent;
+use crate::level_provider::{LevelProvider, LevelProviderMetadata, LevelProviderRequest, LevelProviderResult, ProviderUpdate};
+use crate::residency::{PersistenceHandoff, ResidencyError, ResidencyStore};
+use crate::world::{LevelInstance, RuntimeState};
+use crate::world_manifest::{InstanceDescriptor, WorldManifest, WorldManifestError, WorldTopology};
+
+#[derive(Debug)]
+pub enum WorldRuntimeError {
+    Topology(WorldManifestError),
+    Residency(ResidencyError),
+}
+
+impl From<WorldManifestError> for WorldRuntimeError {
+    fn from(error: WorldManifestError) -> Self { Self::Topology(error) }
+}
+impl From<ResidencyError> for WorldRuntimeError {
+    fn from(error: ResidencyError) -> Self { Self::Residency(error) }
+}
+
+/// Composition root for one global world.
+#[derive(Debug)]
+pub struct WorldRuntime {
+    topology: WorldTopology,
+    residency: ResidencyStore,
+}
+
+impl WorldRuntime {
+    /// Build topology and authoritative lifecycle records from one manifest.
+    pub fn from_manifest(manifest: WorldManifest) -> Result<Self, WorldRuntimeError> {
+        let topology = WorldTopology::from_manifest(manifest)?;
+        let mut residency = ResidencyStore::new();
+        for descriptor in topology.instances() {
+            residency.register(descriptor.instance.clone())?;
+        }
+        Ok(Self { topology, residency })
+    }
+
+    pub fn new(manifest: WorldManifest) -> Result<Self, WorldRuntimeError> {
+        Self::from_manifest(manifest)
+    }
+
+    pub fn topology(&self) -> &WorldTopology { &self.topology }
+    pub fn instance(&self, id: &str) -> Option<&LevelInstance> { self.residency.instance(id) }
+    pub fn state(&self, id: &str) -> Option<RuntimeState> { self.residency.state(id) }
+
+    /// Add application-discovered topology and its authoritative lifecycle record.
+    pub fn register_instance(&mut self, descriptor: InstanceDescriptor) -> Result<(), WorldRuntimeError> {
+        self.topology.register_instance(descriptor.clone())?;
+        if let Err(error) = self.residency.register(descriptor.instance) {
+            // Topology registration succeeded only after validation. Keep both stores
+            // aligned if a future lifecycle validation rule rejects the record.
+            return Err(error.into());
+        }
+        Ok(())
+    }
+
+    pub fn begin_load(&mut self, id: &str, metadata: LevelProviderMetadata) -> Result<LevelProviderRequest, WorldRuntimeError> {
+        let request = self.residency.begin_load(id, metadata)?;
+        self.sync_topology_instance(id);
+        Ok(request)
+    }
+
+    pub fn resolve<P: LevelProvider + ?Sized>(&mut self, provider: &mut P, id: &str, metadata: LevelProviderMetadata) -> Result<ProviderUpdate, WorldRuntimeError> {
+        let update = self.residency.resolve(provider, id, metadata)?;
+        self.sync_topology_instance(id);
+        Ok(update)
+    }
+
+    /// Accept async provider result. Accepted definitions and transformed global
+    /// content update same authoritative instance record queried by consumers.
+    pub fn accept(&mut self, result: LevelProviderResult) -> Result<ProviderUpdate, WorldRuntimeError> {
+        let id = result.instance_id.clone();
+        let update = self.residency.accept(result)?;
+        self.sync_topology_instance(&id);
+        Ok(update)
+    }
+
+    pub fn cancel_load(&mut self, id: &str) -> Result<Option<LevelProviderRequest>, WorldRuntimeError> {
+        let request = self.residency.cancel_load(id)?;
+        self.sync_topology_instance(id);
+        Ok(request)
+    }
+
+    pub fn activate(&mut self, id: &str) -> Result<(), WorldRuntimeError> {
+        self.residency.activate(id)?;
+        self.sync_topology_instance(id);
+        Ok(())
+    }
+    pub fn activate_for_crossing(&mut self, id: &str, safe_arrival_pose: bool) -> Result<bool, WorldRuntimeError> {
+        let activated = self.residency.activate_for_crossing(id, safe_arrival_pose)?;
+        self.sync_topology_instance(id);
+        Ok(activated)
+    }
+    pub fn mark_evictable(&mut self, id: &str) -> Result<(), WorldRuntimeError> {
+        self.residency.mark_evictable(id)?;
+        self.sync_topology_instance(id);
+        Ok(())
+    }
+    pub fn evict(&mut self, id: &str) -> Result<PersistenceHandoff, WorldRuntimeError> {
+        let handoff = self.residency.evict(id)?;
+        self.sync_topology_instance(id);
+        Ok(handoff)
+    }
+    pub fn set_current(&mut self, id: Option<&str>) -> Result<(), WorldRuntimeError> { Ok(self.residency.set_current(id)?) }
+    pub fn pin(&mut self, id: &str, pinned: bool) -> Result<(), WorldRuntimeError> { Ok(self.residency.pin(id, pinned)?) }
+    pub fn set_transition_pair(&mut self, a: &str, b: &str, pinned: bool) -> Result<(), WorldRuntimeError> { Ok(self.residency.set_transition_pair(a, b, pinned)?) }
+
+    /// Render query: resident transformed content only.
+    pub fn resident_global_content(&self) -> impl Iterator<Item = (&str, &GlobalLevelContent)> {
+        self.residency.resident_content()
+    }
+
+    /// Collision query: same resident records, filtered by collision activity.
+    pub fn active_collision_instance_ids(&self) -> impl Iterator<Item = &str> {
+        self.residency.active_collision_ids()
+    }
+
+    pub fn collision_world(&self) -> GlobalCollisionWorld { self.residency.collision_world() }
+    pub fn render_resident(&self, id: &str) -> bool { self.residency.render_resident(id) }
+    pub fn collision_active(&self, id: &str) -> bool { self.residency.collision_active(id) }
+    pub fn simulation_active(&self, id: &str) -> bool { self.residency.simulation_active(id) }
+
+    fn sync_topology_instance(&mut self, id: &str) {
+        let Some(runtime) = self.residency.instance(id).cloned() else { return };
+        if let Some(topology) = self.topology.instance_mut(id) {
+            topology.instance = runtime;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::level_provider::FixtureProvider;
+    use crate::world::{Bounds, LevelDefinition, LevelInstance, PersistencePolicy, Transform, Vec3};
+    use crate::world_manifest::{DefinitionDescriptor, WorldManifest};
+
+    fn definition() -> LevelDefinition {
+        LevelDefinition { id: "room".into(), version: "1".into(), bounds: Bounds { min: Vec3::ZERO, max: Vec3 { x: 1.0, y: 1.0, z: 1.0 } }, tiles: vec![Vec3::ZERO], actors: vec![], lights: vec![], anchors: vec![], metadata: Default::default() }
+    }
+    fn manifest() -> WorldManifest {
+        WorldManifest { definitions: vec![DefinitionDescriptor { id: "room".into(), version: "1".into(), anchors: vec![] }], instances: vec![InstanceDescriptor { instance: LevelInstance { id: "room-instance".into(), definition_id: "room".into(), definition_version: "1".into(), transform: Transform::IDENTITY, state: RuntimeState::Known, persistence: PersistencePolicy::Session, render_resident: false, collision_active: false, simulation_active: false } }], links: vec![], starting_locations: vec![] }
+    }
+
+    #[test]
+    fn provider_updates_single_render_collision_query_authority() {
+        let mut runtime = WorldRuntime::new(manifest()).unwrap();
+        let mut provider = FixtureProvider::ready(definition());
+        runtime.resolve(&mut provider, "room-instance", Default::default()).unwrap();
+        assert_eq!(runtime.resident_global_content().count(), 1);
+        runtime.activate("room-instance").unwrap();
+        assert_eq!(runtime.active_collision_instance_ids().collect::<Vec<_>>(), vec!["room-instance"]);
+        assert!(runtime.simulation_active("room-instance"));
+        assert_eq!(runtime.topology().instance("room-instance").unwrap().instance.state, RuntimeState::Active);
+    }
+}
