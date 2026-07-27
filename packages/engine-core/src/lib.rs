@@ -6,6 +6,7 @@ pub mod chunk;
 pub mod collision;
 pub mod input;
 pub mod lights;
+pub mod level_provider;
 pub mod room;
 pub mod seam;
 pub mod streaming_config;

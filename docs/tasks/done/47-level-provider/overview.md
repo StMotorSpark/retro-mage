@@ -1,12 +1,12 @@
 ---
 task: "47"
 slug: level-provider
-status: pending
+status: done
 depends-on: ["45", "46"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-27
-outcome: ""
+outcome: "Added application-owned LevelProvider request/result contracts with opaque metadata, explicit ready/pending/cancelled/failed outcomes, and coordinator request identity checks that reject stale results. Added deterministic FixtureProvider and unit coverage for authored resolution, pending/failed visibility, cancellation, and stale-result handling."
 ---
 
 # Add Application Level Provider Boundary
