@@ -11,6 +11,7 @@ pub mod seam;
 pub mod streaming_config;
 pub mod tiles;
 pub mod visibility;
+pub mod world;
 
 pub use collision::CollisionConfig;
 pub use streaming_config::StreamingConfig;

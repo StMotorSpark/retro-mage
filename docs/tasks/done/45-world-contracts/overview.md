@@ -1,12 +1,12 @@
 ---
 task: "45"
 slug: world-contracts
-status: pending
+status: done
 depends-on: []
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-27
-outcome: ""
+outcome: "Added engine-core world contracts for local level definitions, global instances, transforms, bounds, anchors, runtime state, and persistence. Added explicit validation, local-to-global point and bounds transforms, yaw construction, and deterministic unit tests; no loading or generation logic included."
 ---
 
 # Define World Runtime Contracts
