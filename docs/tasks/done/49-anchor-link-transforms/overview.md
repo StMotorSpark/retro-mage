@@ -1,12 +1,12 @@
 ---
 task: "49"
 slug: anchor-link-transforms
-status: pending
+status: done
 depends-on: ["45", "46", "48"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-27
-outcome: ""
+outcome: "Added transform composition/inversion and manifest link placement resolution. Spatial links align target anchors and preserve global player pose; explicit links validate offsets and return target arrival poses; directionality and rotated/vertical crossing tests cover boundaries."
 ---
 
 # Implement Anchor Alignment and Link Transforms

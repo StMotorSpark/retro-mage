@@ -16,7 +16,7 @@ pub struct Vec3 {
 impl Vec3 {
     pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0 };
 
-    fn is_finite(self) -> bool {
+    pub fn is_finite(self) -> bool {
         self.x.is_finite() && self.y.is_finite() && self.z.is_finite()
     }
 }
@@ -38,6 +38,10 @@ impl Quaternion {
             && self.z.is_finite()
             && self.w.is_finite()
             && (self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w) > f32::EPSILON
+    }
+
+    fn conjugate(self) -> Self {
+        Self { x: -self.x, y: -self.y, z: -self.z, w: self.w }
     }
 
     fn multiply(self, other: Self) -> Self {
@@ -112,6 +116,31 @@ impl Transform {
             y: self.translation.y + rotated.y * self.scale,
             z: self.translation.z + rotated.z * self.scale,
         }
+    }
+
+    /// Compose transforms, applying `other` in this transform's local space.
+    pub fn compose(&self, other: &Self) -> Self {
+        Self {
+            translation: self.transform_point(other.translation),
+            rotation: self.rotation.multiply(other.rotation),
+            scale: self.scale * other.scale,
+        }
+    }
+
+    /// Invert uniform-scale transform. Zero scale has no usable inverse.
+    pub fn inverse(&self) -> Result<Self, WorldContractError> {
+        self.validate()?;
+        if self.scale <= f32::EPSILON {
+            return Err(WorldContractError::InvalidScale);
+        }
+        let inverse_rotation = self.rotation.conjugate();
+        let inverse_scale = 1.0 / self.scale;
+        let inverse = Self { translation: Vec3::ZERO, rotation: inverse_rotation, scale: inverse_scale };
+        Ok(Self { translation: inverse.transform_point(Vec3 { x: -self.translation.x, y: -self.translation.y, z: -self.translation.z }), ..inverse })
+    }
+
+    pub fn with_translation(self, translation: Vec3) -> Self {
+        Self { translation, ..self }
     }
 }
 
