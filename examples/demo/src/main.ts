@@ -53,6 +53,7 @@ async function main(): Promise<void> {
     else if (instance.id === 'dungeon-instance') throw new Error('Failed to activate source dungeon.');
     else console.warn(`Outdoor preload failed for ${instance.id}; source remains playable.`);
   }
+  if (!worldTransport.set_current_instance('dungeon-instance')) throw new Error('Failed to set source current instance.');
 
   // Global collision consumes same provider data and instance transforms as render transport.
   for (const instance of demoManifest.instances) {
@@ -118,16 +119,21 @@ async function main(): Promise<void> {
     if ((input.buttonsPressed & FACE1) !== 0) perfOverlay.toggle();
     engineState.tick(dtMs / 1000);
 
+    const cameraBeforeCrossing = legacyReader.read().camera;
+    if (worldTransport.try_crossing(cameraBeforeCrossing.x[0] ?? 0, cameraBeforeCrossing.y[0] ?? 0, cameraBeforeCrossing.z[0] ?? 0)) {
+      engineState.set_camera(worldTransport.crossing_pose_x(), worldTransport.crossing_pose_y(), worldTransport.crossing_pose_z(), cameraBeforeCrossing.yaw[0] ?? 0, cameraBeforeCrossing.pitch[0] ?? 0);
+    }
     const world = transportReader.read();
     const camera = legacyReader.read().camera;
     const x = camera.x[0] ?? 0;
-    renderer.setSkyboxEnabled(x >= 10);
-    const targetAmbient = x >= 10 ? 1 : 0.05;
+    const activeInstance = worldTransport.active_instance_id();
+    renderer.setSkyboxEnabled(activeInstance === 'outdoor-instance');
+    const targetAmbient = activeInstance === 'outdoor-instance' ? 1 : 0.05;
     engineState.set_ambient_light(engineState.ambient_light() + (targetAmbient - engineState.ambient_light()) * (1 - Math.exp(-5 * dtMs / 1000)));
     perfOverlay.update(dtMs, time, {
       sightRadius: engineState.sight_radius(), maxSightDistance: engineState.max_sight_distance(),
       cullPrecisionDistance: engineState.cull_precision_distance(), ambientLight: engineState.ambient_light(),
-      tilesCount: world.tiles.count, actorsCount: world.actors.count, activeWorldStructure: x >= 10 ? 'Outdoor' : 'Indoor',
+      tilesCount: world.tiles.count, actorsCount: world.actors.count, activeWorldStructure: activeInstance === 'outdoor-instance' ? 'Outdoor' : 'Indoor',
     });
     const pose = { x, y: camera.y[0] ?? 0, z: camera.z[0] ?? 0 };
     const instances = world.instances.map((instance) => ({
@@ -143,7 +149,7 @@ async function main(): Promise<void> {
       assetsReady,
       renderFrame: ++renderFrame,
       pose,
-      activeInstance: x >= 10 ? 'outdoor-instance' : 'dungeon-instance',
+      activeInstance: activeInstance as DemoDebugSnapshot['activeInstance'],
       targetVisible: world.scene.instanceIds.includes('outdoor-instance'),
       instances,
       sourcePlayable: instances.some((instance) => instance.id === 'dungeon-instance' && instance.collisionActive),

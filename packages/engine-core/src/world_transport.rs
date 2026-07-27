@@ -29,6 +29,7 @@ pub struct WorldTransport {
     light_x: Vec<f32>, light_y: Vec<f32>, light_z: Vec<f32>, light_r: Vec<f32>, light_g: Vec<f32>, light_b: Vec<f32>, light_intensity: Vec<f32>, light_active: Vec<f32>,
     instance_ids: Vec<String>, instance_states: Vec<u32>, instance_render: Vec<f32>, instance_collision: Vec<f32>, instance_simulation: Vec<f32>,
     tiles: usize, actors: usize, lights: usize, instances: usize, overflow: bool,
+    crossing_pose: Transform,
 }
 
 #[wasm_bindgen]
@@ -43,7 +44,7 @@ impl WorldTransport {
             actor_x: vec![0.; actor_capacity], actor_y: vec![0.; actor_capacity], actor_z: vec![0.; actor_capacity], actor_facing: vec![0.; actor_capacity], actor_sprite: vec![0.; actor_capacity], actor_active: vec![0.; actor_capacity],
             light_x: vec![0.; light_capacity], light_y: vec![0.; light_capacity], light_z: vec![0.; light_capacity], light_r: vec![0.; light_capacity], light_g: vec![0.; light_capacity], light_b: vec![0.; light_capacity], light_intensity: vec![0.; light_capacity], light_active: vec![0.; light_capacity],
             instance_ids: Vec::with_capacity(instance_capacity), instance_states: vec![0; instance_capacity], instance_render: vec![0.; instance_capacity], instance_collision: vec![0.; instance_capacity], instance_simulation: vec![0.; instance_capacity],
-            tiles: 0, actors: 0, lights: 0, instances: 0, overflow: false,
+            tiles: 0, actors: 0, lights: 0, instances: 0, overflow: false, crossing_pose: Transform::IDENTITY,
         }
     }
 
@@ -106,6 +107,25 @@ impl WorldTransport {
         if self.runtime.set_transport_state(id, state, render_resident, collision_active, simulation_active).is_err() { return false; }
         self.sync(); true
     }
+
+    pub fn set_current_instance(&mut self, id: &str) -> bool {
+        self.runtime.set_current(Some(id)).is_ok()
+    }
+
+    /// Engine-owned anchor-volume crossing. Returns true only after target
+    /// residency/readiness gate and activation succeed.
+    pub fn try_crossing(&mut self, x: f32, y: f32, z: f32) -> bool {
+        let pose = Transform { translation: Vec3 { x, y, z }, rotation: crate::world::Quaternion::IDENTITY, scale: 1.0 };
+        match self.runtime.try_crossing(pose) {
+            Ok(Some(resolution)) => { self.crossing_pose = resolution.player_pose; self.sync(); true }
+            _ => false,
+        }
+    }
+
+    pub fn active_instance_id(&self) -> String { self.runtime.current_instance().unwrap_or_default().into() }
+    pub fn crossing_pose_x(&self) -> f32 { self.crossing_pose.translation.x }
+    pub fn crossing_pose_y(&self) -> f32 { self.crossing_pose.translation.y }
+    pub fn crossing_pose_z(&self) -> f32 { self.crossing_pose.translation.z }
 
     pub fn refresh(&mut self) { self.sync(); }
     pub fn clear(&mut self) { self.tiles = 0; self.actors = 0; self.lights = 0; self.instances = 0; self.instance_ids.clear(); self.overflow = false; }

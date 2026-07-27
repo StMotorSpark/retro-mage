@@ -1,12 +1,12 @@
 ---
 task: "66"
 slug: engine-transition-gate
-status: pending
+status: done
 depends-on: ["65", "59"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-27
-outcome: ""
+outcome: "Moved spatial anchor crossing, readiness gating, activation, arrival pose, hysteresis, and active-instance reporting into authoritative WorldRuntime/WorldTransport APIs. Demo now crosses through runtime state instead of X-coordinate thresholds; failed targets leave source playable."
 ---
 
 # Move Transition Crossing Into Engine Runtime

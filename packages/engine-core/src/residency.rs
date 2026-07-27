@@ -67,6 +67,7 @@ impl ResidencyStore {
 
     pub fn instance(&self, id: &str) -> Option<&LevelInstance> { self.records.get(id).map(|r| &r.descriptor) }
     pub fn state(&self, id: &str) -> Option<RuntimeState> { self.instance(id).map(|i| i.state) }
+    pub fn current(&self) -> Option<&str> { self.current.as_deref() }
     pub fn render_resident(&self, id: &str) -> bool { self.records.get(id).is_some_and(|r| r.descriptor.render_resident) }
     pub fn collision_active(&self, id: &str) -> bool { self.records.get(id).is_some_and(|r| r.descriptor.collision_active) }
     pub fn simulation_active(&self, id: &str) -> bool { self.records.get(id).is_some_and(|r| r.descriptor.simulation_active) }
@@ -123,7 +124,7 @@ impl ResidencyStore {
     /// are ready. Source remains untouched on failure.
     pub fn activate_for_crossing(&mut self, id: &str, safe_arrival_pose: bool) -> Result<bool, ResidencyError> {
         if !self.crossing_ready(id, safe_arrival_pose) { return Ok(false); }
-        self.activate(id)?;
+        if self.state(id) != Some(RuntimeState::Active) { self.activate(id)?; }
         Ok(true)
     }
 
@@ -155,6 +156,17 @@ impl ResidencyStore {
         let request = self.begin_load(id, metadata)?;
         let result = provider.resolve(request);
         self.accept(result)
+    }
+
+    pub fn mark_failed(&mut self, id: &str) -> Result<(), ResidencyError> {
+        let record = self.record_mut(id)?;
+        record.descriptor.state = RuntimeState::Failed;
+        record.descriptor.render_resident = false;
+        record.descriptor.collision_active = false;
+        record.descriptor.simulation_active = false;
+        record.render_ready = false;
+        record.collision_ready = false;
+        Ok(())
     }
 
     pub fn cancel_load(&mut self, id: &str) -> Result<Option<LevelProviderRequest>, ResidencyError> {
@@ -209,7 +221,7 @@ impl ResidencyStore {
     }
 
     pub fn crossing_ready(&self, id: &str, safe_arrival_pose: bool) -> bool {
-        self.records.get(id).is_some_and(|r| r.descriptor.state == RuntimeState::Resident && r.render_ready && r.collision_ready && safe_arrival_pose)
+        self.records.get(id).is_some_and(|r| matches!(r.descriptor.state, RuntimeState::Resident | RuntimeState::Active) && r.render_ready && r.collision_ready && safe_arrival_pose)
     }
 
     pub fn activate(&mut self, id: &str) -> Result<(), ResidencyError> {

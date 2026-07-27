@@ -217,7 +217,18 @@ impl WorldTopology {
     pub(crate) fn instance_mut(&mut self, id: &str) -> Option<&mut InstanceDescriptor> { self.instances.get_mut(id) }
     pub fn instances(&self) -> impl Iterator<Item = &InstanceDescriptor> { self.instances.values() }
     pub fn link(&self, id: &str) -> Option<&LevelLink> { self.links.get(id) }
+    pub fn links(&self) -> impl Iterator<Item = &LevelLink> { self.links.values() }
     pub fn starting_locations(&self) -> &[StartLocation] { &self.starting_locations }
+
+    /// Test player position against an anchor's transformed crossing volume.
+    pub fn anchor_contains_world(&self, reference: &AnchorRef, point: crate::world::Vec3, padding: f32) -> Result<bool, WorldManifestError> {
+        let instance = &self.instances.get(&reference.instance_id).ok_or_else(|| WorldManifestError::UnknownInstance(reference.instance_id.clone()))?.instance;
+        let local = instance.transform.inverse().map_err(WorldManifestError::InvalidContract)?.transform_point(point);
+        let volume = &self.anchor(reference)?.volume;
+        Ok(local.x >= volume.min.x - padding && local.x <= volume.max.x + padding
+            && local.y >= volume.min.y - padding && local.y <= volume.max.y + padding
+            && local.z >= volume.min.z - padding && local.z <= volume.max.z + padding)
+    }
 
     /// Resolve target instance placement and player pose for one directed crossing.
     pub fn resolve_crossing(

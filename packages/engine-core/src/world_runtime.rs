@@ -31,6 +31,7 @@ impl From<ResidencyError> for WorldRuntimeError {
 pub struct WorldRuntime {
     topology: WorldTopology,
     residency: ResidencyStore,
+    crossing_armed: bool,
 }
 
 impl WorldRuntime {
@@ -41,7 +42,7 @@ impl WorldRuntime {
         for descriptor in topology.instances() {
             residency.register(descriptor.instance.clone())?;
         }
-        Ok(Self { topology, residency })
+        Ok(Self { topology, residency, crossing_armed: true })
     }
 
     pub fn new(manifest: WorldManifest) -> Result<Self, WorldRuntimeError> {
@@ -67,6 +68,38 @@ impl WorldRuntime {
         self.resolve(&mut provider, id, Default::default())
     }
     pub fn state(&self, id: &str) -> Option<RuntimeState> { self.residency.state(id) }
+    pub fn current_instance(&self) -> Option<&str> { self.residency.current() }
+
+    /// Resolve and commit spatial link crossing from player proximity. Runtime
+    /// owns anchor selection, readiness gate, hysteresis, and activation.
+    pub fn try_crossing(&mut self, player_pose: crate::world::Transform) -> Result<Option<CrossingResolution>, WorldRuntimeError> {
+        if !self.crossing_armed {
+            let still_inside = self.residency.current().and_then(|current| self.topology.links().find_map(|link| {
+                let source = if link.source.instance_id == current { Some(&link.source) } else if link.direction == crate::world_manifest::LinkDirection::Bidirectional {
+                    match &link.target { crate::world_manifest::LinkTarget::Instance(target) if target.instance_id == current => Some(target), _ => None }
+                } else { None };
+                source
+            }));
+            if !still_inside.map(|anchor| self.topology.anchor_contains_world(anchor, player_pose.translation, 0.75).unwrap_or(false)).unwrap_or(false) { self.crossing_armed = true; }
+            if !self.crossing_armed { return Ok(None); }
+        }
+        let Some(current) = self.residency.current().map(str::to_owned) else { return Ok(None) };
+        let candidate = self.topology.links().find_map(|link| {
+            let from = if link.source.instance_id == current { Some(&link.source) } else if link.direction == crate::world_manifest::LinkDirection::Bidirectional {
+                match &link.target { crate::world_manifest::LinkTarget::Instance(target) if target.instance_id == current => Some(target), _ => None }
+            } else { None }?;
+            self.topology.anchor_contains_world(from, player_pose.translation, 0.0).ok().filter(|inside| *inside).map(|_| (link.id.clone(), from.clone()))
+        });
+        let Some((link_id, from)) = candidate else { return Ok(None) };
+        let resolution = self.resolve_crossing(&link_id, &from, player_pose)?;
+        if !self.residency.crossing_ready(&resolution.target_instance_id, true) { return Ok(None); }
+        if !self.residency.activate_for_crossing(&resolution.target_instance_id, true)? { return Ok(None); }
+        self.sync_topology_instance(&resolution.target_instance_id);
+        self.residency.set_current(Some(&resolution.target_instance_id))?;
+        self.residency.set_transition_pair(&current, &resolution.target_instance_id, true)?;
+        self.crossing_armed = false;
+        Ok(Some(resolution))
+    }
 
     /// Add application-discovered topology and its authoritative lifecycle record.
     pub fn register_link(&mut self, link: crate::world_manifest::LevelLink) -> Result<(), WorldRuntimeError> {
@@ -179,7 +212,8 @@ impl WorldRuntime {
             RuntimeState::Evictable => self.mark_evictable(id)?,
             RuntimeState::Evicted => { let _ = self.evict(id)?; },
             RuntimeState::Resident => self.residency.set_data_readiness(id, render, collision)?,
-            RuntimeState::Known | RuntimeState::Loading | RuntimeState::Failed => {
+            RuntimeState::Failed => self.residency.mark_failed(id)?,
+            RuntimeState::Known | RuntimeState::Loading => {
                 return Err(ResidencyError::InvalidTransition { instance_id: id.into(), from: self.state(id).unwrap_or(RuntimeState::Known), to: state }.into())
             }
         }
