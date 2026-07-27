@@ -1,37 +1,79 @@
 ---
 feature: world-model
-tags: [features, world-model, dungeon-crawler]
-summary: Retro Mage represents the game world as a grid-ish, real-time dungeon-crawler space indoors and chunked terrain outdoors, with room for simulation depth layered on top.
+tags: [features, world-model, levels, coordinates]
+summary: Retro Mage represents one continuous global 3D world made from reusable authored or application-generated level definitions placed as runtime instances.
 relates-to:
+  - "[Level Transitions](./level-transitions.md)"
+  - "[World Runtime](../architecture/world-runtime.md)"
   - "[Rendering](../architecture/rendering.md)"
-  - "[Tech Stack](../architecture/tech-stack.md)"
-  - "[Visibility](../architecture/visibility.md)"
   - "[World Streaming](../architecture/world-streaming.md)"
+  - "[Tech Stack](../architecture/tech-stack.md)"
 ---
 
 # World Model
 
-Retro Mage's world model defines the space a game built on the engine takes place in: a grid-ish, real-time dungeon-crawler space indoors, extending into chunked open terrain outdoors, with simulation depth as an evolving layer rather than a fixed rule set.
+Retro Mage presents one continuous global 3D world. The world is assembled from reusable level definitions, but runtime systems operate on placed level instances in shared world coordinates.
 
-## Overview
+## Level Definitions
 
-The genre reference point is the dungeon crawler / immersive sim — real-time movement and combat within a space that is grid-ish rather than freeform, giving structured navigation and level design while supporting the polygon geometry described in [Rendering](../architecture/rendering.md) for spaces that break from a strict grid.
+A `LevelDefinition` is immutable local-space content supplied by the consuming application. It can come from authored data, an application-owned procedural generator, or another application-owned provider.
 
-## Indoor Space — Grid-ish, Real-Time
+A definition contains:
 
-Indoor dungeon space is grid-aligned by default — tiles for floors, ceilings, and walls — with polygon geometry available for structures that depart from the grid. Movement and combat are real-time, not turn-based: actors move and act continuously rather than on a turn cycle.
+- finite local bounds
+- grid-aligned tiles and simple polygon geometry
+- actor placements
+- light definitions
+- named local anchors
+- local metadata
 
-## Outdoor Space — Chunked Terrain
+A definition contains no world position, runtime actor state, residency state, or engine-owned generation rules. Definitions are reusable across multiple instances.
 
-Outdoor space extends the world beyond the dungeon grid into open terrain, represented in chunks so that streaming, rendering, and memory cost scale with the chunks currently relevant to the player rather than the entire outdoor map. Outdoor chunks connect to indoor dungeon spaces as entry and exit points between the two representations, and that connection is seamless — a player crosses between indoor and outdoor data without a load screen or discrete level transition, per [Visibility](../architecture/visibility.md).
+## Level Instances
+
+A `LevelInstance` places one definition into the global world. It contains:
+
+- stable instance identity
+- definition identity and version
+- global transform
+- mutable runtime state
+- persistence policy
+- residency and simulation state
+
+The same definition can appear at multiple global locations with different transforms. Runtime rendering, collision, lighting, and visibility use the transformed instance data rather than the definition's local coordinates.
+
+## Global Coordinates
+
+The runtime world uses a shared right-handed 3D coordinate system:
+
+- `X` — horizontal east/right
+- `Y` — elevation
+- `Z` — horizontal depth
+
+Level definitions use local coordinates. The engine applies each instance transform when content becomes resident. The transform contract stores position, quaternion rotation, and uniform scale. Initial content uses translation, yaw, and vertical placement; the full transform shape remains available for rotated and multi-floor spaces.
+
+Non-uniform and negative scale are invalid. Level bounds transform into world-space bounds for culling and streaming.
+
+## Indoor and Outdoor Content
+
+Indoor rooms and outdoor regions are content and streaming categories, not separate runtime coordinate systems. Both become ordinary level instances in the global scene. Indoor content remains grid-ish by default; outdoor content uses terrain regions or chunks supplied by the application.
+
+This permits geometry to overlap physically. Windows, balconies, cave mouths, vertical transitions, and outdoor vistas use the same world-space model rather than a seam-specific coordinate bridge.
+
+## Application-Owned Content Generation
+
+The engine consumes resolved definitions. The application owns authored loaders, procedural generators, seeds, generator versions, persistence, and source metadata. A seed is opaque to the engine; the engine does not assume numeric seeds, deterministic generation, or regeneration behavior.
+
+A generated definition follows the same runtime contract as authored content.
 
 ## Simulation Depth
 
-The world model supports simulation depth beyond pure navigation and combat — interactive objects, inventory, and actor behavior are expected additions as the engine matures. The specific mechanics of that depth are defined in their own feature docs as they're built out, rather than fixed in this document.
+The world supports real-time movement, actors, lights, interaction, multi-floor spaces, and later simulation systems. Multi-floor transforms and elevation are core world capabilities; full multi-floor movement physics is a separately scoped implementation slice.
 
 ## Related Docs
 
-- [Rendering](../architecture/rendering.md) — how this world model is drawn, including the tile/polygon hybrid and chunked outdoor rendering
-- [Tech Stack](../architecture/tech-stack.md) — the fixed-point math and Rust/WASM core this world model runs on
-- [Visibility](../architecture/visibility.md) — the occlusion/sight-radius cull and seamless indoor/outdoor streaming handoff built on this world model
-- [World Streaming](../architecture/world-streaming.md) — the chunk/room streaming mechanics for the outdoor terrain and indoor rooms described here
+- [Level Transitions](./level-transitions.md) — anchors and links connect placed instances
+- [World Runtime](../architecture/world-runtime.md) — manifest, providers, lifecycle, and residency
+- [Rendering](../architecture/rendering.md) — global scene rendering
+- [World Streaming](../architecture/world-streaming.md) — loading and eviction of instances
+- [Tech Stack](../architecture/tech-stack.md) — runtime technology foundation

@@ -26,9 +26,9 @@ The simulation core (game loop, ECS-like world state, fixed-point math, tile/pol
 
 Rust is chosen over AssemblyScript or C++ specifically for agent development: it has the deepest training-data coverage of any WASM-target language, mature tooling (`cargo`, `wasm-pack`, `wasm-bindgen`), and a compiler that catches an agent's mistakes at compile time rather than allowing them to surface as runtime bugs discovered late. The borrow checker's friction is a net gain for an agent-driven workflow — errors are caught immediately, in place, with actionable messages.
 
-## Rendering — WebGL2, with WebGPU as a forward path
+## Rendering — WebGL2 baseline, WebGPU optional
 
-Rendering is TypeScript, targeting WebGL2 as the baseline API for broad phone browser compatibility, with WebGPU support added as availability improves. The renderer implements the retro visual approach described in [Rendering](./rendering.md): tile/polygon hybrid geometry, sprite-based actors, painter's-algorithm depth sorting, and lookup-table-driven lighting, layered with longer draw distances and dynamic outdoor rendering than the games that inspire it.
+Rendering is TypeScript with WebGL2 as the baseline backend for broad phone browser compatibility. The renderer uses depth-tested tile/polygon geometry, billboard actors, lookup-table-driven lighting, longer draw distances, and dynamic outdoor rendering. A backend-neutral scene/material contract keeps WebGPU available as an optional backend when browser support and measured workload justify it; WebGPU is not required by the initial renderer.
 
 ## Input — TypeScript, device-adaptive
 
