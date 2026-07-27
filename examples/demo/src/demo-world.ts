@@ -91,7 +91,7 @@ const outdoor: DemoLevelDefinition = {
   tiles: outdoorTiles(),
   actors: ([[15, -4], [22, -2], [12, 4], [20, 7], [8, 12], [18, 11]] as const).map(([x, z], index) => ({ x, y: 0, z, actorId: `tree-${index}`, spriteId: 1, facing: 0, active: true, spawn: true })),
   lights: [{ x: 12, y: 3, z: 4, color: [0.8, 0.9, 1], intensity: 1, active: true }],
-  anchors: [anchor('dungeon-gate', 0, 0, 'both', Math.PI / 2)], providerMetadata: { kind: 'authored-outdoor' },
+  anchors: [anchor('dungeon-gate', 0, 0, 'both', -Math.PI / 2)], providerMetadata: { kind: 'authored-outdoor' },
 };
 
 export const demoDefinitions: readonly DemoLevelDefinition[] = [dungeon, outdoor];
