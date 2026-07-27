@@ -1,12 +1,12 @@
 ---
 task: "65"
 slug: unify-transport-runtime
-status: pending
+status: done
 depends-on: ["54", "56", "57"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-27
-outcome: ""
+outcome: "WorldRuntime now owns topology, provider-backed lifecycle, instances, and transformed content. WorldTransport is a browser projection with scalar definition builders and fixed buffers; lifecycle calls route through runtime authority, and render/collision projection parity is covered by tests."
 ---
 
 # Unify World Runtime and Browser Transport

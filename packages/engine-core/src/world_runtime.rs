@@ -7,7 +7,8 @@
 
 use crate::global_collision::GlobalCollisionWorld;
 use crate::instance_runtime::GlobalLevelContent;
-use crate::level_provider::{LevelProvider, LevelProviderMetadata, LevelProviderRequest, LevelProviderResult, ProviderUpdate};
+use crate::level_provider::{FixtureProvider, LevelProvider, LevelProviderMetadata, LevelProviderRequest, LevelProviderResult, ProviderUpdate};
+use crate::world::LevelDefinition;
 use crate::residency::{PersistenceHandoff, ResidencyError, ResidencyStore};
 use crate::world::{LevelInstance, RuntimeState};
 use crate::world_manifest::{AnchorRef, CrossingResolution, InstanceDescriptor, WorldManifest, WorldManifestError, WorldTopology};
@@ -49,9 +50,30 @@ impl WorldRuntime {
 
     pub fn topology(&self) -> &WorldTopology { &self.topology }
     pub fn instance(&self, id: &str) -> Option<&LevelInstance> { self.residency.instance(id) }
+    pub fn instances(&self) -> impl Iterator<Item = &LevelInstance> {
+        self.topology.instances().map(|descriptor| &descriptor.instance)
+    }
+
+    /// Register application-owned definition metadata before provider resolution.
+    pub fn register_definition(&mut self, definition: crate::world_manifest::DefinitionDescriptor) -> Result<(), WorldRuntimeError> {
+        self.topology.register_definition(definition)?;
+        Ok(())
+    }
+
+    /// Convenience adapter for scalar/browser callers that submit a complete
+    /// authored definition. Normal applications call `resolve` with their own provider.
+    pub fn resolve_definition(&mut self, id: &str, definition: LevelDefinition) -> Result<ProviderUpdate, WorldRuntimeError> {
+        let mut provider = FixtureProvider::ready(definition);
+        self.resolve(&mut provider, id, Default::default())
+    }
     pub fn state(&self, id: &str) -> Option<RuntimeState> { self.residency.state(id) }
 
     /// Add application-discovered topology and its authoritative lifecycle record.
+    pub fn register_link(&mut self, link: crate::world_manifest::LevelLink) -> Result<(), WorldRuntimeError> {
+        self.topology.register_link(link)?;
+        Ok(())
+    }
+
     pub fn register_instance(&mut self, descriptor: InstanceDescriptor) -> Result<(), WorldRuntimeError> {
         self.topology.register_instance(descriptor.clone())?;
         if let Err(error) = self.residency.register(descriptor.instance) {
@@ -148,6 +170,23 @@ impl WorldRuntime {
     pub fn render_resident(&self, id: &str) -> bool { self.residency.render_resident(id) }
     pub fn collision_active(&self, id: &str) -> bool { self.residency.collision_active(id) }
     pub fn simulation_active(&self, id: &str) -> bool { self.residency.simulation_active(id) }
+
+    /// Browser adapter lifecycle gate. State changes still execute through
+    /// ResidencyStore; transport never owns a second lifecycle record.
+    pub fn set_transport_state(&mut self, id: &str, state: RuntimeState, render: bool, collision: bool, simulation: bool) -> Result<(), WorldRuntimeError> {
+        match state {
+            RuntimeState::Active => self.activate(id)?,
+            RuntimeState::Evictable => self.mark_evictable(id)?,
+            RuntimeState::Evicted => { let _ = self.evict(id)?; },
+            RuntimeState::Resident => self.residency.set_data_readiness(id, render, collision)?,
+            RuntimeState::Known | RuntimeState::Loading | RuntimeState::Failed => {
+                return Err(ResidencyError::InvalidTransition { instance_id: id.into(), from: self.state(id).unwrap_or(RuntimeState::Known), to: state }.into())
+            }
+        }
+        self.residency.set_bridge_flags(id, render, collision, simulation)?;
+        self.sync_topology_instance(id);
+        Ok(())
+    }
 
     fn sync_topology_instance(&mut self, id: &str) {
         let Some(runtime) = self.residency.instance(id).cloned() else { return };

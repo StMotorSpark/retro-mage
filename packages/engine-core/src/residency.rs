@@ -70,6 +70,13 @@ impl ResidencyStore {
     pub fn render_resident(&self, id: &str) -> bool { self.records.get(id).is_some_and(|r| r.descriptor.render_resident) }
     pub fn collision_active(&self, id: &str) -> bool { self.records.get(id).is_some_and(|r| r.descriptor.collision_active) }
     pub fn simulation_active(&self, id: &str) -> bool { self.records.get(id).is_some_and(|r| r.descriptor.simulation_active) }
+    pub(crate) fn set_bridge_flags(&mut self, id: &str, render: bool, collision: bool, simulation: bool) -> Result<(), ResidencyError> {
+        let record = self.records.get_mut(id).ok_or_else(|| ResidencyError::UnknownInstance(id.into()))?;
+        record.descriptor.render_resident = render;
+        record.descriptor.collision_active = collision;
+        record.descriptor.simulation_active = simulation;
+        Ok(())
+    }
     pub fn content(&self, id: &str) -> Option<&GlobalLevelContent> { self.records.get(id).and_then(|r| r.global.as_ref()) }
 
     /// Move instance while retaining authoritative transformed content.
