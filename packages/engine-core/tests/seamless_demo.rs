@@ -26,7 +26,7 @@ fn manifest() -> WorldManifest {
     WorldManifest {
         definitions: vec![DefinitionDescriptor { id: "dungeon".into(), version: "1".into(), anchors: dungeon().anchors }, DefinitionDescriptor { id: "outdoor".into(), version: "1".into(), anchors: outdoor().anchors }],
         instances: vec![instance("dungeon-instance", "dungeon"), instance("outdoor-instance", "outdoor")],
-        links: vec![LevelLink { id: "dungeon-outdoor".into(), source: AnchorRef { instance_id: "dungeon-instance".into(), anchor_id: "outdoor-gate".into() }, target: LinkTarget::Instance(AnchorRef { instance_id: "outdoor-instance".into(), anchor_id: "dungeon-gate".into() }), direction: LinkDirection::Bidirectional, anchor_sharing: AnchorSharingPolicy::Exclusive, transform: LinkTransform::Spatial, crossing_policy: CrossingPolicy::default() }],
+        links: vec![LevelLink { id: "dungeon-outdoor".into(), source: AnchorRef { instance_id: "dungeon-instance".into(), anchor_id: "outdoor-gate".into() }, target: LinkTarget::Instance(AnchorRef { instance_id: "outdoor-instance".into(), anchor_id: "dungeon-gate".into() }), direction: LinkDirection::Bidirectional, anchor_sharing: AnchorSharingPolicy::Exclusive, transform: LinkTransform::Spatial, crossing_policy: CrossingPolicy::default(), preload_policy: engine_core::world_manifest::LinkPreloadPolicy::default() }],
         starting_locations: vec![StartLocation { instance_id: "dungeon-instance".into(), anchor_id: "outdoor-gate".into() }],
     }
 }

@@ -1,12 +1,12 @@
 ---
 task: "75"
 slug: streaming-policy-planner
-status: pending
+status: done
 depends-on: []
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-27
-outcome: ""
+outcome: "Implemented streaming planner evaluating explicit intent from distance, links, and pins without mutating lifecycle. Exposed LinkPreloadPolicy in topology."
 ---
 
 # Implement Streaming Policy Planner
