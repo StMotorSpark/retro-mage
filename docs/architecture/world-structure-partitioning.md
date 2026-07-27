@@ -30,6 +30,12 @@ Providers may partition data internally for loading efficiency. That partition i
 
 Residency determines which instances have runtime resources. Separate policies can prioritize indoor and outdoor content, but rendering, collision, and lighting consume transformed global data. Collision activity and simulation activity remain explicit runtime state rather than automatic consequences of content category.
 
+## Compatibility Boundary
+
+`room`, `chunk`, and `seam` APIs are compatibility-only APIs for callers that do not install global world content. They own one legacy active-structure state, room graph, chunk streamer, and seam handoff path. Once global world content is installed, these APIs do not select structure, mutate seam topology, or change legacy streaming configuration. Global links, transforms, residency, rendering, and collision use `WorldRuntime`, `WorldManifest`, and global scene/collision transport instead.
+
+Compatibility seam injection is likewise limited to the legacy path. It never supplies geometry to global scene submission and never supplies collision solids.
+
 ## Related Docs
 
 - [World Model](../features/world-model.md) — global coordinate model

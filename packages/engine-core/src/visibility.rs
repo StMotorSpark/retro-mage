@@ -1,4 +1,8 @@
 //! Visibility culling and sight radius calculations.
+//!
+//! Legacy room/chunk tile culling remains compatibility-only. Global scene
+//! content is submitted through `world_transport` and does not use seam
+//! injection or legacy active-structure selection.
 
 use std::collections::{HashMap, HashSet};
 use crate::lights::{LightsBuffer, MAX_LIGHTS};

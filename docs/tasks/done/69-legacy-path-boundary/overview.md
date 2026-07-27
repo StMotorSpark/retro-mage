@@ -1,12 +1,12 @@
 ---
 task: "69"
 slug: legacy-path-boundary
-status: pending
+status: done
 depends-on: ["68"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-27
-outcome: ""
+outcome: "Contained legacy room/chunk/seam APIs behind the compatibility path; global world activation now ignores legacy structure, seam, room-graph, and streaming mutations. Added global-path isolation coverage and documented runtime selection/boundaries."
 ---
 
 # Clarify and Contain Legacy World Path

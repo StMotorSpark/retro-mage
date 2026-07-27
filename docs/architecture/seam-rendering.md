@@ -29,6 +29,10 @@ Opaque geometry uses the normal depth buffer. Doorway and portal shapes can use 
 
 A target that is not resident is not submitted as incomplete geometry. The source remains visible and playable while the application controls whether the link stays closed, retries, or supplies fallback content.
 
+## Compatibility Boundary
+
+Legacy `seam.rs` handoff and seam-injection APIs remain available only for pre-global callers. They are not a second global transition path: after global world content is installed, global links remain authoritative and legacy seam registration, structure selection, and seam streaming configuration are ignored.
+
 ## Related Docs
 
 - [Level Transitions](../features/level-transitions.md) — link and anchor behavior

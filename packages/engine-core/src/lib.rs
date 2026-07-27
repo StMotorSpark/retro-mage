@@ -239,8 +239,14 @@ impl EngineState {
         }
     }
 
-    /// Set active driving world structure (0 = Indoor, 1 = Outdoor).
+    /// Set compatibility active structure (0 = Indoor, 1 = Outdoor).
+    ///
+    /// No-op after global collision/world content is installed. Global runtime
+    /// selection does not use legacy structure state.
     pub fn set_active_world_structure(&mut self, structure: u32) {
+        if self.global_collision_configured {
+            return;
+        }
         let active = if structure == 0 {
             seam::ActiveWorldStructure::Indoor
         } else {
@@ -279,7 +285,10 @@ impl EngineState {
         }
     }
 
-    /// Register a seam in the engine.
+    /// Register a compatibility seam for pre-global callers.
+    ///
+    /// Global runtime links are registered through world manifests. This call
+    /// is ignored once global world content is installed.
     pub fn register_seam(
         &mut self,
         seam_id: u32,
@@ -292,6 +301,9 @@ impl EngineState {
         offset_y: f32,
         rotation_rad: f32,
     ) {
+        if self.global_collision_configured {
+            return;
+        }
         let transform = seam::SeamTransform::new(offset_x, offset_y, rotation_rad);
         let seam = seam::Seam::new(
             seam_id,
@@ -315,8 +327,14 @@ impl EngineState {
         }
     }
 
-    /// Set overall streaming configuration.
+    /// Set compatibility room/chunk/seam streaming configuration.
+    ///
+    /// Global runtime streaming is owned by `WorldRuntime`; this is ignored
+    /// after global world content is installed.
     pub fn set_streaming_config(&mut self, config: StreamingConfig) {
+        if self.global_collision_configured {
+            return;
+        }
         self.set_outdoor_load_radius(config.outdoor_load_radius);
         self.set_outdoor_evict_radius(config.outdoor_evict_radius);
         self.set_indoor_hop_depth(config.indoor_hop_depth);
@@ -343,8 +361,11 @@ impl EngineState {
         self.seam_manager.seam_trigger_distance()
     }
 
-    /// Set seam trigger distance in tiles.
+    /// Set compatibility seam trigger distance in tiles.
     pub fn set_seam_trigger_distance(&mut self, dist: f32) {
+        if self.global_collision_configured {
+            return;
+        }
         self.seam_manager.set_seam_trigger_distance(dist);
         self.check_and_log_dev_warnings();
     }
@@ -354,8 +375,11 @@ impl EngineState {
         self.seam_manager.crossing_threshold()
     }
 
-    /// Set seam crossing threshold in tiles.
+    /// Set compatibility seam crossing threshold in tiles.
     pub fn set_seam_crossing_threshold(&mut self, dist: f32) {
+        if self.global_collision_configured {
+            return;
+        }
         self.seam_manager.set_crossing_threshold(dist);
     }
 
@@ -364,8 +388,11 @@ impl EngineState {
         self.chunk_streamer.load_radius()
     }
 
-    /// Set outdoor chunk load radius (chunks).
+    /// Set compatibility outdoor chunk load radius (chunks).
     pub fn set_outdoor_load_radius(&mut self, radius: i32) {
+        if self.global_collision_configured {
+            return;
+        }
         self.chunk_streamer.set_load_radius(radius);
         self.chunk_streamer.update_for_player_pos(
             self.camera.x[0],
@@ -381,8 +408,11 @@ impl EngineState {
         self.chunk_streamer.evict_radius()
     }
 
-    /// Set outdoor chunk evict radius (chunks).
+    /// Set compatibility outdoor chunk evict radius (chunks).
     pub fn set_outdoor_evict_radius(&mut self, radius: i32) {
+        if self.global_collision_configured {
+            return;
+        }
         self.chunk_streamer.set_evict_radius(radius);
         self.chunk_streamer.update_for_player_pos(
             self.camera.x[0],
@@ -398,8 +428,11 @@ impl EngineState {
         self.chunk_streamer.max_resident_chunks()
     }
 
-    /// Set maximum resident outdoor chunks count limit (hard cap).
+    /// Set compatibility maximum resident outdoor chunks count limit (hard cap).
     pub fn set_outdoor_max_resident_chunks(&mut self, max: usize) {
+        if self.global_collision_configured {
+            return;
+        }
         self.chunk_streamer.set_max_resident_chunks(max);
         self.chunk_streamer.update_for_player_pos(
             self.camera.x[0],
@@ -419,8 +452,11 @@ impl EngineState {
         self.chunk_streamer.is_chunk_resident(chunk_x, chunk_y)
     }
 
-    /// Set outdoor default tile ID (e.g. 3 for grass terrain).
+    /// Set compatibility outdoor default tile ID (e.g. 3 for grass terrain).
     pub fn set_outdoor_default_tile_id(&mut self, tile_id: u16) {
+        if self.global_collision_configured {
+            return;
+        }
         self.chunk_provider.default_tile_id = tile_id;
     }
 
@@ -429,8 +465,11 @@ impl EngineState {
         self.indoor_streamer.hop_depth()
     }
 
-    /// Set indoor room hop depth.
+    /// Set compatibility indoor room hop depth.
     pub fn set_indoor_hop_depth(&mut self, depth: u32) {
+        if self.global_collision_configured {
+            return;
+        }
         self.indoor_streamer.set_hop_depth(depth);
         self.indoor_streamer.set_evict_hop_depth(depth);
         self.indoor_streamer
@@ -443,8 +482,11 @@ impl EngineState {
         self.indoor_streamer.evict_hop_depth()
     }
 
-    /// Set indoor room evict hop depth.
+    /// Set compatibility indoor room evict hop depth.
     pub fn set_indoor_evict_hop_depth(&mut self, depth: u32) {
+        if self.global_collision_configured {
+            return;
+        }
         self.indoor_streamer.set_evict_hop_depth(depth);
         self.indoor_streamer
             .update_for_current_room(&mut self.room_graph);
@@ -455,8 +497,11 @@ impl EngineState {
         self.indoor_streamer.max_resident_rooms()
     }
 
-    /// Set maximum resident indoor rooms count limit (hard cap).
+    /// Set compatibility maximum resident indoor rooms count limit (hard cap).
     pub fn set_indoor_max_resident_rooms(&mut self, max: usize) {
+        if self.global_collision_configured {
+            return;
+        }
         self.indoor_streamer.set_max_resident_rooms(max);
         self.indoor_streamer
             .update_for_current_room(&mut self.room_graph);
@@ -477,22 +522,31 @@ impl EngineState {
         self.indoor_streamer.current_room_id()
     }
 
-    /// Set current active indoor room ID and update resident room set.
+    /// Set compatibility current indoor room ID and update resident room set.
     pub fn set_indoor_current_room(&mut self, room_id: u32) {
+        if self.global_collision_configured {
+            return;
+        }
         self.indoor_streamer
             .set_current_room(room_id, &mut self.room_graph);
     }
 
-    /// Add a room node to internal engine room graph.
+    /// Add a room node to the compatibility room graph.
     pub fn add_room_to_graph(&mut self, room_id: u32, name: &str) {
+        if self.global_collision_configured {
+            return;
+        }
         self.room_graph
             .add_room(room::RoomNode::new(room_id, name));
         self.indoor_streamer
             .update_for_current_room(&mut self.room_graph);
     }
 
-    /// Add a bidirectional edge between two rooms in engine room graph.
+    /// Add a bidirectional edge between two rooms in the compatibility room graph.
     pub fn add_room_edge(&mut self, room1: u32, room2: u32) {
+        if self.global_collision_configured {
+            return;
+        }
         self.room_graph.add_edge(room1, room2);
         self.indoor_streamer
             .update_for_current_room(&mut self.room_graph);
@@ -1902,6 +1956,28 @@ mod tests {
         assert_eq!(state.seam_injection_tiles.count, 0);
         assert_eq!(state.camera.x[0], 0.0);
         assert_eq!(state.camera.z[0], 0.0);
+    }
+
+    #[test]
+    fn global_world_path_isolation_freezes_legacy_compatibility_state() {
+        let mut state = EngineState::new();
+        state.set_active_world_structure(0);
+        state.set_streaming_config(StreamingConfig::new(2, 3, 1, 5.0));
+        state.register_seam(1, 0, 0.0, 0.0, 100.0, 100.0, 100.0, 100.0, 0.0);
+        let config_before = state.streaming_config();
+        let seam_count_before = state.seam_manager.seams_for_room(0).len();
+        let active_before = state.active_world_structure();
+
+        state.add_global_collision_solid("global", 50.0, 0.0, 50.0, 51.0, 1.0, 51.0, true);
+        state.set_active_world_structure(1);
+        state.set_streaming_config(StreamingConfig::new(9, 10, 8, 20.0));
+        state.set_outdoor_load_radius(9);
+        state.set_indoor_hop_depth(8);
+        state.register_seam(2, 0, 1.0, 0.0, 101.0, 100.0, 100.0, 100.0, 0.0);
+
+        assert_eq!(state.active_world_structure(), active_before);
+        assert_eq!(state.streaming_config(), config_before);
+        assert_eq!(state.seam_manager.seams_for_room(0).len(), seam_count_before);
     }
 
     #[test]
