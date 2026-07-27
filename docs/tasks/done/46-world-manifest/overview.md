@@ -1,12 +1,12 @@
 ---
 task: "46"
 slug: world-manifest
-status: pending
+status: done
 depends-on: ["45"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-27
-outcome: ""
+outcome: "Added application-owned world manifest/topology registration with definition, instance, start-location, anchor-reference, and one-way/bidirectional link contracts. EngineState now supports startup and dynamic topology registration with explicit validation for IDs, definitions, versions, anchors, directions, and exclusive/shared anchor policy; unit tests cover valid, invalid, one-way, bidirectional, and reusable-definition links."
 ---
 
 # Implement World Manifest Registration

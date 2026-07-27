@@ -12,6 +12,7 @@ pub mod streaming_config;
 pub mod tiles;
 pub mod visibility;
 pub mod world;
+pub mod world_manifest;
 
 pub use collision::CollisionConfig;
 pub use streaming_config::StreamingConfig;
@@ -54,6 +55,7 @@ pub struct EngineState {
     indoor_streamer: room::IndoorRoomStreamer,
     room_graph: room::RoomGraph,
     seam_manager: seam::WorldSeamManager,
+    world_topology: world_manifest::WorldTopology,
 }
 
 #[wasm_bindgen]
@@ -98,6 +100,7 @@ impl EngineState {
             indoor_streamer,
             room_graph,
             seam_manager,
+            world_topology: world_manifest::WorldTopology::default(),
         }
     }
 
@@ -1155,6 +1158,42 @@ impl EngineState {
                 self.lights.active[i] = 0.0;
             }
         }
+    }
+}
+
+impl EngineState {
+    /// Register application-owned world topology before content resolution begins.
+    pub fn register_world_manifest(
+        &mut self,
+        manifest: world_manifest::WorldManifest,
+    ) -> Result<(), world_manifest::WorldManifestError> {
+        self.world_topology = world_manifest::WorldTopology::from_manifest(manifest)?;
+        Ok(())
+    }
+
+    pub fn register_world_definition(
+        &mut self,
+        definition: world_manifest::DefinitionDescriptor,
+    ) -> Result<(), world_manifest::WorldManifestError> {
+        self.world_topology.register_definition(definition)
+    }
+
+    pub fn register_world_instance(
+        &mut self,
+        instance: world_manifest::InstanceDescriptor,
+    ) -> Result<(), world_manifest::WorldManifestError> {
+        self.world_topology.register_instance(instance)
+    }
+
+    pub fn register_world_link(
+        &mut self,
+        link: world_manifest::LevelLink,
+    ) -> Result<(), world_manifest::WorldManifestError> {
+        self.world_topology.register_link(link)
+    }
+
+    pub fn world_topology(&self) -> &world_manifest::WorldTopology {
+        &self.world_topology
     }
 }
 
