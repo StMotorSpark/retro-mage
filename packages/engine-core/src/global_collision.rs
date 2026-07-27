@@ -68,6 +68,18 @@ impl GlobalCollisionWorld {
         self.active.insert(id, collision_active);
     }
 
+    /// Register one global solid for browser-facing incremental content upload.
+    pub fn add_solid(&mut self, instance_id: &str, solid: SolidAabb, collision_active: bool) {
+        self.instances
+            .entry(instance_id.to_owned())
+            .or_insert_with(|| CollisionInstance { id: instance_id.to_owned(), solids: Vec::new() })
+            .solids
+            .push(solid);
+        self.active.insert(instance_id.to_owned(), collision_active);
+    }
+
+    pub fn is_empty(&self) -> bool { self.instances.is_empty() }
+
     pub fn remove_instance(&mut self, id: &str) {
         self.instances.remove(id);
         self.active.remove(id);
@@ -153,5 +165,20 @@ mod tests {
         let pose = Transform { translation: Vec3 { x: 2.0, y: 7.0, z: 3.0 }, rotation: crate::world::Quaternion { y: 0.5, w: 0.8660254, ..crate::world::Quaternion::IDENTITY }, scale: 1.0 };
         let moved = world.resolve_movement(pose, 1.0, -2.0, 0.3, 1.6);
         assert_eq!(moved.translation.y, 7.0); assert_eq!(moved.rotation, pose.rotation);
+    }
+
+    #[test]
+    fn multiple_incremental_instances_respect_independent_activation() {
+        let mut world = GlobalCollisionWorld::new();
+        world.add_solid("source", SolidAabb { min: Vec3 { x: -1.0, y: 0.0, z: -1.0 }, max: Vec3 { x: 1.0, y: 2.0, z: 0.0 } }, true);
+        world.add_solid("target", SolidAabb { min: Vec3 { x: 9.0, y: 0.0, z: -1.0 }, max: Vec3 { x: 11.0, y: 2.0, z: 0.0 } }, false);
+        let source_pose = Transform { translation: Vec3 { x: 0.0, y: 0.0, z: -0.5 }, ..Transform::IDENTITY };
+        let target_pose = Transform { translation: Vec3 { x: 10.0, y: 0.0, z: -0.5 }, ..Transform::IDENTITY };
+        assert!(world.collides(source_pose, 0.3, 1.6));
+        assert!(!world.collides(target_pose, 0.3, 1.6));
+        assert!(world.set_collision_active("target", true));
+        assert!(world.collides(target_pose, 0.3, 1.6));
+        assert!(world.set_collision_active("source", false));
+        assert!(!world.collides(source_pose, 0.3, 1.6));
     }
 }

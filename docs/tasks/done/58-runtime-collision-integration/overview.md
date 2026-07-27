@@ -1,12 +1,12 @@
 ---
 task: "58"
 slug: runtime-collision-integration
-status: pending
+status: done
 depends-on: ["54", "55"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-27
-outcome: ""
+outcome: "Connected global collision movement to authoritative active-instance snapshots and browser scalar submission APIs. Collision now stays in global mode once configured, uses explicit solid geometry only, isolates inactive/removed instances, preserves sliding, and supports runtime snapshot replacement; Rust tests cover translated/rotated and multi-instance activation behavior."
 ---
 
 # Integrate Runtime Into Global Collision
