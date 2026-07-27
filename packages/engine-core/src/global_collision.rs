@@ -30,7 +30,8 @@ pub struct CollisionInstance {
 impl CollisionInstance {
     /// Build global AABBs from unit tile cells in definition local space.
     pub fn from_level(instance: &LevelInstance, definition: &LevelDefinition) -> Self {
-        let solids = definition.tiles.iter().map(|center| {
+        let solids = definition.tiles.iter().filter(|tile| tile.solid).map(|tile| {
+            let center = tile.position;
             let local = Bounds {
                 min: Vec3 { x: center.x - 0.5, y: center.y, z: center.z - 0.5 },
                 max: Vec3 { x: center.x + 0.5, y: center.y + 1.0, z: center.z + 0.5 },
@@ -114,7 +115,7 @@ mod tests {
     use crate::world::{Bounds, PersistencePolicy, RuntimeState};
 
     fn level(id: &str, transform: Transform) -> (LevelInstance, LevelDefinition) {
-        (LevelInstance { id: id.into(), definition_id: "d".into(), definition_version: "1".into(), transform, state: RuntimeState::Active, persistence: PersistencePolicy::Session, render_resident: true, collision_active: true, simulation_active: true }, LevelDefinition { id: "d".into(), version: "1".into(), bounds: Bounds { min: Vec3::ZERO, max: Vec3 { x: 4.0, y: 2.0, z: 4.0 } }, tiles: vec![Vec3 { x: 0.0, y: 0.0, z: -2.0 }], actors: vec![], lights: vec![], anchors: vec![], metadata: Default::default() })
+        (LevelInstance { id: id.into(), definition_id: "d".into(), definition_version: "1".into(), transform, state: RuntimeState::Active, persistence: PersistencePolicy::Session, render_resident: true, collision_active: true, simulation_active: true }, LevelDefinition { id: "d".into(), version: "1".into(), bounds: Bounds { min: Vec3::ZERO, max: Vec3 { x: 4.0, y: 2.0, z: 4.0 } }, tiles: vec![crate::world::LevelTile { position: Vec3 { x: 0.0, y: 0.0, z: -2.0 }, tile_id: 0, material_id: 0, variant: 0, orientation: 0, solid: true, openings: Default::default(), stairs: None }], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], metadata: Default::default() })
     }
 
     #[test]
@@ -135,6 +136,15 @@ mod tests {
         assert!(!world.collides(pose, 0.3, 1.6));
         world.set_collision_active("target", true);
         assert!(world.collides(pose, 0.3, 1.6));
+    }
+
+    #[test]
+    fn non_solid_tile_and_opening_do_not_block_collision() {
+        let (instance, mut definition) = level("open", Transform::IDENTITY);
+        definition.tiles[0].solid = false;
+        definition.tiles[0].openings.vertical = true;
+        let world_instance = CollisionInstance::from_level(&instance, &definition);
+        assert!(world_instance.solids.is_empty());
     }
 
     #[test]

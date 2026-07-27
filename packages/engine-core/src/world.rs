@@ -198,14 +198,72 @@ impl LevelAnchor {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TileOpenings {
+    pub north: bool,
+    pub east: bool,
+    pub south: bool,
+    pub west: bool,
+    pub vertical: bool,
+}
+
+impl Default for TileOpenings {
+    fn default() -> Self { Self { north: false, east: false, south: false, west: false, vertical: false } }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StairMetadata {
+    pub rise: i32,
+    pub run: i32,
+    pub direction: u8,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LevelTile {
+    pub position: Vec3,
+    pub tile_id: u32,
+    pub material_id: u32,
+    pub variant: u16,
+    pub orientation: u8,
+    pub solid: bool,
+    pub openings: TileOpenings,
+    pub stairs: Option<StairMetadata>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LevelActor {
+    pub position: Vec3,
+    pub actor_id: String,
+    pub sprite_id: u32,
+    pub facing: f32,
+    pub active: bool,
+    pub spawn: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LevelLight {
+    pub position: Vec3,
+    pub color: [f32; 3],
+    pub intensity: f32,
+    pub active: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LevelPolygon {
+    pub vertices: Vec<Vec3>,
+    pub material_id: u32,
+    pub solid: bool,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct LevelDefinition {
     pub id: String,
     pub version: String,
     pub bounds: Bounds,
-    pub tiles: Vec<Vec3>,
-    pub actors: Vec<Vec3>,
-    pub lights: Vec<Vec3>,
+    pub tiles: Vec<LevelTile>,
+    pub actors: Vec<LevelActor>,
+    pub lights: Vec<LevelLight>,
+    pub polygons: Vec<LevelPolygon>,
     pub anchors: Vec<LevelAnchor>,
     pub metadata: HashMap<String, String>,
 }
@@ -215,9 +273,10 @@ impl LevelDefinition {
         validate_id(&self.id, "definition")?;
         validate_id(&self.version, "definition version")?;
         self.bounds.validate()?;
-        for point in self.tiles.iter().chain(self.actors.iter()).chain(self.lights.iter()) {
-            if !point.is_finite() { return Err(WorldContractError::NonFinite("local content")); }
-        }
+        for tile in &self.tiles { if !tile.position.is_finite() { return Err(WorldContractError::NonFinite("tile position")); } }
+        for actor in &self.actors { validate_id(&actor.actor_id, "actor")?; if !actor.position.is_finite() { return Err(WorldContractError::NonFinite("actor position")); } }
+        for light in &self.lights { if !light.position.is_finite() || light.color.iter().any(|value| !value.is_finite()) || !light.intensity.is_finite() { return Err(WorldContractError::NonFinite("light")); } }
+        for polygon in &self.polygons { if polygon.vertices.len() < 3 || polygon.vertices.iter().any(|point| !point.is_finite()) { return Err(WorldContractError::InvalidPolygon); } }
         let mut ids = std::collections::HashSet::new();
         for anchor in &self.anchors {
             anchor.validate()?;
@@ -286,6 +345,7 @@ pub enum WorldContractError {
     DuplicateDefinition(String),
     DuplicateInstance(String),
     UnknownDefinition(String),
+    InvalidPolygon,
 }
 
 fn validate_id(id: &str, kind: &'static str) -> Result<(), WorldContractError> {
@@ -307,7 +367,7 @@ mod tests {
     #[test]
     fn derives_world_bounds_from_all_corners() {
         let instance = LevelInstance { id: "room".into(), definition_id: "d".into(), definition_version: "1".into(), transform: Transform { translation: Vec3 { x: 5.0, y: 2.0, z: -1.0 }, ..Transform::IDENTITY }, state: RuntimeState::Known, persistence: PersistencePolicy::Session, render_resident: false, collision_active: false, simulation_active: false };
-        let definition = LevelDefinition { id: "d".into(), version: "1".into(), bounds: bounds(), tiles: vec![], actors: vec![], lights: vec![], anchors: vec![], metadata: HashMap::new() };
+        let definition = LevelDefinition { id: "d".into(), version: "1".into(), bounds: bounds(), tiles: vec![], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], metadata: HashMap::new() };
         assert_eq!(instance.world_bounds(&definition).unwrap(), Bounds { min: Vec3 { x: 4.0, y: 2.0, z: -3.0 }, max: Vec3 { x: 6.0, y: 4.0, z: 1.0 } });
     }
 
@@ -316,7 +376,7 @@ mod tests {
         let mut transform = Transform::IDENTITY; transform.scale = -1.0;
         assert_eq!(transform.validate(), Err(WorldContractError::InvalidScale));
         assert_eq!((Bounds { min: Vec3 { x: 1.0, y: 0.0, z: 0.0 }, max: Vec3::ZERO }).validate(), Err(WorldContractError::InvertedBounds));
-        let mut definition = LevelDefinition { id: "".into(), version: "1".into(), bounds: bounds(), tiles: vec![], actors: vec![], lights: vec![], anchors: vec![], metadata: HashMap::new() };
+        let mut definition = LevelDefinition { id: "".into(), version: "1".into(), bounds: bounds(), tiles: vec![], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], metadata: HashMap::new() };
         assert_eq!(definition.validate(), Err(WorldContractError::EmptyId("definition")));
         definition.id = "d".into(); definition.anchors.push(LevelAnchor { id: "".into(), transform: Transform::IDENTITY, volume: bounds(), direction: AnchorDirection::Both });
         assert_eq!(definition.validate(), Err(WorldContractError::EmptyId("anchor")));

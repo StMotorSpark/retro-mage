@@ -7,16 +7,17 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::world::{
-    Bounds, LevelDefinition, LevelInstance, PersistencePolicy, RuntimeState, Transform,
-    Vec3, WorldContractError,
+    Bounds, LevelActor, LevelDefinition, LevelInstance, LevelLight, LevelPolygon, LevelTile,
+    PersistencePolicy, RuntimeState, Transform, Vec3, WorldContractError,
 };
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct GlobalLevelContent {
     pub bounds: Bounds,
-    pub tiles: Vec<Vec3>,
-    pub actors: Vec<Vec3>,
-    pub lights: Vec<Vec3>,
+    pub tiles: Vec<LevelTile>,
+    pub actors: Vec<LevelActor>,
+    pub lights: Vec<LevelLight>,
+    pub polygons: Vec<LevelPolygon>,
 }
 
 impl GlobalLevelContent {
@@ -26,9 +27,10 @@ impl GlobalLevelContent {
     ) -> Result<Self, WorldContractError> {
         Ok(Self {
             bounds: definition.bounds.transformed(transform)?,
-            tiles: transform_points(&definition.tiles, transform),
-            actors: transform_points(&definition.actors, transform),
-            lights: transform_points(&definition.lights, transform),
+            tiles: definition.tiles.iter().map(|tile| LevelTile { position: transform.transform_point(tile.position), ..*tile }).collect(),
+            actors: definition.actors.iter().map(|actor| LevelActor { position: transform.transform_point(actor.position), ..actor.clone() }).collect(),
+            lights: definition.lights.iter().map(|light| LevelLight { position: transform.transform_point(light.position), ..*light }).collect(),
+            polygons: definition.polygons.iter().map(|polygon| LevelPolygon { vertices: transform_points(&polygon.vertices, transform), ..polygon.clone() }).collect(),
         })
     }
 }
@@ -162,9 +164,10 @@ mod tests {
                 min: Vec3::ZERO,
                 max: Vec3 { x: 2.0, y: 1.0, z: 3.0 },
             },
-            tiles: vec![Vec3 { x: 1.0, y: 0.0, z: 2.0 }],
-            actors: vec![Vec3 { x: 0.0, y: 1.0, z: 0.0 }],
-            lights: vec![Vec3 { x: 2.0, y: 1.0, z: 3.0 }],
+            tiles: vec![LevelTile { position: Vec3 { x: 1.0, y: 0.0, z: 2.0 }, tile_id: 7, material_id: 3, variant: 2, orientation: 1, solid: true, openings: Default::default(), stairs: None }],
+            actors: vec![LevelActor { position: Vec3 { x: 0.0, y: 1.0, z: 0.0 }, actor_id: "guard".into(), sprite_id: 4, facing: 1.5, active: true, spawn: true }],
+            lights: vec![LevelLight { position: Vec3 { x: 2.0, y: 1.0, z: 3.0 }, color: [1.0, 0.5, 0.25], intensity: 2.0, active: true }],
+            polygons: vec![LevelPolygon { vertices: vec![Vec3::ZERO, Vec3 { x: 1.0, y: 0.0, z: 0.0 }, Vec3 { x: 0.0, y: 0.0, z: 1.0 }], material_id: 9, solid: false }],
             anchors: vec![],
             metadata: Default::default(),
         }
@@ -194,8 +197,13 @@ mod tests {
         let east = runtime.instance("east").unwrap();
         let west = runtime.instance("west").unwrap();
         assert!(Arc::ptr_eq(&east.definition, &west.definition));
-        assert_eq!(east.global.tiles[0], Vec3 { x: 11.0, y: 0.0, z: 2.0 });
-        assert_eq!(west.global.tiles[0], Vec3 { x: -9.0, y: 2.0, z: 6.0 });
+        assert_eq!(east.global.tiles[0].position, Vec3 { x: 11.0, y: 0.0, z: 2.0 });
+        assert_eq!(west.global.tiles[0].position, Vec3 { x: -9.0, y: 2.0, z: 6.0 });
+        assert_eq!(east.global.tiles[0].material_id, 3);
+        assert_eq!(east.global.actors[0].sprite_id, 4);
+        assert_eq!(west.global.lights[0].color, [1.0, 0.5, 0.25]);
+        assert_eq!(east.global.actors[0].position, Vec3 { x: 10.0, y: 1.0, z: 0.0 });
+        assert_eq!(west.global.polygons[0].vertices[1], Vec3 { x: -9.0, y: 2.0, z: 4.0 });
         assert_eq!(east.global.bounds.min, Vec3 { x: 10.0, y: 0.0, z: 0.0 });
         assert_eq!(west.descriptor.persistence, PersistencePolicy::Session);
     }

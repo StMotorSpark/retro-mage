@@ -1,12 +1,12 @@
 ---
 task: "55"
 slug: level-content-contract
-status: pending
+status: done
 depends-on: ["54"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-27
-outcome: ""
+outcome: "Expanded LevelDefinition with immutable tile, actor, light, and polygon content contracts; transformed every field into isolated GlobalLevelContent snapshots. Collision now uses tile solidity, with tests covering openings, materials, metadata preservation, and global transforms."
 ---
 
 # Complete Level Content Contract

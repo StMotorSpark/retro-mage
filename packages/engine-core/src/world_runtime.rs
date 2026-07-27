@@ -144,7 +144,7 @@ mod tests {
     use crate::world_manifest::{DefinitionDescriptor, WorldManifest};
 
     fn definition() -> LevelDefinition {
-        LevelDefinition { id: "room".into(), version: "1".into(), bounds: Bounds { min: Vec3::ZERO, max: Vec3 { x: 1.0, y: 1.0, z: 1.0 } }, tiles: vec![Vec3::ZERO], actors: vec![], lights: vec![], anchors: vec![], metadata: Default::default() }
+        LevelDefinition { id: "room".into(), version: "1".into(), bounds: Bounds { min: Vec3::ZERO, max: Vec3 { x: 1.0, y: 1.0, z: 1.0 } }, tiles: vec![crate::world::LevelTile { position: Vec3::ZERO, tile_id: 0, material_id: 0, variant: 0, orientation: 0, solid: true, openings: Default::default(), stairs: None }], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], metadata: Default::default() }
     }
     fn manifest() -> WorldManifest {
         WorldManifest { definitions: vec![DefinitionDescriptor { id: "room".into(), version: "1".into(), anchors: vec![] }], instances: vec![InstanceDescriptor { instance: LevelInstance { id: "room-instance".into(), definition_id: "room".into(), definition_version: "1".into(), transform: Transform::IDENTITY, state: RuntimeState::Known, persistence: PersistencePolicy::Session, render_resident: false, collision_active: false, simulation_active: false } }], links: vec![], starting_locations: vec![] }

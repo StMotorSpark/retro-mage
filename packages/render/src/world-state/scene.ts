@@ -5,10 +5,13 @@ export interface GlobalSceneTile {
   y: number;
   z: number;
   tile_id?: number;
+  material_id?: number;
   variant?: number;
+  orientation?: number;
   solid?: number;
   vertical_opening?: number;
   direction?: number;
+  stairs?: { rise: number; run: number; direction: number };
 }
 
 export interface GlobalSceneActor {
@@ -37,6 +40,14 @@ export interface GlobalSceneInstance {
   tiles?: readonly GlobalSceneTile[];
   actors?: readonly GlobalSceneActor[];
   lights?: readonly GlobalSceneLight[];
+  /** Optional future polygon submission; tile/actor/light paths remain unchanged. */
+  polygons?: readonly GlobalScenePolygon[];
+}
+
+export interface GlobalScenePolygon {
+  vertices: readonly { x: number; y: number; z: number }[];
+  material_id?: number;
+  solid?: number;
 }
 
 export interface GlobalSceneCapacity {
