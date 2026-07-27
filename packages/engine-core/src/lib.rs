@@ -8,6 +8,7 @@ pub mod input;
 pub mod instance_runtime;
 pub mod lights;
 pub mod level_provider;
+pub mod residency;
 pub mod room;
 pub mod seam;
 pub mod streaming_config;

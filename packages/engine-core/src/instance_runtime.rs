@@ -20,7 +20,7 @@ pub struct GlobalLevelContent {
 }
 
 impl GlobalLevelContent {
-    fn from_definition(
+    pub(crate) fn from_definition(
         definition: &LevelDefinition,
         transform: &Transform,
     ) -> Result<Self, WorldContractError> {

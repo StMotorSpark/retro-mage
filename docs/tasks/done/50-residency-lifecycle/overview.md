@@ -1,12 +1,12 @@
 ---
 task: "50"
 slug: residency-lifecycle
-status: pending
+status: done
 depends-on: ["47", "48", "49"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-27
-outcome: ""
+outcome: "Added provider-backed residency manager with explicit lifecycle, independent render/collision/simulation readiness, link preload hooks, crossing gates, pinning, cancellation/stale rejection, failure isolation, hysteresis, and persistence-safe eviction."
 ---
 
 # Implement Instance Residency Lifecycle
