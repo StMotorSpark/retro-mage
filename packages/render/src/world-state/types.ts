@@ -77,4 +77,6 @@ export interface WorldStateViews {
   camera: CameraView;
   /** Combined resident content, already in global coordinates. */
   readonly scene?: GlobalSceneView;
+  /** Global ambient scalar consumed by scene lighting. */
+  readonly ambient_light?: number;
 }

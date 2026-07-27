@@ -157,7 +157,13 @@ export function createLoop(
           skyboxRenderer.render(viewMatrix, projMatrix);
         }
         if (tileRenderer) {
-          tileRenderer.render(renderTiles, viewMatrix, projMatrix);
+          tileRenderer.render(
+            renderTiles,
+            viewMatrix,
+            projMatrix,
+            scene?.lights ?? views.lights,
+            views.ambient_light,
+          );
         }
         if (spriteRenderer) {
           spriteRenderer.render(renderActors, viewMatrix, projMatrix);

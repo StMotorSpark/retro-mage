@@ -1,12 +1,12 @@
 ---
 task: "57"
 slug: runtime-scene-integration
-status: pending
+status: done
 depends-on: ["54", "55", "56"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-27
-outcome: ""
+outcome: "Connected authoritative resident global transport to renderer scene views, passed scene lights and ambient data through render loop, added global-light shading, and made transport overflow observable. Added overlap and overflow scene tests."
 ---
 
 # Integrate Runtime Into Global Render Scene

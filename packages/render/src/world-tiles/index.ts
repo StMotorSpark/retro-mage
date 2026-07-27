@@ -1,5 +1,6 @@
-import type { TilesView } from '../world-state/types.js';
+import type { LightsView, TilesView } from '../world-state/types.js';
 import { mat4Translation, mat4Create } from '../matrix.js';
+import { collectActiveLights, evaluateLighting } from '../lighting/index.js';
 
 const VS_SOURCE = `#version 300 es
 in vec3 a_position;
@@ -50,7 +51,13 @@ void main() {
 
 export interface TileRenderer {
   setTexture(tileId: number, texture: WebGLTexture): void;
-  render(tiles: TilesView, viewMatrix: Float32Array, projMatrix: Float32Array): void;
+  render(
+    tiles: TilesView,
+    viewMatrix: Float32Array,
+    projMatrix: Float32Array,
+    lights?: LightsView,
+    ambientLight?: number,
+  ): void;
 }
 
 export function createTileRenderer(gl: WebGL2RenderingContext): TileRenderer {
@@ -161,7 +168,13 @@ export function createTileRenderer(gl: WebGL2RenderingContext): TileRenderer {
     setTexture(tileId: number, texture: WebGLTexture): void {
       textures.set(tileId, texture);
     },
-    render(tiles: TilesView, viewMatrix: Float32Array, projMatrix: Float32Array): void {
+    render(
+      tiles: TilesView,
+      viewMatrix: Float32Array,
+      projMatrix: Float32Array,
+      _lights?: LightsView,
+      _ambientLight?: number,
+    ): void {
       if (tiles.count === 0) return;
 
       gl.useProgram(program);
@@ -171,6 +184,8 @@ export function createTileRenderer(gl: WebGL2RenderingContext): TileRenderer {
       gl.uniformMatrix4fv(uView, false, viewMatrix);
 
       let currentTexTileId: number | null = null;
+      const activeLights = collectActiveLights(_lights);
+      const ambient = _ambientLight ?? 0.35;
 
       for (let i = 0; i < tiles.count; i++) {
         const x = tiles.x[i] ?? 0;
@@ -199,14 +214,16 @@ export function createTileRenderer(gl: WebGL2RenderingContext): TileRenderer {
             gl.uniform1i(uUseTexture, 1);
           } else {
             gl.uniform1i(uUseTexture, 0);
-            // Color fallback based on tile_id
-            if (tileId === 2) {
-              gl.uniform4f(uColor, 0.6, 0.4, 0.25, 1.0); // Wood brown
-            } else if (tileId === 3) {
-              gl.uniform4f(uColor, 0.2, 0.5, 0.3, 1.0); // Moss green
-            } else {
-              gl.uniform4f(uColor, 0.5, 0.55, 0.6, 1.0); // Stone gray
-            }
+            // Color fallback based on tile_id, shaded from global scene lights.
+            const base = tileId === 2 ? [0.6, 0.4, 0.25] : tileId === 3 ? [0.2, 0.5, 0.3] : [0.5, 0.55, 0.6];
+            const light = evaluateLighting(x, y + 0.5, z, activeLights, ambient);
+            gl.uniform4f(
+              uColor,
+              (base[0] ?? 0) * (light[0] ?? 0),
+              (base[1] ?? 0) * (light[1] ?? 0),
+              (base[2] ?? 0) * (light[2] ?? 0),
+              1.0,
+            );
           }
         }
 

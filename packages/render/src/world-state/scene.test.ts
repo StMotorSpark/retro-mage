@@ -14,6 +14,23 @@ describe('GlobalSceneSubmission', () => {
     expect(view.actors.count).toBe(1);
   });
 
+  it('keeps overlapping source and target geometry in one depth-tested scene', () => {
+    const scene = new GlobalSceneSubmission({ tiles: 2, lights: 2 });
+    scene.submit({
+      id: 'source',
+      tiles: [{ x: 4, y: 0, z: 4, tile_id: 1 }],
+      lights: [{ x: 4, y: 1, z: 4, intensity: 2 }],
+    });
+    scene.submit({
+      id: 'target',
+      tiles: [{ x: 4, y: 0, z: 4, tile_id: 2 }],
+      lights: [{ x: 5, y: 1, z: 4, r: 1, g: 0.5, b: 0.25 }],
+    });
+    expect(scene.view().instanceIds).toEqual(['source', 'target']);
+    expect(scene.view().tiles.count).toBe(2);
+    expect(scene.view().lights.count).toBe(2);
+  });
+
   it('rejects whole instance on overflow and keeps previous submission intact', () => {
     const scene = new GlobalSceneSubmission({ tiles: 1 });
     scene.submit({ id: 'source', tiles: [{ x: 0, y: 0, z: 0 }] });

@@ -1,4 +1,5 @@
 import type { ActorsView, LightsView, TilesView } from './types.js';
+import type { GlobalSceneView } from './scene.js';
 
 export interface WorldTransportEngine {
   tiles_x_ptr(): number;
@@ -37,6 +38,8 @@ export interface WorldTransportEngine {
   instance_render_resident(index: number): boolean;
   instance_collision_active(index: number): boolean;
   instance_simulation_active(index: number): boolean;
+  ambient_light?: () => number;
+  overflowed?: () => boolean;
 }
 
 export interface WorldTransportViews {
@@ -51,6 +54,9 @@ export interface WorldTransportViews {
   actors: ActorsView;
   lights: LightsView;
   instances: readonly WorldTransportInstance[];
+  /** Combined resident content, already transformed into global coordinates. */
+  readonly scene: GlobalSceneView;
+  readonly ambient_light: number;
   overflowed?: () => boolean;
 }
 
@@ -149,7 +155,22 @@ export class WorldTransportReader {
       collision_active: this.engine.instance_collision_active(i),
       simulation_active: this.engine.instance_simulation_active(i),
     }));
-    this.cached = { tiles, actors, lights, instances };
+    const scene: GlobalSceneView = {
+      tiles,
+      actors,
+      lights,
+      instanceIds: instances.filter((instance) => instance.render_resident).map((instance) => instance.id),
+      counts: { tiles: tc, actors: ac, lights: lc },
+    };
+    this.cached = {
+      tiles,
+      actors,
+      lights,
+      instances,
+      scene,
+      ambient_light: this.engine.ambient_light?.() ?? 0,
+      overflowed: this.engine.overflowed?.bind(this.engine),
+    };
     return this.cached;
   }
 }
