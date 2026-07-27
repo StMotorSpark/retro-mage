@@ -1,12 +1,12 @@
 ---
 task: "52"
 slug: flat-global-collision
-status: pending
+status: done
 depends-on: ["48", "49", "50"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-27
-outcome: ""
+outcome: "Added global XZ circle-vs-AABB collision over transformed collision-active level instances with sliding, residency-gated activation, and EngineState integration. Global transform pose preserves Y/rotation/scale; tests cover rotated/translated geometry, inactive targets, sliding movement, and crossing readiness."
 ---
 
 # Add Initial Global Collision
@@ -23,11 +23,11 @@ Implement the grounded XZ movement slice against collision-active transformed le
 
 ## Definition of Done
 
-- [ ] Player moves and slides against transformed level geometry.
-- [ ] Source and target collision do not require coordinate seam conversion.
-- [ ] Crossing cannot enter a target lacking collision data.
-- [ ] Tests cover rotated/translated instances and link crossing.
-- [ ] Multi-floor-capable pose data remains intact.
+- [x] Player moves and slides against transformed level geometry.
+- [x] Source and target collision do not require coordinate seam conversion.
+- [x] Crossing cannot enter a target lacking collision data.
+- [x] Tests cover rotated/translated instances and link crossing.
+- [x] Multi-floor-capable pose data remains intact.
 
 ## Out of Scope
 

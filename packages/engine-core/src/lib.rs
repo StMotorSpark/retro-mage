@@ -4,6 +4,7 @@ pub mod actors;
 pub mod camera;
 pub mod chunk;
 pub mod collision;
+pub mod global_collision;
 pub mod input;
 pub mod instance_runtime;
 pub mod lights;
@@ -18,6 +19,7 @@ pub mod world;
 pub mod world_manifest;
 
 pub use collision::CollisionConfig;
+pub use global_collision::{CollisionInstance, GlobalCollisionWorld, SolidAabb};
 pub use streaming_config::StreamingConfig;
 
 use std::collections::HashMap;
@@ -59,6 +61,7 @@ pub struct EngineState {
     room_graph: room::RoomGraph,
     seam_manager: seam::WorldSeamManager,
     world_topology: world_manifest::WorldTopology,
+    global_collision: global_collision::GlobalCollisionWorld,
 }
 
 #[wasm_bindgen]
@@ -104,6 +107,7 @@ impl EngineState {
             room_graph,
             seam_manager,
             world_topology: world_manifest::WorldTopology::default(),
+            global_collision: global_collision::GlobalCollisionWorld::new(),
         }
     }
 
@@ -154,17 +158,17 @@ impl EngineState {
             self.collision_config.player_speed,
             dt_f32,
         );
-        let (new_px, new_py, new_pz, new_vy) = collision::resolve_movement(
-            self.camera.x[0],
-            self.camera.y[0],
-            self.camera.z[0],
-            dx,
-            self.player_velocity_y,
-            dz,
-            &self.collision_config,
-            dt_f32,
-            if self.active_world_structure() == 0 { &self.indoor_tiles } else { &self.outdoor_tiles },
-        );
+        let (new_px, new_py, new_pz, new_vy) = if self.global_collision.has_active_geometry() {
+            let pose = world::Transform { translation: world::Vec3 { x: self.camera.x[0], y: self.camera.y[0], z: self.camera.z[0] }, rotation: world::Quaternion { x: 0.0, y: (self.camera.yaw[0] * 0.5).sin(), z: 0.0, w: (self.camera.yaw[0] * 0.5).cos() }, scale: 1.0 };
+            let moved = self.global_collision.resolve_movement(pose, dx, dz, self.collision_config.player_radius, self.collision_config.player_height);
+            (moved.translation.x, moved.translation.y, moved.translation.z, self.player_velocity_y)
+        } else {
+            collision::resolve_movement(
+                self.camera.x[0], self.camera.y[0], self.camera.z[0], dx, self.player_velocity_y, dz,
+                &self.collision_config, dt_f32,
+                if self.active_world_structure() == 0 { &self.indoor_tiles } else { &self.outdoor_tiles },
+            )
+        };
         self.camera.x[0] = new_px;
         self.camera.y[0] = new_py;
         self.camera.z[0] = new_pz;
@@ -1165,6 +1169,27 @@ impl EngineState {
 }
 
 impl EngineState {
+    /// Replace one global collision instance. Geometry remains inert until active.
+    pub fn set_global_collision_instance(
+        &mut self,
+        instance: world::LevelInstance,
+        definition: world::LevelDefinition,
+        collision_active: bool,
+    ) {
+        self.global_collision.set_instance(
+            global_collision::CollisionInstance::from_level(&instance, &definition),
+            collision_active,
+        );
+    }
+
+    pub fn set_global_collision_active(&mut self, instance_id: &str, active: bool) -> bool {
+        self.global_collision.set_collision_active(instance_id, active)
+    }
+
+    pub fn clear_global_collision_instance(&mut self, instance_id: &str) {
+        self.global_collision.remove_instance(instance_id);
+    }
+
     /// Register application-owned world topology before content resolution begins.
     pub fn register_world_manifest(
         &mut self,

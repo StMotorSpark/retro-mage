@@ -72,6 +72,31 @@ impl ResidencyManager {
     pub fn simulation_active(&self, id: &str) -> bool { self.records.get(id).is_some_and(|r| r.descriptor.simulation_active) }
     pub fn content(&self, id: &str) -> Option<&GlobalLevelContent> { self.records.get(id).and_then(|r| r.global.as_ref()) }
 
+    /// Snapshot collision-active transformed geometry. Render residency alone
+    /// never contributes solids.
+    pub fn collision_world(&self) -> crate::global_collision::GlobalCollisionWorld {
+        let mut world = crate::global_collision::GlobalCollisionWorld::new();
+        for record in self.records.values() {
+            if record.descriptor.collision_active {
+                if let Some(definition) = record.definition.as_deref() {
+                    world.set_instance(
+                        crate::global_collision::CollisionInstance::from_level(&record.descriptor, definition),
+                        true,
+                    );
+                }
+            }
+        }
+        world
+    }
+
+    /// Activate target only after render/collision data and safe arrival pose
+    /// are ready. Source remains untouched on failure.
+    pub fn activate_for_crossing(&mut self, id: &str, safe_arrival_pose: bool) -> Result<bool, ResidencyError> {
+        if !self.crossing_ready(id, safe_arrival_pose) { return Ok(false); }
+        self.activate(id)?;
+        Ok(true)
+    }
+
     /// Begin provider resolution. Replacing an existing request makes its old
     /// result stale, which prevents late callbacks from reviving old content.
     pub fn begin_load(&mut self, id: &str, metadata: LevelProviderMetadata) -> Result<LevelProviderRequest, ResidencyError> {
@@ -248,7 +273,8 @@ mod tests {
         assert!(matches!(manager.resolve(&mut provider, "a", metadata()).unwrap(), ProviderUpdate::Ready(_)));
         assert!(manager.crossing_ready("a", true));
         manager.set_data_readiness("a", true, false).unwrap(); assert!(!manager.crossing_ready("a", true));
-        manager.set_data_readiness("a", true, true).unwrap(); manager.activate("a").unwrap();
+        manager.set_data_readiness("a", true, true).unwrap();
+        assert!(manager.activate_for_crossing("a", true).unwrap());
         assert!(manager.simulation_active("a"));
     }
 

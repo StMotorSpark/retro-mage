@@ -1,0 +1,147 @@
+//! Global XZ collision against transformed, collision-active level instances.
+//!
+//! Keeps player pose/global coordinates independent from residency and topology.
+
+use std::collections::HashMap;
+
+use crate::world::{Bounds, LevelDefinition, LevelInstance, Transform, Vec3};
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SolidAabb {
+    pub min: Vec3,
+    pub max: Vec3,
+}
+
+impl SolidAabb {
+    fn intersects_circle(&self, x: f32, y: f32, z: f32, radius: f32, height: f32) -> bool {
+        if y >= self.max.y || y + height <= self.min.y { return false; }
+        let cx = x.clamp(self.min.x, self.max.x);
+        let cz = z.clamp(self.min.z, self.max.z);
+        (x - cx).powi(2) + (z - cz).powi(2) < radius * radius
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CollisionInstance {
+    pub id: String,
+    pub solids: Vec<SolidAabb>,
+}
+
+impl CollisionInstance {
+    /// Build global AABBs from unit tile cells in definition local space.
+    pub fn from_level(instance: &LevelInstance, definition: &LevelDefinition) -> Self {
+        let solids = definition.tiles.iter().map(|center| {
+            let local = Bounds {
+                min: Vec3 { x: center.x - 0.5, y: center.y, z: center.z - 0.5 },
+                max: Vec3 { x: center.x + 0.5, y: center.y + 1.0, z: center.z + 0.5 },
+            };
+            let mut min = Vec3 { x: f32::INFINITY, y: f32::INFINITY, z: f32::INFINITY };
+            let mut max = Vec3 { x: f32::NEG_INFINITY, y: f32::NEG_INFINITY, z: f32::NEG_INFINITY };
+            for x in [local.min.x, local.max.x] {
+                for y in [local.min.y, local.max.y] {
+                    for z in [local.min.z, local.max.z] {
+                        let p = instance.transform.transform_point(Vec3 { x, y, z });
+                        min.x = min.x.min(p.x); min.y = min.y.min(p.y); min.z = min.z.min(p.z);
+                        max.x = max.x.max(p.x); max.y = max.y.max(p.y); max.z = max.z.max(p.z);
+                    }
+                }
+            }
+            SolidAabb { min, max }
+        }).collect();
+        Self { id: instance.id.clone(), solids }
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct GlobalCollisionWorld {
+    instances: HashMap<String, CollisionInstance>,
+    active: HashMap<String, bool>,
+}
+
+impl GlobalCollisionWorld {
+    pub fn new() -> Self { Self::default() }
+
+    pub fn set_instance(&mut self, instance: CollisionInstance, collision_active: bool) {
+        let id = instance.id.clone();
+        self.instances.insert(id.clone(), instance);
+        self.active.insert(id, collision_active);
+    }
+
+    pub fn remove_instance(&mut self, id: &str) {
+        self.instances.remove(id);
+        self.active.remove(id);
+    }
+
+    pub fn set_collision_active(&mut self, id: &str, active: bool) -> bool {
+        if let Some(value) = self.active.get_mut(id) { *value = active; true } else { false }
+    }
+
+    pub fn collision_active(&self, id: &str) -> bool { self.active.get(id).copied().unwrap_or(false) }
+    pub fn has_active_geometry(&self) -> bool { self.solids().next().is_some() }
+
+    pub fn solids(&self) -> impl Iterator<Item = &SolidAabb> {
+        self.instances.iter().filter(|(id, _)| self.active.get(*id).copied().unwrap_or(false)).flat_map(|(_, instance)| instance.solids.iter())
+    }
+
+    pub fn collides(&self, pose: Transform, radius: f32, height: f32) -> bool {
+        self.solids().any(|solid| solid.intersects_circle(pose.translation.x, pose.translation.y, pose.translation.z, radius, height))
+    }
+
+    /// Resolve horizontal movement in global XZ. Failed combined movement slides
+    /// by trying each axis; Y/rotation/scale remain untouched.
+    pub fn resolve_movement(&self, pose: Transform, dx: f32, dz: f32, radius: f32, height: f32) -> Transform {
+        let mut result = pose;
+        let distance = (dx * dx + dz * dz).sqrt();
+        let steps = (distance / (radius.max(0.05) * 0.5)).ceil().max(1.0) as usize;
+        let sx = dx / steps as f32;
+        let sz = dz / steps as f32;
+        for _ in 0..steps {
+            let mut combined = result;
+            combined.translation.x += sx; combined.translation.z += sz;
+            if !self.collides(combined, radius, height) { result = combined; continue; }
+            let mut x_only = result; x_only.translation.x += sx;
+            if !self.collides(x_only, radius, height) { result = x_only; }
+            let mut z_only = result; z_only.translation.z += sz;
+            if !self.collides(z_only, radius, height) { result = z_only; }
+        }
+        result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::world::{Bounds, PersistencePolicy, RuntimeState};
+
+    fn level(id: &str, transform: Transform) -> (LevelInstance, LevelDefinition) {
+        (LevelInstance { id: id.into(), definition_id: "d".into(), definition_version: "1".into(), transform, state: RuntimeState::Active, persistence: PersistencePolicy::Session, render_resident: true, collision_active: true, simulation_active: true }, LevelDefinition { id: "d".into(), version: "1".into(), bounds: Bounds { min: Vec3::ZERO, max: Vec3 { x: 4.0, y: 2.0, z: 4.0 } }, tiles: vec![Vec3 { x: 0.0, y: 0.0, z: -2.0 }], actors: vec![], lights: vec![], anchors: vec![], metadata: Default::default() })
+    }
+
+    #[test]
+    fn rotated_translated_instance_blocks_in_global_space() {
+        let (instance, definition) = level("target", Transform::from_translation_yaw_scale(Vec3 { x: 10.0, y: 0.0, z: 5.0 }, std::f32::consts::FRAC_PI_2, 1.0));
+        let mut world = GlobalCollisionWorld::new();
+        world.set_instance(CollisionInstance::from_level(&instance, &definition), true);
+        let pose = Transform { translation: Vec3 { x: 8.0, y: 0.0, z: 5.0 }, ..Transform::IDENTITY };
+        assert!(world.collides(pose, 0.3, 1.6));
+    }
+
+    #[test]
+    fn inactive_target_does_not_block_crossing() {
+        let (instance, definition) = level("target", Transform::IDENTITY);
+        let mut world = GlobalCollisionWorld::new();
+        world.set_instance(CollisionInstance::from_level(&instance, &definition), false);
+        let pose = Transform { translation: Vec3 { x: 0.0, y: 0.0, z: -2.0 }, ..Transform::IDENTITY };
+        assert!(!world.collides(pose, 0.3, 1.6));
+        world.set_collision_active("target", true);
+        assert!(world.collides(pose, 0.3, 1.6));
+    }
+
+    #[test]
+    fn movement_preserves_global_pose_data() {
+        let world = GlobalCollisionWorld::new();
+        let pose = Transform { translation: Vec3 { x: 2.0, y: 7.0, z: 3.0 }, rotation: crate::world::Quaternion { y: 0.5, w: 0.8660254, ..crate::world::Quaternion::IDENTITY }, scale: 1.0 };
+        let moved = world.resolve_movement(pose, 1.0, -2.0, 0.3, 1.6);
+        assert_eq!(moved.translation.y, 7.0); assert_eq!(moved.rotation, pose.rotation);
+    }
+}
