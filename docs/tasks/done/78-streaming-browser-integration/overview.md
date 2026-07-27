@@ -4,9 +4,9 @@ slug: streaming-browser-integration
 status: done
 depends-on: ["76", "77"]
 blocked-by: ""
-assigned-to: "agent"
+assigned-to: ""
 created: 2026-07-27
-outcome: "Scheduler integration complete. Eviction logic proven. Gaps updated."
+outcome: "Integrated scheduler-generated provider requests and diagnostics into the demo. Added browser proof for bounded loading, failure preservation, cancellation/stale safety, eviction, and reload; corrected failure retry behavior and documented remaining streaming gaps. Fixed browser proof test eviction timeout by extending dungeon bounds."
 ---
 
 # Integrate and Prove Streaming Scheduler in Browser Demo

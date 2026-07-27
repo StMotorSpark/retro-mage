@@ -99,36 +99,38 @@ pub fn evaluate_intent(ctx: PlannerContext) -> HashMap<String, IntentDecision> {
     // 3. Evaluate reachable links from current
     if let Some(current_id) = ctx.current_instance {
         for link in ctx.topology.links() {
-            if link.source.instance_id == current_id {
-                let target_id = match &link.target {
-                    crate::world_manifest::LinkTarget::Instance(tgt) => &tgt.instance_id,
-                    crate::world_manifest::LinkTarget::Definition { instance_id, .. } => instance_id, // Definition is resolved to instance_id in materialized target
-                };
-                
-                let policy = &link.preload_policy;
-                let intent = match policy {
-                    LinkPreloadPolicy::Immediate => ResidencyIntent::Required,
-                    LinkPreloadPolicy::Distance(d) => {
-                        let center = match ctx.topology.anchor_center_world(&link.source) {
-                            Ok(p) => p,
-                            Err(_) => continue,
-                        };
-                        if distance(ctx.player_pose.translation, center) <= *d {
-                            ResidencyIntent::Prefetch
-                        } else {
-                            ResidencyIntent::Unneeded
-                        }
-                    },
-                    LinkPreloadPolicy::Manual => ResidencyIntent::Unneeded,
-                };
-                
-                if let Some(current) = decisions.get_mut(target_id) {
-                    if intent > current.intent {
-                        current.intent = intent;
-                        current.reason = "Link preload policy".into();
-                    } else if intent == current.intent && intent != ResidencyIntent::Unneeded {
-                         current.reason = "Link preload policy".into();
+            let (source, target) = if link.source.instance_id == current_id {
+                (link.source.clone(), link.target_ref())
+            } else if link.direction == crate::world_manifest::LinkDirection::Bidirectional && link.target_ref().instance_id == current_id {
+                (link.target_ref(), link.source.clone())
+            } else {
+                continue;
+            };
+            let target_id = target.instance_id;
+
+            let policy = &link.preload_policy;
+            let intent = match policy {
+                LinkPreloadPolicy::Immediate => ResidencyIntent::Required,
+                LinkPreloadPolicy::Distance(d) => {
+                    let center = match ctx.topology.anchor_center_world(&source) {
+                        Ok(p) => p,
+                        Err(_) => continue,
+                    };
+                    if distance(ctx.player_pose.translation, center) <= *d {
+                        ResidencyIntent::Prefetch
+                    } else {
+                        ResidencyIntent::Unneeded
                     }
+                },
+                LinkPreloadPolicy::Manual => ResidencyIntent::Unneeded,
+            };
+
+            if let Some(current) = decisions.get_mut(&target_id) {
+                if intent > current.intent {
+                    current.intent = intent;
+                    current.reason = "Link preload policy".into();
+                } else if intent == current.intent && intent != ResidencyIntent::Unneeded {
+                    current.reason = "Link preload policy".into();
                 }
             }
         }
@@ -197,7 +199,7 @@ impl StreamingScheduler {
         let mut to_evict = Vec::new();
         for (id, decision) in decisions {
             if decision.intent == ResidencyIntent::Unneeded {
-                if runtime.state(id) == Some(RuntimeState::Resident) {
+                if matches!(runtime.state(id), Some(RuntimeState::Resident | RuntimeState::Active)) {
                     to_evict.push(id.clone());
                 }
             }

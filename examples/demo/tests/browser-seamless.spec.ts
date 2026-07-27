@@ -52,7 +52,7 @@ async function debug(page: Page): Promise<DebugSnapshot> {
   return snapshot;
 }
 
-async function strafe(page: Page, dx: number, reached: (snapshot: DebugSnapshot) => boolean) {
+async function strafe(page: Page, dx: number, reached: (snapshot: DebugSnapshot) => boolean, timeout = 10_000) {
   await page.evaluate(({ dx }) => {
     const target = document.querySelector('.retro-input-move-zone');
     if (!target) throw new Error('Move zone missing');
@@ -65,7 +65,7 @@ async function strafe(page: Page, dx: number, reached: (snapshot: DebugSnapshot)
     target.dispatchEvent(new TouchEvent('touchmove', { touches: [moved], targetTouches: [moved], changedTouches: [moved], bubbles: true }));
     (window as unknown as { __testTouch?: Touch }).__testTouch = moved;
   }, { dx });
-  await expect.poll(async () => reached(await debug(page)), { timeout: 10_000 }).toBe(true);
+  await expect.poll(async () => reached(await debug(page)), { timeout }).toBe(true);
   await page.evaluate(() => {
     const target = document.querySelector('.retro-input-move-zone');
     const touch = (window as unknown as { __testTouch?: Touch }).__testTouch;
@@ -123,15 +123,19 @@ test('unneeded content becomes evictable and reloads when relevant', async ({ pa
   await strafe(page, 70, (snapshot) => snapshot.activeInstance === 'outdoor-instance');
   const forward = await debug(page);
   expect(forward.activeInstance).toBe('outdoor-instance');
-  
+
+  // Clear re-arm hysteresis before attempting return traversal.
+  await strafe(page, 1, (snapshot) => snapshot.pose.x > forward.pose.x + 0.75);
+
   // Cross back into dungeon and move far enough to trigger eviction
-  // Relevance distance is 60, hysteresis is 20, boundary is at 84 (implied).
-  // Need to get back to x < 4 to trigger eviction.
-  await strafe(page, -120, (snapshot) => {
+  // Demo policy uses relevance distance 10 and no retention hysteresis.
+  // Dungeon wall limits travel; outdoor center is still outside retention band.
+  await strafe(page, -70, (snapshot) => snapshot.activeInstance === 'dungeon-instance');
+  await strafe(page, -40, (snapshot) => {
     const outdoor = snapshot.instances.find(i => i.id === 'outdoor-instance');
     return outdoor === undefined || outdoor.state === 0 || outdoor.state === 5; // Known or Evicted
   });
-  
+
   const evicted = await debug(page);
   expect(evicted.activeInstance).toBe('dungeon-instance');
   const outdoorEvicted = evicted.instances.find((instance) => instance.id === 'outdoor-instance');

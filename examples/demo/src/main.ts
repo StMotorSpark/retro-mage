@@ -48,6 +48,7 @@ async function main(): Promise<void> {
   registerDemoWorld(worldTransport);
   if (demoManifest.link.preload !== 'before-visible') throw new Error('Demo link must preload before visible.');
   if (!worldTransport.set_current_instance('dungeon-instance')) throw new Error('Failed to set source current instance.');
+  if (!worldTransport.set_scheduler_policy(10, 0, 2)) throw new Error('Failed to configure demo streaming scheduler.');
 
   const pendingLoads = new Map<string, AbortController>();
 

@@ -394,7 +394,7 @@ pub struct CrossingResolution {
 }
 
 impl LevelLink {
-    fn target_ref(&self) -> AnchorRef {
+    pub(crate) fn target_ref(&self) -> AnchorRef {
         match &self.target {
             LinkTarget::Instance(target) => target.clone(),
             LinkTarget::Definition { instance_id, anchor_id, .. } => AnchorRef { instance_id: instance_id.clone(), anchor_id: anchor_id.clone() },

@@ -9,9 +9,9 @@ use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
 
 use crate::world_runtime::WorldRuntime;
-use crate::level_provider::{LevelProviderFailure, LevelProviderMetadata, LevelProviderOutcome, LevelProviderResult, OpaqueProviderData, ProviderUpdate};
+use crate::level_provider::{LevelProviderFailure, LevelProviderMetadata, LevelProviderOutcome, LevelProviderResult, OpaqueProviderData};
 use crate::world::{Bounds, LevelActor, LevelAnchor, LevelDefinition, LevelLight, LevelTile, PersistencePolicy, RuntimeState, TileOpenings, Transform, Vec3};
-use crate::world_manifest::{AnchorRef, AnchorSharingPolicy, CrossingPolicy, DefinitionDescriptor, LevelLink, LinkDirection, LinkTarget, LinkTransform};
+use crate::world_manifest::{AnchorRef, AnchorSharingPolicy, CrossingPolicy, DefinitionDescriptor, LevelLink, LinkDirection, LinkPreloadPolicy, LinkTarget, LinkTransform};
 
 pub const DEFAULT_WORLD_TILES: usize = 4096;
 pub const DEFAULT_WORLD_ACTORS: usize = 256;
@@ -127,7 +127,7 @@ impl WorldTransport {
     }
 
     pub fn register_bidirectional_link(&mut self, id: &str, source_instance_id: &str, source_anchor_id: &str, target_instance_id: &str, target_anchor_id: &str) -> bool {
-        self.runtime.register_link(LevelLink { id: id.into(), source: AnchorRef { instance_id: source_instance_id.into(), anchor_id: source_anchor_id.into() }, target: LinkTarget::Instance(AnchorRef { instance_id: target_instance_id.into(), anchor_id: target_anchor_id.into() }), direction: LinkDirection::Bidirectional, anchor_sharing: AnchorSharingPolicy::Exclusive, transform: LinkTransform::Spatial, crossing_policy: CrossingPolicy::default(), preload_policy: crate::world_manifest::LinkPreloadPolicy::default() }).is_ok()
+        self.runtime.register_link(LevelLink { id: id.into(), source: AnchorRef { instance_id: source_instance_id.into(), anchor_id: source_anchor_id.into() }, target: LinkTarget::Instance(AnchorRef { instance_id: target_instance_id.into(), anchor_id: target_anchor_id.into() }), direction: LinkDirection::Bidirectional, anchor_sharing: AnchorSharingPolicy::Exclusive, transform: LinkTransform::Spatial, crossing_policy: CrossingPolicy::default(), preload_policy: LinkPreloadPolicy::Distance(10.0) }).is_ok()
     }
 
     pub fn topology_instance_count(&self) -> usize { self.runtime.topology().instances().count() }
@@ -288,6 +288,14 @@ mod tests {
 
 #[wasm_bindgen]
 impl WorldTransport {
+    pub fn set_scheduler_policy(&mut self, relevance_distance: f32, retention_hysteresis: f32, max_concurrent_loads: usize) -> bool {
+        if !relevance_distance.is_finite() || relevance_distance < 0.0 || !retention_hysteresis.is_finite() || retention_hysteresis < 0.0 || max_concurrent_loads == 0 { return false; }
+        self.scheduler.policy.relevance_distance = relevance_distance;
+        self.scheduler.policy.retention_hysteresis = retention_hysteresis;
+        self.scheduler.policy.default_concurrency = max_concurrent_loads;
+        true
+    }
+
     pub fn update_scheduler(&mut self, player_x: f32, player_y: f32, player_z: f32) {
         let player_pose = Transform { translation: Vec3 { x: player_x, y: player_y, z: player_z }, rotation: crate::world::Quaternion::IDENTITY, scale: 1.0 };
         let active_pins = std::collections::HashSet::new();

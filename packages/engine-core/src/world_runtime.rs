@@ -102,7 +102,9 @@ impl WorldRuntime {
         if !self.residency.activate_for_crossing(&resolution.target_instance_id, true)? { return Ok(None); }
         self.sync_topology_instance(&resolution.target_instance_id);
         self.residency.set_current(Some(&resolution.target_instance_id))?;
-        self.residency.set_transition_pair(&current, &resolution.target_instance_id, true)?;
+        // Crossing-critical pair pin ends when transaction commits. Current-instance
+        // pin and scheduler link relevance retain content as needed afterward.
+        self.residency.set_transition_pair(&current, &resolution.target_instance_id, false)?;
         self.crossing_armed = false;
         Ok(Some(resolution))
     }
