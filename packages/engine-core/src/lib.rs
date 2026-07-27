@@ -4,16 +4,26 @@ pub mod actors;
 pub mod camera;
 pub mod chunk;
 pub mod collision;
+pub mod global_collision;
 pub mod input;
+pub mod instance_runtime;
 pub mod lights;
+pub mod level_provider;
+pub mod residency;
 pub mod room;
 pub mod seam;
 pub mod streaming_config;
 pub mod tiles;
 pub mod visibility;
+pub mod world;
+pub mod world_manifest;
+pub mod world_runtime;
+pub mod world_transport;
 
 pub use collision::CollisionConfig;
+pub use global_collision::{CollisionInstance, GlobalCollisionWorld, SolidAabb};
 pub use streaming_config::StreamingConfig;
+pub use world_runtime::WorldRuntime;
 
 use std::collections::HashMap;
 use actors::{ActorsBuffer, MAX_ACTORS};
@@ -53,6 +63,9 @@ pub struct EngineState {
     indoor_streamer: room::IndoorRoomStreamer,
     room_graph: room::RoomGraph,
     seam_manager: seam::WorldSeamManager,
+    world_topology: world_manifest::WorldTopology,
+    global_collision: global_collision::GlobalCollisionWorld,
+    global_collision_configured: bool,
 }
 
 #[wasm_bindgen]
@@ -97,6 +110,9 @@ impl EngineState {
             indoor_streamer,
             room_graph,
             seam_manager,
+            world_topology: world_manifest::WorldTopology::default(),
+            global_collision: global_collision::GlobalCollisionWorld::new(),
+            global_collision_configured: false,
         }
     }
 
@@ -147,66 +163,70 @@ impl EngineState {
             self.collision_config.player_speed,
             dt_f32,
         );
-        let (new_px, new_py, new_pz, new_vy) = collision::resolve_movement(
-            self.camera.x[0],
-            self.camera.y[0],
-            self.camera.z[0],
-            dx,
-            self.player_velocity_y,
-            dz,
-            &self.collision_config,
-            dt_f32,
-            if self.active_world_structure() == 0 { &self.indoor_tiles } else { &self.outdoor_tiles },
-        );
+        let (new_px, new_py, new_pz, new_vy) = if self.global_collision_configured {
+            let pose = world::Transform { translation: world::Vec3 { x: self.camera.x[0], y: self.camera.y[0], z: self.camera.z[0] }, rotation: world::Quaternion { x: 0.0, y: (self.camera.yaw[0] * 0.5).sin(), z: 0.0, w: (self.camera.yaw[0] * 0.5).cos() }, scale: 1.0 };
+            let moved = self.global_collision.resolve_movement(pose, dx, dz, self.collision_config.player_radius, self.collision_config.player_height);
+            (moved.translation.x, moved.translation.y, moved.translation.z, self.player_velocity_y)
+        } else {
+            collision::resolve_movement(
+                self.camera.x[0], self.camera.y[0], self.camera.z[0], dx, self.player_velocity_y, dz,
+                &self.collision_config, dt_f32,
+                if self.active_world_structure() == 0 { &self.indoor_tiles } else { &self.outdoor_tiles },
+            )
+        };
         self.camera.x[0] = new_px;
         self.camera.y[0] = new_py;
         self.camera.z[0] = new_pz;
         self.player_velocity_y = new_vy;
 
-        // Ground plane for streaming/seams is XZ (camera.y is elevation, not a horizontal axis) —
-        // see docs/architecture/world-streaming.md and docs/architecture/collision.md.
-        let mut px = self.camera.x[0];
-        let mut pz = self.camera.z[0];
+        // Legacy room/chunk/seam runtime is compatibility-only. Once global collision
+        // content is configured, global instances own movement and transitions; legacy
+        // seam transforms must not mutate pose, residency, or visibility state.
+        if !self.global_collision_configured {
+            // Ground plane for legacy streaming is XZ (camera.y is elevation, not a horizontal axis).
+            let mut px = self.camera.x[0];
+            let mut pz = self.camera.z[0];
 
-        self.seam_manager.update_and_check_crossing(
-            &mut px,
-            &mut pz,
-            &mut self.indoor_streamer,
-            &mut self.room_graph,
-            &mut self.chunk_streamer,
-            &mut self.chunk_provider,
-            &mut self.outdoor_tiles,
-        );
-
-        self.camera.x[0] = px;
-        self.camera.z[0] = pz;
-
-        if self.seam_manager.active_structure() == seam::ActiveWorldStructure::Outdoor {
-            self.chunk_streamer.update_for_player_pos(
-                px,
-                pz,
+            self.seam_manager.update_and_check_crossing(
+                &mut px,
+                &mut pz,
+                &mut self.indoor_streamer,
+                &mut self.room_graph,
+                &mut self.chunk_streamer,
                 &mut self.chunk_provider,
                 &mut self.outdoor_tiles,
             );
-        } else {
-            // Check doorways first
-            for i in 0..self.doorways_count {
-                let d = &self.doorways[i];
-                if d.from_room_id == self.indoor_streamer.current_room_id() {
-                    if px >= d.min_x && px <= d.max_x && pz >= d.min_z && pz <= d.max_z {
+
+            self.camera.x[0] = px;
+            self.camera.z[0] = pz;
+
+            if self.seam_manager.active_structure() == seam::ActiveWorldStructure::Outdoor {
+                self.chunk_streamer.update_for_player_pos(
+                    px,
+                    pz,
+                    &mut self.chunk_provider,
+                    &mut self.outdoor_tiles,
+                );
+            } else {
+                for i in 0..self.doorways_count {
+                    let d = &self.doorways[i];
+                    if d.from_room_id == self.indoor_streamer.current_room_id()
+                        && px >= d.min_x && px <= d.max_x && pz >= d.min_z && pz <= d.max_z
+                    {
                         self.set_indoor_current_room(d.to_room_id);
                         break;
                     }
                 }
+
+                self.indoor_streamer
+                    .update_for_current_room(&mut self.room_graph);
             }
 
-            self.indoor_streamer
-                .update_for_current_room(&mut self.room_graph);
+            // Compatibility seam injection is never part of global scene rendering.
+            self.update_seam_injection();
+        } else {
+            self.seam_injection_tiles.count = 0;
         }
-
-        // Build seam injection buffer before visibility so cross-seam tiles participate
-        // in occlusion culling and rendering (Option C: seam-local coordinate injection).
-        self.update_seam_injection();
 
         self.recompute_visibility();
     }
@@ -219,8 +239,14 @@ impl EngineState {
         }
     }
 
-    /// Set active driving world structure (0 = Indoor, 1 = Outdoor).
+    /// Set compatibility active structure (0 = Indoor, 1 = Outdoor).
+    ///
+    /// No-op after global collision/world content is installed. Global runtime
+    /// selection does not use legacy structure state.
     pub fn set_active_world_structure(&mut self, structure: u32) {
+        if self.global_collision_configured {
+            return;
+        }
         let active = if structure == 0 {
             seam::ActiveWorldStructure::Indoor
         } else {
@@ -239,10 +265,14 @@ impl EngineState {
         self.camera.z[0]
     }
 
-    /// Set player position in active structure's coordinate space (x, z ground plane).
+    /// Set player position. Legacy structure updates are compatibility-only and are
+    /// skipped when global collision/world content is active.
     pub fn set_player_pos(&mut self, x: f32, z: f32) {
         self.camera.x[0] = x;
         self.camera.z[0] = z;
+        if self.global_collision_configured {
+            return;
+        }
         match self.seam_manager.active_structure() {
             seam::ActiveWorldStructure::Outdoor => {
                 self.chunk_streamer
@@ -255,7 +285,10 @@ impl EngineState {
         }
     }
 
-    /// Register a seam in the engine.
+    /// Register a compatibility seam for pre-global callers.
+    ///
+    /// Global runtime links are registered through world manifests. This call
+    /// is ignored once global world content is installed.
     pub fn register_seam(
         &mut self,
         seam_id: u32,
@@ -268,6 +301,9 @@ impl EngineState {
         offset_y: f32,
         rotation_rad: f32,
     ) {
+        if self.global_collision_configured {
+            return;
+        }
         let transform = seam::SeamTransform::new(offset_x, offset_y, rotation_rad);
         let seam = seam::Seam::new(
             seam_id,
@@ -291,8 +327,14 @@ impl EngineState {
         }
     }
 
-    /// Set overall streaming configuration.
+    /// Set compatibility room/chunk/seam streaming configuration.
+    ///
+    /// Global runtime streaming is owned by `WorldRuntime`; this is ignored
+    /// after global world content is installed.
     pub fn set_streaming_config(&mut self, config: StreamingConfig) {
+        if self.global_collision_configured {
+            return;
+        }
         self.set_outdoor_load_radius(config.outdoor_load_radius);
         self.set_outdoor_evict_radius(config.outdoor_evict_radius);
         self.set_indoor_hop_depth(config.indoor_hop_depth);
@@ -319,8 +361,11 @@ impl EngineState {
         self.seam_manager.seam_trigger_distance()
     }
 
-    /// Set seam trigger distance in tiles.
+    /// Set compatibility seam trigger distance in tiles.
     pub fn set_seam_trigger_distance(&mut self, dist: f32) {
+        if self.global_collision_configured {
+            return;
+        }
         self.seam_manager.set_seam_trigger_distance(dist);
         self.check_and_log_dev_warnings();
     }
@@ -330,8 +375,11 @@ impl EngineState {
         self.seam_manager.crossing_threshold()
     }
 
-    /// Set seam crossing threshold in tiles.
+    /// Set compatibility seam crossing threshold in tiles.
     pub fn set_seam_crossing_threshold(&mut self, dist: f32) {
+        if self.global_collision_configured {
+            return;
+        }
         self.seam_manager.set_crossing_threshold(dist);
     }
 
@@ -340,8 +388,11 @@ impl EngineState {
         self.chunk_streamer.load_radius()
     }
 
-    /// Set outdoor chunk load radius (chunks).
+    /// Set compatibility outdoor chunk load radius (chunks).
     pub fn set_outdoor_load_radius(&mut self, radius: i32) {
+        if self.global_collision_configured {
+            return;
+        }
         self.chunk_streamer.set_load_radius(radius);
         self.chunk_streamer.update_for_player_pos(
             self.camera.x[0],
@@ -357,8 +408,11 @@ impl EngineState {
         self.chunk_streamer.evict_radius()
     }
 
-    /// Set outdoor chunk evict radius (chunks).
+    /// Set compatibility outdoor chunk evict radius (chunks).
     pub fn set_outdoor_evict_radius(&mut self, radius: i32) {
+        if self.global_collision_configured {
+            return;
+        }
         self.chunk_streamer.set_evict_radius(radius);
         self.chunk_streamer.update_for_player_pos(
             self.camera.x[0],
@@ -374,8 +428,11 @@ impl EngineState {
         self.chunk_streamer.max_resident_chunks()
     }
 
-    /// Set maximum resident outdoor chunks count limit (hard cap).
+    /// Set compatibility maximum resident outdoor chunks count limit (hard cap).
     pub fn set_outdoor_max_resident_chunks(&mut self, max: usize) {
+        if self.global_collision_configured {
+            return;
+        }
         self.chunk_streamer.set_max_resident_chunks(max);
         self.chunk_streamer.update_for_player_pos(
             self.camera.x[0],
@@ -395,8 +452,11 @@ impl EngineState {
         self.chunk_streamer.is_chunk_resident(chunk_x, chunk_y)
     }
 
-    /// Set outdoor default tile ID (e.g. 3 for grass terrain).
+    /// Set compatibility outdoor default tile ID (e.g. 3 for grass terrain).
     pub fn set_outdoor_default_tile_id(&mut self, tile_id: u16) {
+        if self.global_collision_configured {
+            return;
+        }
         self.chunk_provider.default_tile_id = tile_id;
     }
 
@@ -405,8 +465,11 @@ impl EngineState {
         self.indoor_streamer.hop_depth()
     }
 
-    /// Set indoor room hop depth.
+    /// Set compatibility indoor room hop depth.
     pub fn set_indoor_hop_depth(&mut self, depth: u32) {
+        if self.global_collision_configured {
+            return;
+        }
         self.indoor_streamer.set_hop_depth(depth);
         self.indoor_streamer.set_evict_hop_depth(depth);
         self.indoor_streamer
@@ -419,8 +482,11 @@ impl EngineState {
         self.indoor_streamer.evict_hop_depth()
     }
 
-    /// Set indoor room evict hop depth.
+    /// Set compatibility indoor room evict hop depth.
     pub fn set_indoor_evict_hop_depth(&mut self, depth: u32) {
+        if self.global_collision_configured {
+            return;
+        }
         self.indoor_streamer.set_evict_hop_depth(depth);
         self.indoor_streamer
             .update_for_current_room(&mut self.room_graph);
@@ -431,8 +497,11 @@ impl EngineState {
         self.indoor_streamer.max_resident_rooms()
     }
 
-    /// Set maximum resident indoor rooms count limit (hard cap).
+    /// Set compatibility maximum resident indoor rooms count limit (hard cap).
     pub fn set_indoor_max_resident_rooms(&mut self, max: usize) {
+        if self.global_collision_configured {
+            return;
+        }
         self.indoor_streamer.set_max_resident_rooms(max);
         self.indoor_streamer
             .update_for_current_room(&mut self.room_graph);
@@ -453,22 +522,31 @@ impl EngineState {
         self.indoor_streamer.current_room_id()
     }
 
-    /// Set current active indoor room ID and update resident room set.
+    /// Set compatibility current indoor room ID and update resident room set.
     pub fn set_indoor_current_room(&mut self, room_id: u32) {
+        if self.global_collision_configured {
+            return;
+        }
         self.indoor_streamer
             .set_current_room(room_id, &mut self.room_graph);
     }
 
-    /// Add a room node to internal engine room graph.
+    /// Add a room node to the compatibility room graph.
     pub fn add_room_to_graph(&mut self, room_id: u32, name: &str) {
+        if self.global_collision_configured {
+            return;
+        }
         self.room_graph
             .add_room(room::RoomNode::new(room_id, name));
         self.indoor_streamer
             .update_for_current_room(&mut self.room_graph);
     }
 
-    /// Add a bidirectional edge between two rooms in engine room graph.
+    /// Add a bidirectional edge between two rooms in the compatibility room graph.
     pub fn add_room_edge(&mut self, room1: u32, room2: u32) {
+        if self.global_collision_configured {
+            return;
+        }
         self.room_graph.add_edge(room1, room2);
         self.indoor_streamer
             .update_for_current_room(&mut self.room_graph);
@@ -901,7 +979,9 @@ impl EngineState {
 
     pub fn set_camera(&mut self, x: f32, y: f32, z: f32, yaw: f32, pitch: f32) {
         self.camera.set_camera(x, y, z, yaw, pitch);
-        self.chunk_streamer.update_for_player_pos(x, z, &mut self.chunk_provider, &mut self.outdoor_tiles);
+        if !self.global_collision_configured {
+            self.chunk_streamer.update_for_player_pos(x, z, &mut self.chunk_provider, &mut self.outdoor_tiles);
+        }
         self.recompute_visibility();
     }
 
@@ -909,7 +989,8 @@ impl EngineState {
     // Seam Injection
     // ==========================================
 
-    /// Update the seam injection buffer with transformed far-side tiles.
+    /// Update compatibility seam injection buffer with transformed far-side tiles.
+    /// Never called by global-world runtime.
     fn update_seam_injection(&mut self) {
         self.seam_injection_tiles.count = 0;
         
@@ -1154,6 +1235,134 @@ impl EngineState {
                 self.lights.active[i] = 0.0;
             }
         }
+    }
+}
+
+impl EngineState {
+    /// Replace one global collision instance. Geometry remains inert until active.
+    pub fn set_global_collision_instance(
+        &mut self,
+        instance: world::LevelInstance,
+        definition: world::LevelDefinition,
+        collision_active: bool,
+    ) {
+        self.global_collision.set_instance(
+            global_collision::CollisionInstance::from_level(&instance, &definition),
+            collision_active,
+        );
+        self.global_collision_configured = true;
+    }
+
+    /// Add one already-transformed solid from browser-owned global content.
+    /// Open/floor tiles never enter this API unless caller marks them solid.
+    pub fn add_global_collision_solid(
+        &mut self,
+        instance_id: &str,
+        min_x: f32,
+        min_y: f32,
+        min_z: f32,
+        max_x: f32,
+        max_y: f32,
+        max_z: f32,
+        collision_active: bool,
+    ) {
+        self.global_collision.add_solid(
+            instance_id,
+            global_collision::SolidAabb {
+                min: world::Vec3 { x: min_x, y: min_y, z: min_z },
+                max: world::Vec3 { x: max_x, y: max_y, z: max_z },
+            },
+            collision_active,
+        );
+        self.global_collision_configured = true;
+    }
+
+    /// Toggle collision only after caller's runtime marks instance ready.
+    pub fn set_global_collision_active(&mut self, instance_id: &str, active: bool) -> bool {
+        self.global_collision.set_collision_active(instance_id, active)
+    }
+
+    pub fn clear_global_collision_instance(&mut self, instance_id: &str) {
+        self.global_collision.remove_instance(instance_id);
+        self.global_collision_configured = !self.global_collision.is_empty();
+    }
+
+    pub fn global_collision_active(&self, instance_id: &str) -> bool {
+        self.global_collision.collision_active(instance_id)
+    }
+
+    /// Install snapshot produced by `WorldRuntime::collision_world`.
+    /// Snapshot replacement keeps movement on same authoritative lifecycle data
+    /// used by render/crossing consumers.
+    pub fn set_global_collision_world(&mut self, world: global_collision::GlobalCollisionWorld) {
+        self.global_collision = world;
+        self.global_collision_configured = true;
+    }
+
+    /// Register application-owned world topology before content resolution begins.
+    pub fn register_world_manifest(
+        &mut self,
+        manifest: world_manifest::WorldManifest,
+    ) -> Result<(), world_manifest::WorldManifestError> {
+        self.world_topology = world_manifest::WorldTopology::from_manifest(manifest)?;
+        Ok(())
+    }
+
+    pub fn register_world_definition(
+        &mut self,
+        definition: world_manifest::DefinitionDescriptor,
+    ) -> Result<(), world_manifest::WorldManifestError> {
+        self.world_topology.register_definition(definition)
+    }
+
+    pub fn register_world_instance(
+        &mut self,
+        instance: world_manifest::InstanceDescriptor,
+    ) -> Result<(), world_manifest::WorldManifestError> {
+        self.world_topology.register_instance(instance)
+    }
+
+    pub fn register_world_link(
+        &mut self,
+        link: world_manifest::LevelLink,
+    ) -> Result<(), world_manifest::WorldManifestError> {
+        self.world_topology.register_link(link)
+    }
+
+    pub fn world_topology(&self) -> &world_manifest::WorldTopology {
+        &self.world_topology
+    }
+}
+
+/// Browser-facing collision activation bridge. Geometry is submitted in global
+/// coordinates, matching `WorldTransport` output; lifecycle state controls only
+/// whether submitted solids participate in movement.
+#[wasm_bindgen]
+impl EngineState {
+    pub fn submit_global_collision_solid(
+        &mut self,
+        instance_id: &str,
+        min_x: f32,
+        min_y: f32,
+        min_z: f32,
+        max_x: f32,
+        max_y: f32,
+        max_z: f32,
+        collision_active: bool,
+    ) {
+        self.add_global_collision_solid(instance_id, min_x, min_y, min_z, max_x, max_y, max_z, collision_active);
+    }
+
+    pub fn set_collision_instance_active(&mut self, instance_id: &str, active: bool) -> bool {
+        self.set_global_collision_active(instance_id, active)
+    }
+
+    pub fn remove_collision_instance(&mut self, instance_id: &str) {
+        self.clear_global_collision_instance(instance_id);
+    }
+
+    pub fn collision_instance_active(&self, instance_id: &str) -> bool {
+        self.global_collision_active(instance_id)
     }
 }
 
@@ -1730,6 +1939,45 @@ mod tests {
         state.tick(0.5);
         let pz = unsafe { *state.camera_z_ptr() };
         assert!(pz < z_before, "Expected Z slide (forward movement), got z={}", pz);
+    }
+
+    #[test]
+    fn global_world_path_does_not_run_legacy_seam_handoff() {
+        let mut state = EngineState::new();
+        state.set_active_world_structure(0);
+        state.register_seam(1, 0, 0.0, 0.0, 100.0, 100.0, 100.0, 100.0, 0.0);
+        state.set_camera(0.0, 0.0, 0.0, 0.0, 0.0);
+        state.add_global_collision_solid("global", 50.0, 0.0, 50.0, 51.0, 1.0, 51.0, true);
+        assert!(state.global_collision_configured);
+
+        state.tick(0.016);
+
+        assert_eq!(state.active_world_structure(), 0);
+        assert_eq!(state.seam_injection_tiles.count, 0);
+        assert_eq!(state.camera.x[0], 0.0);
+        assert_eq!(state.camera.z[0], 0.0);
+    }
+
+    #[test]
+    fn global_world_path_isolation_freezes_legacy_compatibility_state() {
+        let mut state = EngineState::new();
+        state.set_active_world_structure(0);
+        state.set_streaming_config(StreamingConfig::new(2, 3, 1, 5.0));
+        state.register_seam(1, 0, 0.0, 0.0, 100.0, 100.0, 100.0, 100.0, 0.0);
+        let config_before = state.streaming_config();
+        let seam_count_before = state.seam_manager.seams_for_room(0).len();
+        let active_before = state.active_world_structure();
+
+        state.add_global_collision_solid("global", 50.0, 0.0, 50.0, 51.0, 1.0, 51.0, true);
+        state.set_active_world_structure(1);
+        state.set_streaming_config(StreamingConfig::new(9, 10, 8, 20.0));
+        state.set_outdoor_load_radius(9);
+        state.set_indoor_hop_depth(8);
+        state.register_seam(2, 0, 1.0, 0.0, 101.0, 100.0, 100.0, 100.0, 0.0);
+
+        assert_eq!(state.active_world_structure(), active_before);
+        assert_eq!(state.streaming_config(), config_before);
+        assert_eq!(state.seam_manager.seams_for_room(0).len(), seam_count_before);
     }
 
     #[test]

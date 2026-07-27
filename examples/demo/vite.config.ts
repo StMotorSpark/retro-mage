@@ -29,7 +29,7 @@ export default defineConfig({
       strategies: 'generateSW',
       workbox: {
         // Precache the built JS/WASM/CSS/HTML app shell and compressed textures, cache-first on repeat loads.
-        globPatterns: ['**/*.{js,css,html,wasm,ktx2}'],
+        globPatterns: ['**/*.{js,css,html,wasm,ktx2,webmanifest}'],
       },
     }),
   ],

@@ -21,6 +21,7 @@ export function createRenderer(
 }
 
 export * from './resolution.js';
+export * from './lighting/index.js';
 export * from './framebuffer.js';
 export * from './blit.js';
 export * from './world-state/index.js';

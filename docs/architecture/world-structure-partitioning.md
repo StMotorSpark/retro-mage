@@ -1,55 +1,45 @@
 ---
 feature: world-structure-partitioning
-tags: [architecture, world-model, memory, streaming, collision]
-summary: Retro Mage isolates indoor and outdoor space mechanically by maintaining separate tile and actor buffers in engine-core, preventing coordinate overlap between the two structures.
+tags: [architecture, world, levels, storage]
+summary: Retro Mage permits separate storage and streaming strategies for indoor and outdoor content while composing both through one global runtime coordinate space.
 relates-to:
   - "[World Model](../features/world-model.md)"
+  - "[World Runtime](./world-runtime.md)"
   - "[World Streaming](./world-streaming.md)"
+  - "[Rendering](./rendering.md)"
   - "[Collision](./collision.md)"
-  - "[Visibility](./visibility.md)"
 ---
 
 # World Structure Partitioning
 
-[World Model](../features/world-model.md) asserts that indoor rooms (graph-based, local coordinates) and outdoor chunks (grid-based, global coordinates) are two distinct data structures. This doc defines the mechanical isolation that enforces that separation in memory.
+Indoor rooms and outdoor regions can use different application-owned content representations and streaming providers. This is a storage and residency distinction, not a second spatial runtime.
 
-## Overview
+## Runtime Composition
 
-`engine-core` maintains strict separation between indoor and outdoor entities. Instead of a single shared `master_tiles` or `actors` buffer where coordinates might accidentally overlap, the engine physically partitions these buffers by world structure. `collision` and `visibility` only ever iterate over the buffers matching the player's `active_world_structure`.
+Every resident content unit becomes a `LevelInstance` with a global transform. Indoor geometry, outdoor terrain, actors, and lights enter the same global render, collision, and lighting systems after transformation.
 
-## Buffer Separation
+The engine does not maintain isolated indoor and outdoor coordinate systems. Geometry can overlap across categories for windows, balconies, cave mouths, terrain edges, and vertical spaces.
 
-The `EngineState` defines separate static arrays for each structure:
+## Provider and Storage Freedom
 
-- `indoor_tiles` and `outdoor_tiles`
-- `indoor_actors` and `outdoor_actors`
+An application can store indoor content as room fixtures and outdoor content as terrain regions or chunks. A provider can resolve either representation into the same engine-consumable `LevelDefinition` contract. The engine does not require one file format or one authoring tool.
 
-Write APIs (`set_tile`, `set_actor`) specify which structure they populate:
-- `set_indoor_tile(...)` / `set_outdoor_tile(...)`
-- `set_indoor_actor(...)` / `set_outdoor_actor(...)`
+Providers may partition data internally for loading efficiency. That partition is invisible to world-space transforms and transition semantics.
 
-This completely eliminates the possibility of indoor wall tiles rendering in the outdoor sky or blocking outdoor movement, even if an indoor room is authored at coordinates that numerically match the outdoor terrain.
+## Active Systems
 
-## Execution in tick()
+Residency determines which instances have runtime resources. Separate policies can prioritize indoor and outdoor content, but rendering, collision, and lighting consume transformed global data. Collision activity and simulation activity remain explicit runtime state rather than automatic consequences of content category.
 
-During `tick()`, engine sub-systems (`visibility::recompute_visibility`, `collision::resolve_movement`) no longer iterate over all authored data. They branch once on `active_world_structure`:
+## Compatibility Boundary
 
-1. If `active_world_structure == 0` (Indoor): read from `indoor_tiles` and `indoor_actors`.
-2. If `active_world_structure == 1` (Outdoor): read from `outdoor_tiles` and `outdoor_actors`.
+`room`, `chunk`, and `seam` APIs are compatibility-only APIs for callers that do not install global world content. They own one legacy active-structure state, room graph, chunk streamer, and seam handoff path. Once global world content is installed, these APIs do not select structure, mutate seam topology, or change legacy streaming configuration. Global links, transforms, residency, rendering, and collision use `WorldRuntime`, `WorldManifest`, and global scene/collision transport instead.
 
-This ensures zero CPU cycles are wasted iterating over inactive structure data, and strictly enforces the isolation established by the seam transform (see [World Streaming](./world-streaming.md)).
-
-## Rendering Implications
-
-The WASM bridge to `render` remains unchanged. `packages/render` only reads the output buffers populated by `recompute_visibility` (`visible_tiles_x_ptr`, etc.). Because `visibility` only culls from the active structure's buffers, the visible output buffer inherently only contains active geometry. `render` never needs to know whether the player is indoors or outdoors to draw the tiles.
-
-## No "Always Active" Global Entities
-
-There is no "Global" or "Always Active" structure layer (e.g., a shared buffer). Any entity that conceptually persists across a seam crossing (like a companion pet or persistent status effect) must be actively despawned from the source buffer and respawned in the destination buffer by the application logic during the seam transition. The engine does not carry entities across structure boundaries automatically.
+Compatibility seam injection is likewise limited to the legacy path. It never supplies geometry to global scene submission and never supplies collision solids.
 
 ## Related Docs
 
-- [World Model](../features/world-model.md) — the philosophical framing of indoor vs outdoor spaces
-- [World Streaming](./world-streaming.md) — the seam transforms that teleport the player between these partitioned spaces
-- [Collision](./collision.md) — the movement resolution system that relies on this partitioned isolation
-- [Visibility](./visibility.md) — the occlusion system that drives the output render buffers from these partitioned inputs
+- [World Model](../features/world-model.md) — global coordinate model
+- [World Runtime](./world-runtime.md) — instance lifecycle
+- [World Streaming](./world-streaming.md) — provider and residency policy
+- [Rendering](./rendering.md) — global scene composition
+- [Collision](./collision.md) — active transformed geometry

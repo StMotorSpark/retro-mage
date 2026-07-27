@@ -68,9 +68,15 @@ export interface CameraView {
 /**
  * WorldStateViews combines all buffer views into a single container object.
  */
+import type { GlobalSceneView } from './scene.js';
+
 export interface WorldStateViews {
   actors: ActorsView;
   lights: LightsView;
   tiles: TilesView;
   camera: CameraView;
+  /** Combined resident content, already in global coordinates. */
+  readonly scene?: GlobalSceneView;
+  /** Global ambient scalar consumed by scene lighting. */
+  readonly ambient_light?: number;
 }

@@ -26,9 +26,9 @@ The simulation core (game loop, ECS-like world state, fixed-point math, tile/pol
 
 Rust is chosen over AssemblyScript or C++ specifically for agent development: it has the deepest training-data coverage of any WASM-target language, mature tooling (`cargo`, `wasm-pack`, `wasm-bindgen`), and a compiler that catches an agent's mistakes at compile time rather than allowing them to surface as runtime bugs discovered late. The borrow checker's friction is a net gain for an agent-driven workflow — errors are caught immediately, in place, with actionable messages.
 
-## Rendering — WebGL2, with WebGPU as a forward path
+## Rendering — WebGL2 baseline, WebGPU optional
 
-Rendering is TypeScript, targeting WebGL2 as the baseline API for broad phone browser compatibility, with WebGPU support added as availability improves. The renderer implements the retro visual approach described in [Rendering](./rendering.md): tile/polygon hybrid geometry, sprite-based actors, painter's-algorithm depth sorting, and lookup-table-driven lighting, layered with longer draw distances and dynamic outdoor rendering than the games that inspire it.
+Rendering is TypeScript with WebGL2 as the baseline backend for broad phone browser compatibility. The renderer uses depth-tested tile/polygon geometry, billboard actors, lookup-table-driven lighting, longer draw distances, and dynamic outdoor rendering. A backend-neutral scene/material contract keeps WebGPU available as an optional backend when browser support and measured workload justify it; WebGPU is not required by the initial renderer.
 
 ## Input — TypeScript, device-adaptive
 
@@ -42,8 +42,8 @@ Vite drives the dev server and production build for every TypeScript package and
 
 The engine targets phone browsers as the primary platform. It is installable as a Progressive Web App, staged as follows:
 
-- **Shell installability**: web manifest and service worker precache the app shell (JS, WASM binary, core CSS) so the engine installs to a home screen and launches without a network round-trip for the shell itself.
-- **Asset caching**: static game assets (textures, tile sets, audio) are cached with a cache-first strategy and versioned cache-busting, so repeat sessions avoid re-downloading unchanged assets.
+- **Shell installability**: web manifest and service worker precache the app shell (manifest, icons, JS, WASM binary, core CSS) so the engine installs to a home screen and launches without a network round-trip for the shell itself.
+- **Asset caching**: static game assets (textures, tile sets, audio) are cached with a cache-first strategy and versioned cache-busting, so repeat sessions avoid re-downloading unchanged assets. Demo-authored assets are precached; runtime-generated world data is bundled in JS/WASM, while application content fetched at runtime remains unavailable offline unless the consuming app adds a cache strategy.
 - **Full offline gameplay**: once asset budget and bundling strategy are proven out for a given game built on the engine, the full asset set is precached and gameplay runs with zero network dependency after first load. The engine core never assumes network availability mid-session — this stage is a caching strategy change, not an engine architecture change.
 
 Performance validation happens against **iPhone 16e** hardware as the reference device — chosen deliberately as a lower-tier variant of the iPhone 16 line (binned/fewer-core GPU than the standard 16) rather than the top-of-line model, so validated performance numbers carry a built-in safety margin: content that hits target on 16e is expected to run with more headroom on the standard 16 and better. Comfortably capable hardware that keeps the retro rendering techniques inexpensive, leaving headroom for the modern-scale additions (longer draw distance, dynamic lighting, outdoor rendering) layered on top.

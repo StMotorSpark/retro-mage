@@ -1,13 +1,8 @@
-//! Seam coordinate translation and indoor/outdoor streaming handoff implementation.
+//! Deprecated compatibility seam handoff for pre-global-world callers.
 //!
-//! Per `docs/architecture/world-streaming.md` ("Coordinate Translation at the Seam"),
-//! indoor rooms and outdoor terrain chunks have independent coordinate spaces.
-//! Each seam specifies a 2D rigid transform (offset + rotation) mapping room-local
-//! coordinates to outdoor global coordinates (and back) for that link only.
-//!
-//! Approaching a seam within `seam_trigger_distance` preloads the far-side structure.
-//! Crossing a seam converts player position through the seam transform and switches
-//! the active driving data structure with no global coordinate reconciliation elsewhere.
+//! The authoritative runtime does not use this module: global level instances own
+//! transforms, residency, rendering, collision, and transitions. `EngineState` gates
+//! this module behind its legacy mode so seam transforms cannot mutate global-world state.
 
 use std::collections::HashMap;
 

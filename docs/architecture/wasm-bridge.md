@@ -1,116 +1,58 @@
 ---
 feature: wasm-bridge
 tags: [architecture, wasm, rust, rendering, memory, data-model]
-summary: Retro Mage crosses the WASM boundary via fixed-size typed-array buffers that engine-core writes and render reads as zero-copy views into WASM linear memory.
+summary: Retro Mage crosses the Rust/WASM and TypeScript boundary through explicit typed render-state views while keeping level content local to engine-owned simulation and global after instance transforms.
 relates-to:
   - "[Tech Stack](./tech-stack.md)"
+  - "[World Model](../features/world-model.md)"
+  - "[World Runtime](./world-runtime.md)"
   - "[Rendering](./rendering.md)"
-  - "[Repo Structure](./repo-structure.md)"
   - "[Visibility](./visibility.md)"
+  - "[Input Event Schema](./input-schema.md)"
+  - "[Test-Driven Development](../principles/test-driven-development.md)"
 ---
 
 # WASM ↔ JS Bridge
 
-`engine-core` (Rust/WASM) is the source of truth for world state. `render` (TypeScript) draws it every frame. This doc defines the exact shape of the data that crosses that boundary, so both sides can be implemented against a shared, explicit contract rather than an assumed one.
+`engine-core` owns simulation truth. `render` reads global transformed scene state and draws it. The bridge exposes explicit schemas and typed views rather than leaking level-definition ownership across the boundary.
 
-## Overview
+## Direction
 
-The bridge is a set of fixed-size, preallocated buffers living in WASM linear memory. `engine-core` writes into these buffers; `render` reads them as `Float32Array`/`Uint16Array` views over that same memory, with no per-frame copying or object allocation. Each buffer covers one category of world data, updates at the rate that category actually changes, and has a fixed maximum entry count decided up front. This is a hand-maintained wire format — the schema below is the single source of truth both `engine-core`'s Rust structs and `render`'s TypeScript reader code are written against.
+The simulation-to-render direction is read-only for `render`. Engine state includes:
 
-## Buffer Categories
+- camera/player pose in global coordinates
+- visible or render-relevant geometry instances
+- actors in global coordinates
+- lights in global coordinates
+- ambient/material identifiers
+- residency and active-state metadata where render needs it
 
-Data is split by update frequency, not bundled into one blob:
+The input-to-engine direction uses the normalized per-frame function-call schema defined in [Input Event Schema](./input-schema.md).
 
-| Buffer | Updates | Max entries |
-|--------|---------|-------------|
-| Tile geometry | Recomputed every frame; updated when visible set changes | 1024 visible tiles |
-| Actors | Every frame | 64 actors |
-| Lights | Every frame | 32 lights |
-| Camera / player pose | Every frame | 1 (single struct, not an array) |
+## Buffer Strategy
 
-Static geometry for the room is loaded into `engine-core`; the per-frame visibility cull filters this to the visible tile set, updating the tile buffer whenever the visible set changes frame-to-frame. Actors, lights, and camera pose are live simulation state and are re-read every frame.
+Bridge storage uses preallocated typed buffers where fixed-capacity SoA access provides a measured benefit. Variable scene content uses configurable capacities or instance/chunk submission units rather than one hidden tiny global visible-tile limit. Overflow is explicit and observable; silent geometry loss is invalid.
 
-## Numeric Format — f32
+The exact field order, numeric types, capacity, and pointer/count contracts are documented with the implementation slice that owns each buffer. Boundary tests cover stride, pointer, count, active flags, and memory-growth view refresh.
 
-All positional and numeric fields in these buffers are `f32`. `engine-core`'s internal simulation math may use fixed-point representations per [Rendering](./rendering.md)'s math guidance, but the wire format itself uses plain floats — WebGL consumes floats natively, and this keeps the bridge schema simple and decoupled from internal simulation math decisions.
+## Global Coordinates
 
-## Schema
+Level definitions remain application-owned local data. Once a level instance is resident, engine-core transforms its geometry, actor positions, light positions, and collision data into global world coordinates. Render reads global coordinates and does not perform level or seam transforms.
 
-Each buffer is Struct-of-Arrays (SoA): one flat array per field, not an array of structs, so `render` can construct one typed-array view per field and index by a fixed stride. All buffers are preallocated at their max size — `engine-core` never grows them at runtime.
+## Instance Metadata
 
-### Actors (max 64)
-
-| Field | Type | Notes |
-|-------|------|-------|
-| `x`, `y`, `z` | `f32` | World position |
-| `facing` | `f32` | Radians |
-| `sprite_id` | `f32` | Identifies which sprite sheet/frame set to draw |
-| `active` | `f32` | `0`/`1` — whether this slot is a live actor (slots beyond the live count, and inactive slots below it, are ignored) |
-
-### Lights (max 32)
-
-| Field | Type | Notes |
-|-------|------|-------|
-| `x`, `y`, `z` | `f32` | World position |
-| `r`, `g`, `b` | `f32` | Color, 0–1 |
-| `intensity` | `f32` | Feeds the lighting LUT lookup once [LUT format](./rendering.md) is decided |
-| `active` | `f32` | Same convention as actors |
-
-### Tile Geometry (max 1024 visible tiles)
-
-| Field | Type | Notes |
-|-------|------|-------|
-| `x`, `y`, `z` | `f32` | Tile-space or world-space position (grid-aligned) |
-| `tile_id` | `f32` | Identifies texture/tile type |
-| `variant` | `f32` | Rotation/flip variant, if needed |
-| `solid` | `f32` | `0`/`1` — whether tile blocks sight (walls, closed doors) vs. lets sight pass (floors, ceilings, open doorways, vertical gaps) |
-| `vertical_opening` | `f32` | `0`/`1` — whether tile allows sight between Z-levels (stairwell gap, balcony edge, open floor cutout) |
-
-This buffer's exact field set is expected to grow once the [Visibility Algorithm](../research/known-gaps.md) and [Asset Pipeline](../research/known-gaps.md) gaps are resolved — the shape above covers only what's needed to draw a flat, textured tile floor/wall/ceiling.
-
-### Camera / Player Pose (single entry, not an array)
-
-| Field | Type | Notes |
-|-------|------|-------|
-| `x`, `y`, `z` | `f32` | Position |
-| `yaw`, `pitch` | `f32` | Orientation |
-
-### Ambient Light (single scalar, not an array)
-
-Global ambient light scalar for the loaded space (`f32`, 0.0 = pitch black interior, 1.0 = full outdoor daylight), accessed via `ambient_light() -> f32` and modified via `set_ambient_light(level: f32)`.
-
-### Outdoor Chunk Transport (Asynchronous / Out-of-Band)
-
-Outdoor terrain chunks adhere to the fixed 32×32 `ChunkData` contract in `engine-core`:
-- `chunk_x`, `chunk_y`: `i32` chunk grid coordinates
-- `tiles`: `[u16; 1024]` (32×32 tile IDs)
-- `heights`: `[f32; 1024]` (32×32 tile heights)
-- `solid`: `[u8; 1024]` (32×32 solidity flags)
-- `entities`: `Vec<EntityPlacement>` (x, y, z floats, entity_type u32, rotation float)
-
-Unlike per-frame render buffers (`actors`, `lights`, `tiles`), chunk loading operates out-of-band relative to the per-frame render loop. Applications implement the `ChunkProvider` interface (`request_chunk(chunk_x, chunk_y) -> ChunkResult`).
-
-For synchronous or Rust-native sources (e.g. procedural terrain generation), `request_chunk` returns `ChunkResult::Ready(ChunkData)` immediately. For asynchronous JS/I/O sources, `request_chunk` returns `ChunkResult::Pending` while the host application asynchronously loads or generates chunk payload bytes. Once available, host JS passes chunk data into `engine-core` out-of-band, moving the chunk into `engine-core`'s resident chunk cache. Resident chunk data is then consumed by visibility culling to feed the per-frame `tiles` buffer read by `render`.
-
-
-## Memory Access Pattern
-
-`engine-core` exposes, per buffer field, a pointer getter (byte offset into WASM linear memory) and an element count getter via plain `#[wasm_bindgen]` methods — following the `<buffer>_<field>_ptr()` and `<buffer>_<field>_count()` convention (e.g. `actors_x_ptr()`, `actors_x_count()`). Each buffer category also exposes a `<buffer>_count()` method returning the current count of live/active entries. `render` wraps each pointer in a typed-array view over `memory.buffer` (the `WebAssembly.Memory` instance `wasm-bindgen` exposes) once, then re-wraps it each frame only if the underlying memory has grown, since a memory growth event invalidates existing views.
-
-Because buffers are fixed-size and preallocated once at `EngineState` construction, WASM memory does not need to grow to accommodate world-state changes during normal play — reallocation is only a concern if `engine-core`'s own heap usage (e.g. incidental allocations elsewhere) forces a memory grow. `render` re-fetches its buffer views defensively at the start of each frame to guard against this rather than assuming views stay valid forever.
-
-## Direction — Read-Only
-
-The bridge is one-way: `engine-core` writes, `render` only reads. `render` holds no gameplay logic and never writes back into these buffers, per [Repo Structure](./repo-structure.md).
+Render may receive instance identity, material/geometry references, and render flags for debugging or batching. It does not decide level activation, persistence, streaming, or collision ownership.
 
 ## Schema Ownership
 
-This document is the single source of truth for buffer layout. Changes to a buffer's field set, order, or type are made here first, then mirrored into both the Rust struct definitions in `engine-core` and the TypeScript reader code in `render`. No runtime schema validation exists between the two sides — this is a low-ceremony, hand-synchronized contract, matching the project's agent-driven, low-overhead development approach.
+Each bridge schema has one documented owner and colocated tests. Changes update the design contract, Rust writer, TypeScript reader, and boundary tests together. No implicit field order or capacity assumption is valid.
 
 ## Related Docs
 
-- [Tech Stack](./tech-stack.md) — the Rust/WASM and WebGL2 stack this bridge connects
-- [Rendering](./rendering.md) — the rendering pipeline that consumes these buffers, and the fixed-point math guidance this bridge's f32 wire format sits alongside
-- [Repo Structure](./repo-structure.md) — the `engine-core`/`render` package split this bridge crosses
-- [Input Event Schema](./input-schema.md) — the reverse-direction, `input` → `engine-core` schema, which deliberately crosses this same WASM boundary via a per-frame function call rather than a buffer
-- [Visibility](./visibility.md) — the visibility cull that determines which tiles/actors this bridge's buffers need to carry each frame
+- [Tech Stack](./tech-stack.md) — Rust/WASM and TypeScript boundary
+- [World Model](../features/world-model.md) — local definitions and global instances
+- [World Runtime](./world-runtime.md) — residency and activation
+- [Rendering](./rendering.md) — global scene consumer
+- [Visibility](./visibility.md) — render relevance
+- [Input Event Schema](./input-schema.md) — reverse-direction input contract
+- [Test-Driven Development](../principles/test-driven-development.md) — boundary tests

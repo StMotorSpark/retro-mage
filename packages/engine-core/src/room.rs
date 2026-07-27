@@ -1,8 +1,7 @@
-//! Indoor room graph and room-as-chunk streaming implementation.
+//! Deprecated compatibility room graph and room-as-chunk streaming implementation.
 //!
-//! Per `docs/architecture/world-streaming.md`, indoor space uses rooms as the chunk unit,
-//! connected via a room graph. Streaming in/out is governed by graph-hop depth rather
-//! than spatial distance.
+//! Global level instances are authoritative for current runtime behavior. `EngineState`
+//! only drives this module while global-world content is not configured.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 

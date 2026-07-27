@@ -36,7 +36,7 @@ render/
   lighting/       # LUT generation, application, shader, types
   skybox/         # atmospheric scattering, procedural clouds
   sprites/        # billboard actors, sprite effects
-  world-tiles/    # tile/polygon hybrid geometry, painter's-algorithm sort
+  world-tiles/    # tile/polygon geometry, depth-tested opaque scene, transparent ordering
 ```
 
 Each slice folder colocates its logic, types, shaders, and tests. An agent opens one folder and sees the whole feature — no hunting across `shaders/`, `types/`, `utils/` directories scattered by type.

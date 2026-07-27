@@ -9,11 +9,14 @@
     "dev": "pnpm -r run dev",
     "lint": "eslint .",
     "test": "pnpm -r run test",
+    "test:demo:e2e": "playwright test -c playwright.config.ts",
     "typecheck": "pnpm -r run typecheck",
     "format": "prettier --write ."
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",
+    "@playwright/test": "^1.49.1",
+    "@types/node": "^22.10.2",
     "eslint": "^9.15.0",
     "prettier": "^3.3.3",
     "typescript": "^5.6.3",
