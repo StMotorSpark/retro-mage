@@ -171,14 +171,18 @@ impl WorldTopology {
         }
         self.validate_endpoint(&link.source, true)?;
         let target = link.target_ref();
-        if let LinkTarget::Definition { definition_id, definition_version, .. } = &link.target {
+        if let LinkTarget::Definition { definition_id, definition_version, anchor_id, .. } = &link.target {
             let definition = self.definitions.get(definition_id)
                 .ok_or_else(|| WorldManifestError::UnknownDefinition(definition_id.clone()))?;
             if definition.version != *definition_version {
                 return Err(WorldManifestError::DefinitionVersionMismatch { instance_id: target.instance_id.clone() });
             }
+            if !definition.anchors.iter().any(|anchor| anchor.id == *anchor_id) {
+                return Err(WorldManifestError::UnknownAnchor { instance_id: target.instance_id.clone(), anchor_id: anchor_id.clone() });
+            }
+        } else {
+            self.validate_endpoint(&target, false)?;
         }
-        self.validate_endpoint(&target, false)?;
         if let LinkTransform::Explicit { instance_transform, arrival_offset } = &link.transform {
             instance_transform.validate().map_err(WorldManifestError::InvalidContract)?;
             if !arrival_offset.is_finite() {
@@ -244,17 +248,16 @@ impl WorldTopology {
             }
             (LinkTransform::Explicit { instance_transform, arrival_offset }, false) => {
                 let target_anchor = self.anchor(&target)?;
-                let arrival = instance_transform.compose(&target_anchor.transform).with_translation(
-                    instance_transform.transform_point(target_anchor.transform.translation)
-                );
-                (instance_transform.clone(), arrival.with_translation(
-                    arrival.transform_point(*arrival_offset)
-                ))
+                let arrival = instance_transform.compose(&target_anchor.transform);
+                (instance_transform.clone(), arrival.with_translation(arrival.transform_point(*arrival_offset)))
             }
-            // Reverse explicit links use same target's safe pose as source continuity is not spatial.
-            (LinkTransform::Explicit { instance_transform, arrival_offset }, true) => {
-                let arrival = target_world.with_translation(target_world.transform_point(*arrival_offset));
-                (instance_transform.clone(), arrival)
+            (LinkTransform::Explicit { arrival_offset, .. }, true) => {
+                // Reverse traversal arrives at original source anchor; explicit placement
+                // belongs to destination instance, so preserve its registered transform.
+                let destination_transform = self.instances.get(&target.instance_id)
+                    .ok_or_else(|| WorldManifestError::UnknownInstance(target.instance_id.clone()))?.instance.transform;
+                let arrival = destination_transform.compose(&self.anchor(&target)?.transform);
+                (destination_transform, arrival.with_translation(arrival.transform_point(*arrival_offset)))
             }
         };
         Ok(CrossingResolution { target_instance_id: target.instance_id.clone(), instance_transform, player_pose: arrival_pose, source_anchor: source_world, target_anchor: target_world })
@@ -268,6 +271,31 @@ impl WorldTopology {
         let descriptor = &self.instances.get(&reference.instance_id).ok_or_else(|| WorldManifestError::UnknownInstance(reference.instance_id.clone()))?.instance;
         descriptor.anchor_world_transform(self.anchor(reference)?).map_err(WorldManifestError::InvalidContract)
     }
+    /// Materialize definition-backed link target using link-declared stable identity.
+    /// Provider loading remains a separate runtime operation.
+    pub fn materialize_link_target(&mut self, link_id: &str) -> Result<String, WorldManifestError> {
+        let link = self.links.get(link_id).ok_or_else(|| WorldManifestError::UnknownLink(link_id.to_owned()))?.clone();
+        let LinkTarget::Definition { definition_id, definition_version, instance_id, .. } = link.target else {
+            return Ok(link.target_ref().instance_id);
+        };
+        if self.instances.contains_key(&instance_id) {
+            return Ok(instance_id);
+        }
+        let definition = self.definitions.get(&definition_id).ok_or_else(|| WorldManifestError::UnknownDefinition(definition_id.clone()))?;
+        if definition.version != definition_version {
+            return Err(WorldManifestError::DefinitionVersionMismatch { instance_id });
+        }
+        let descriptor = InstanceDescriptor { instance: LevelInstance {
+            id: instance_id.clone(), definition_id, definition_version,
+            transform: crate::world::Transform::IDENTITY,
+            state: crate::world::RuntimeState::Known,
+            persistence: crate::world::PersistencePolicy::Session,
+            render_resident: false, collision_active: false, simulation_active: false,
+        }};
+        self.register_instance(descriptor)?;
+        Ok(instance_id)
+    }
+
     pub fn instance_count(&self) -> usize { self.instances.len() }
     pub fn link_count(&self) -> usize { self.links.len() }
 
@@ -353,9 +381,14 @@ mod tests {
 
     #[test]
     fn shared_anchor_and_definition_target_allowed() {
-        let mut topology = WorldTopology::from_manifest(manifest()).unwrap();
-        let link = LevelLink { id: "generated".into(), source: AnchorRef { instance_id: "a".into(), anchor_id: "door".into() }, target: LinkTarget::Definition { definition_id: "room".into(), definition_version: "1".into(), anchor_id: "door".into(), instance_id: "b".into() }, direction: LinkDirection::OneWay, anchor_sharing: AnchorSharingPolicy::Shared, transform: LinkTransform::Spatial };
+        let mut world = manifest();
+        world.instances.pop();
+        let mut topology = WorldTopology::from_manifest(world).unwrap();
+        let link = LevelLink { id: "generated".into(), source: AnchorRef { instance_id: "a".into(), anchor_id: "door".into() }, target: LinkTarget::Definition { definition_id: "room".into(), definition_version: "1".into(), anchor_id: "door".into(), instance_id: "generated-b".into() }, direction: LinkDirection::OneWay, anchor_sharing: AnchorSharingPolicy::Shared, transform: LinkTransform::Spatial };
         topology.register_link(link).unwrap();
+        assert_eq!(topology.instance_count(), 1);
+        assert_eq!(topology.materialize_link_target("generated").unwrap(), "generated-b");
+        assert!(topology.instance("generated-b").is_some());
     }
 
     #[test]
@@ -382,9 +415,14 @@ mod tests {
     #[test]
     fn explicit_link_returns_target_pose_with_safe_offset() {
         let mut topology = WorldTopology::from_manifest(manifest()).unwrap();
-        topology.register_link(LevelLink { id: "teleport".into(), source: AnchorRef { instance_id: "a".into(), anchor_id: "door".into() }, target: LinkTarget::Instance(AnchorRef { instance_id: "b".into(), anchor_id: "door".into() }), direction: LinkDirection::OneWay, anchor_sharing: AnchorSharingPolicy::Exclusive, transform: LinkTransform::Explicit { instance_transform: Transform { translation: Vec3 { x: 20.0, y: 3.0, z: 4.0 }, ..Transform::IDENTITY }, arrival_offset: Vec3 { x: 1.0, y: 2.0, z: 0.0 } } }).unwrap();
+        topology.register_link(LevelLink { id: "teleport".into(), source: AnchorRef { instance_id: "a".into(), anchor_id: "door".into() }, target: LinkTarget::Instance(AnchorRef { instance_id: "b".into(), anchor_id: "door".into() }), direction: LinkDirection::Bidirectional, anchor_sharing: AnchorSharingPolicy::Exclusive, transform: LinkTransform::Explicit { instance_transform: Transform { translation: Vec3 { x: 20.0, y: 3.0, z: 4.0 }, ..Transform::IDENTITY }, arrival_offset: Vec3 { x: 1.0, y: 2.0, z: 0.0 } } }).unwrap();
         let source = AnchorRef { instance_id: "a".into(), anchor_id: "door".into() };
         let result = topology.resolve_crossing("teleport", &source, Transform::IDENTITY).unwrap();
         assert_eq!(result.player_pose.translation, Vec3 { x: 21.0, y: 5.0, z: 4.0 });
+        let reverse = AnchorRef { instance_id: "b".into(), anchor_id: "door".into() };
+        let result = topology.resolve_crossing("teleport", &reverse, Transform::IDENTITY).unwrap();
+        assert_eq!(result.target_instance_id, "a");
+        assert_eq!(result.instance_transform, Transform::IDENTITY);
+        assert_eq!(result.player_pose.translation, Vec3 { x: 1.0, y: 2.0, z: 0.0 });
     }
 }

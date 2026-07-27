@@ -10,7 +10,7 @@ use crate::instance_runtime::GlobalLevelContent;
 use crate::level_provider::{LevelProvider, LevelProviderMetadata, LevelProviderRequest, LevelProviderResult, ProviderUpdate};
 use crate::residency::{PersistenceHandoff, ResidencyError, ResidencyStore};
 use crate::world::{LevelInstance, RuntimeState};
-use crate::world_manifest::{InstanceDescriptor, WorldManifest, WorldManifestError, WorldTopology};
+use crate::world_manifest::{AnchorRef, CrossingResolution, InstanceDescriptor, WorldManifest, WorldManifestError, WorldTopology};
 
 #[derive(Debug)]
 pub enum WorldRuntimeError {
@@ -60,6 +60,27 @@ impl WorldRuntime {
             return Err(error.into());
         }
         Ok(())
+    }
+
+    /// Create definition-backed link target with stable manifest identity, then
+    /// expose it to provider-backed residency like any other instance.
+    pub fn materialize_link_target(&mut self, link_id: &str) -> Result<String, WorldRuntimeError> {
+        let id = self.topology.materialize_link_target(link_id)?;
+        if self.residency.instance(&id).is_none() {
+            let descriptor = self.topology.instance(&id).expect("materialized instance").clone();
+            self.residency.register(descriptor.instance)?;
+        }
+        Ok(id)
+    }
+
+    /// Resolve transition topology, materialize dynamic targets, and commit target
+    /// placement to same authoritative lifecycle record.
+    pub fn resolve_crossing(&mut self, link_id: &str, from: &AnchorRef, player_pose: crate::world::Transform) -> Result<CrossingResolution, WorldRuntimeError> {
+        let target_id = self.materialize_link_target(link_id)?;
+        let resolution = self.topology.resolve_crossing(link_id, from, player_pose)?;
+        self.residency.set_transform(&target_id, resolution.instance_transform)?;
+        self.sync_topology_instance(&target_id);
+        Ok(resolution)
     }
 
     pub fn begin_load(&mut self, id: &str, metadata: LevelProviderMetadata) -> Result<LevelProviderRequest, WorldRuntimeError> {

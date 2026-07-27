@@ -40,6 +40,11 @@ impl Quaternion {
             && (self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w) > f32::EPSILON
     }
 
+    fn normalized(self) -> Self {
+        let length = (self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w).sqrt();
+        Self { x: self.x / length, y: self.y / length, z: self.z / length, w: self.w / length }
+    }
+
     fn conjugate(self) -> Self {
         Self { x: -self.x, y: -self.y, z: -self.z, w: self.w }
     }
@@ -103,14 +108,14 @@ impl Transform {
         if !self.rotation.is_valid() {
             return Err(WorldContractError::InvalidRotation);
         }
-        if !self.scale.is_finite() || self.scale < 0.0 {
+        if !self.scale.is_finite() || self.scale <= f32::EPSILON {
             return Err(WorldContractError::InvalidScale);
         }
         Ok(())
     }
 
     pub fn transform_point(&self, point: Vec3) -> Vec3 {
-        let rotated = self.rotation.rotate(point);
+        let rotated = self.rotation.normalized().rotate(point);
         Vec3 {
             x: self.translation.x + rotated.x * self.scale,
             y: self.translation.y + rotated.y * self.scale,
@@ -122,7 +127,7 @@ impl Transform {
     pub fn compose(&self, other: &Self) -> Self {
         Self {
             translation: self.transform_point(other.translation),
-            rotation: self.rotation.multiply(other.rotation),
+            rotation: self.rotation.normalized().multiply(other.rotation.normalized()).normalized(),
             scale: self.scale * other.scale,
         }
     }
@@ -133,7 +138,7 @@ impl Transform {
         if self.scale <= f32::EPSILON {
             return Err(WorldContractError::InvalidScale);
         }
-        let inverse_rotation = self.rotation.conjugate();
+        let inverse_rotation = self.rotation.normalized().conjugate();
         let inverse_scale = 1.0 / self.scale;
         let inverse = Self { translation: Vec3::ZERO, rotation: inverse_rotation, scale: inverse_scale };
         Ok(Self { translation: inverse.transform_point(Vec3 { x: -self.translation.x, y: -self.translation.y, z: -self.translation.z }), ..inverse })
@@ -194,7 +199,11 @@ impl LevelAnchor {
     pub fn validate(&self) -> Result<(), WorldContractError> {
         validate_id(&self.id, "anchor")?;
         self.transform.validate()?;
-        self.volume.validate()
+        self.volume.validate()?;
+        if self.volume.min.x >= self.volume.max.x || self.volume.min.y >= self.volume.max.y || self.volume.min.z >= self.volume.max.z {
+            return Err(WorldContractError::InvalidAnchorVolume);
+        }
+        Ok(())
     }
 }
 
@@ -346,6 +355,7 @@ pub enum WorldContractError {
     DuplicateInstance(String),
     UnknownDefinition(String),
     InvalidPolygon,
+    InvalidAnchorVolume,
 }
 
 fn validate_id(id: &str, kind: &'static str) -> Result<(), WorldContractError> {
@@ -375,10 +385,25 @@ mod tests {
     fn rejects_invalid_contract_inputs() {
         let mut transform = Transform::IDENTITY; transform.scale = -1.0;
         assert_eq!(transform.validate(), Err(WorldContractError::InvalidScale));
+        transform.scale = 0.0;
+        assert_eq!(transform.validate(), Err(WorldContractError::InvalidScale));
         assert_eq!((Bounds { min: Vec3 { x: 1.0, y: 0.0, z: 0.0 }, max: Vec3::ZERO }).validate(), Err(WorldContractError::InvertedBounds));
         let mut definition = LevelDefinition { id: "".into(), version: "1".into(), bounds: bounds(), tiles: vec![], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], metadata: HashMap::new() };
         assert_eq!(definition.validate(), Err(WorldContractError::EmptyId("definition")));
         definition.id = "d".into(); definition.anchors.push(LevelAnchor { id: "".into(), transform: Transform::IDENTITY, volume: bounds(), direction: AnchorDirection::Both });
         assert_eq!(definition.validate(), Err(WorldContractError::EmptyId("anchor")));
+    }
+
+    #[test]
+    fn non_unit_quaternion_is_normalized_for_transform_math() {
+        let transform = Transform { rotation: Quaternion { x: 0.0, y: 0.0, z: 0.0, w: 2.0 }, ..Transform::IDENTITY };
+        assert!(transform.validate().is_ok());
+        assert_eq!(transform.transform_point(Vec3 { x: 1.0, y: 2.0, z: 3.0 }), Vec3 { x: 1.0, y: 2.0, z: 3.0 });
+    }
+
+    #[test]
+    fn rejects_degenerate_anchor_volume() {
+        let anchor = LevelAnchor { id: "door".into(), transform: Transform::IDENTITY, volume: Bounds { min: Vec3::ZERO, max: Vec3::ZERO }, direction: AnchorDirection::Both };
+        assert_eq!(anchor.validate(), Err(WorldContractError::InvalidAnchorVolume));
     }
 }

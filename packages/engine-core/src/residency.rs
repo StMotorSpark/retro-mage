@@ -72,6 +72,17 @@ impl ResidencyStore {
     pub fn simulation_active(&self, id: &str) -> bool { self.records.get(id).is_some_and(|r| r.descriptor.simulation_active) }
     pub fn content(&self, id: &str) -> Option<&GlobalLevelContent> { self.records.get(id).and_then(|r| r.global.as_ref()) }
 
+    /// Move instance while retaining authoritative transformed content.
+    pub fn set_transform(&mut self, id: &str, transform: crate::world::Transform) -> Result<(), ResidencyError> {
+        transform.validate().map_err(ResidencyError::InvalidDefinition)?;
+        let record = self.records.get_mut(id).ok_or_else(|| ResidencyError::UnknownInstance(id.into()))?;
+        record.descriptor.transform = transform;
+        if let Some(definition) = record.definition.as_deref() {
+            record.global = Some(GlobalLevelContent::from_definition(definition, &transform).map_err(ResidencyError::InvalidDefinition)?);
+        }
+        Ok(())
+    }
+
     /// All render-resident content, already transformed into global coordinates.
     pub fn resident_content(&self) -> impl Iterator<Item = (&str, &GlobalLevelContent)> {
         self.records.iter().filter_map(|(id, record)| {
