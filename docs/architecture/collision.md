@@ -28,7 +28,14 @@ The engine's 3D world uses:
 - **Y** — vertical (elevation / floor level)
 - **Z** — depth (camera at yaw=0 looks toward −Z)
 
-Player movement is in the **XZ plane**. Camera Y is the player's elevation and is constant in Phase 1 (single flat floor). Collision is computed in XZ only; the Y-axis is not considered during movement resolution. This `camera.y` elevation coordinate is engine-owned and must match the tile grid's `y` values (visibility culling rounds it to the same integer floor layer as the tiles) — it is not a literal render-time eye height. `render` applies a separate, render-only eye-height offset on top of this value when constructing the view matrix; see [Rendering — Camera Elevation vs. Render Eye Height](./rendering.md#camera-elevation-vs-render-eye-height).
+Player movement is resolved in 3D. The XZ movement is derived from input, while the Y elevation is dictated by the ground beneath the player and gravity. 
+
+The player's base Y elevation is determined dynamically by the tile directly under their feet `(floor(camera.x), floor(camera.z))`:
+- **Flat tiles:** Base Y matches the tile's Y level.
+- **Stair tiles:** The tile's `direction` metadata determines the up-slope. The player's Y is interpolated smoothly across the tile based on their XZ progress along that direction, allowing them to stop mid-stair.
+- **Vertical openings (holes):** The tile provides no base support. Gravity accelerates the player's Y downward until they intersect a solid tile below.
+
+This `camera.y` elevation coordinate is engine-owned. `render` applies a separate, render-only eye-height offset on top of this value when constructing the view matrix; see [Rendering — Camera Elevation vs. Render Eye Height](./rendering.md#camera-elevation-vs-render-eye-height).
 
 ### Movement direction
 
@@ -50,18 +57,24 @@ dz = (move_y × forward_z + move_x × right_z) × speed × dt
 
 where `move_y` is forward/back (positive = forward) and `move_x` is strafe (positive = right), both normalised to −1…1 by the `input` package.
 
-## Collision Shape — Circle
+## Collision Shape — Cylinder
 
-The player's footprint is a circle of radius `player_radius` centred at `(camera.x, camera.z)`. For each solid tile at world position `(tx, ty, tz)`, the tile AABB in XZ is `[tx−0.5, tx+0.5] × [tz−0.5, tz+0.5]`. The overlap test:
+The player's footprint is a cylinder: a circle of radius `player_radius` in the XZ plane, with a vertical extent of `player_height` starting from their base Y. 
+
+For horizontal movement, each solid wall tile at world position `(tx, ty, tz)` is treated as a 1×1 unit axis-aligned bounding box centred at the tile's XZ position, extending from `ty` to `ty + 1` in height. The overlap test for horizontal (wall) collision:
 
 ```
 closest_x = clamp(px, tx − 0.5, tx + 0.5)
 closest_z = clamp(pz, tz − 0.5, tz + 0.5)
 dist²     = (px − closest_x)² + (pz − closest_z)²
-overlap   = dist² < radius²
+horizontal_overlap = dist² < radius²
+
+vertical_overlap = (player_y < ty + 1) and (player_y + player_height > ty)
+
+overlap = horizontal_overlap and vertical_overlap
 ```
 
-All solid tiles in `master_tiles` are checked. In Phase 1 (single floor), ceiling and floor tiles are not marked solid, so only wall tiles participate in collision. Phase 2 multi-floor collision requires Y-level filtering (see [Known Gaps — Multi-Floor Collision](../research/known-gaps.md#multi-floor-collision)).
+This prevents the player from walking through walls on their current level, while allowing them to pass under balconies or overhangs (if `ty` > `player_y + player_height`) or step over short obstacles. Ceiling checks ensure the player's head (`player_y + player_height`) does not clip into solid tiles above.
 
 ## Sliding Resolution
 
@@ -79,15 +92,22 @@ This produces wall-sliding: moving diagonally into a wall succeeds in the parall
 
 ```
 player_speed     f32   4.0 tiles/second   How fast the player moves
-player_radius    f32   0.3 tiles           Player circle footprint
-look_sensitivity f32   2.0 rad/s/unit      Camera look rotation speed
+player_radius    f32   0.3 tiles          Player horizontal footprint
+player_height    f32   1.6 tiles          Player vertical height (head bump check)
+look_sensitivity f32   2.0 rad/s/unit     Camera look rotation speed
+gravity          f32   9.8 tiles/s²       Downward acceleration in holes
+max_fall_speed   f32   15.0 tiles/second  Terminal velocity when falling
 ```
 
-`CollisionConfig` follows the same pattern as `StreamingConfig` and `max_sight_distance`: the engine ships these defaults, a consuming game overrides them via `EngineState::set_collision_config`, `set_player_speed`, `set_player_radius`, or `set_look_sensitivity`. They are tunable per level or per game.
+`CollisionConfig` follows the same pattern as `StreamingConfig` and `max_sight_distance`: the engine ships these defaults, a consuming game overrides them via `EngineState::set_collision_config`. They are tunable per level or per game.
 
 **`player_radius` at 0.3:** a 1-tile-wide doorway leaves ~0.35 tiles of clearance on each side. Narrower corridors are not possible; wider passages feel appropriately tight.
 
+**`player_height` at 1.6:** prevents the player from squeezing under 1-tile-high gaps, while easily passing under 2-tile-high balconies.
+
 **`player_speed` at 4.0 t/s:** a 4-tile-wide room takes ~1 second to cross at full input. Feels snappy without being frantic.
+
+**`gravity` / `max_fall_speed`:** provides a satisfying, physics-based drop when stepping into a `vertical_opening` hole, preventing instant teleportation to lower floors.
 
 **`look_sensitivity` at 2.0 rad/s/unit:** with stick input normalised to −1…1, the camera rotates one full turn in ~π/2 ≈ 1.57 seconds at maximum deflection. Adjustable via the touch overlay's swipe zone or gamepad stick scale.
 
@@ -106,7 +126,6 @@ look_sensitivity f32   2.0 rad/s/unit      Camera look rotation speed
 
 ## What This Does Not Cover
 
-- **Multi-floor collision**: stairwells, ramps, vertical level changes. Phase 1 only; tracked in [Known Gaps](../research/known-gaps.md#multi-floor-collision).
 - **Actor-vs-tile collision**: actors (NPCs, enemies) do not collide with tiles yet. Phase 2.
 - **Actor-vs-actor collision**: no entity-to-entity collision. Phase 2.
 - **Physics responses** (bouncing, friction, mass): out of scope for a dungeon-crawler; simple stop/slide is the intended model indefinitely.
@@ -118,4 +137,4 @@ look_sensitivity f32   2.0 rad/s/unit      Camera look rotation speed
 - [WASM Bridge](./wasm-bridge.md) — the `master_tiles` solid field this collision check reads; the camera buffer this module writes
 - [Input Event Schema](./input-schema.md) — the `move_x/y` and `look_x/y` fields this module consumes
 - [Repo Structure](./repo-structure.md) — why collision lives in `engine-core` (simulation truth) not `render` or `input`
-- [Known Gaps](../research/known-gaps.md) — multi-floor collision and the shared indoor/outdoor coordinate space tracked as future work
+- [Known Gaps](../research/known-gaps.md) — shared indoor/outdoor coordinate space tracked as future work

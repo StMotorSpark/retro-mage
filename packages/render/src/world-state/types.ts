@@ -45,6 +45,7 @@ export interface TilesView {
   readonly variant: Float32Array;
   readonly solid: Float32Array;
   readonly vertical_opening: Float32Array;
+  readonly direction: Float32Array;
   /** Number of tile entries currently loaded */
   count: number;
 }

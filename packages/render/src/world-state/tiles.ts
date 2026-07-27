@@ -15,6 +15,8 @@ export interface TilesEngineState {
   tiles_solid_count(): number;
   tiles_vertical_opening_ptr(): number;
   tiles_vertical_opening_count(): number;
+  tiles_direction_ptr(): number;
+  tiles_direction_count(): number;
   tiles_count(): number;
 }
 
@@ -47,6 +49,7 @@ export function readTilesView(
     variant: new Float32Array(buffer, engine.tiles_variant_ptr(), engine.tiles_variant_count()),
     solid: new Float32Array(buffer, engine.tiles_solid_ptr(), engine.tiles_solid_count()),
     vertical_opening: new Float32Array(buffer, engine.tiles_vertical_opening_ptr(), engine.tiles_vertical_opening_count()),
+    direction: new Float32Array(buffer, engine.tiles_direction_ptr(), engine.tiles_direction_count()),
     count,
   };
 }

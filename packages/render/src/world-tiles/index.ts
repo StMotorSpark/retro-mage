@@ -9,6 +9,7 @@ in vec2 a_uv;
 uniform mat4 u_projection;
 uniform mat4 u_view;
 uniform mat4 u_model;
+uniform float u_direction;
 
 out vec3 v_normal;
 out vec2 v_uv;
@@ -16,7 +17,14 @@ out vec2 v_uv;
 void main() {
   v_normal = a_normal;
   v_uv = a_uv;
-  gl_Position = u_projection * u_view * u_model * vec4(a_position, 1.0);
+  vec3 pos = a_position;
+  if (pos.y > 0.5) {
+    if (u_direction == 1.0) pos.y = 0.5 - a_position.z;
+    else if (u_direction == 2.0) pos.y = 0.5 + a_position.z;
+    else if (u_direction == 3.0) pos.y = 0.5 + a_position.x;
+    else if (u_direction == 4.0) pos.y = 0.5 - a_position.x;
+  }
+  gl_Position = u_projection * u_view * u_model * vec4(pos, 1.0);
 }
 `;
 
@@ -68,6 +76,7 @@ export function createTileRenderer(gl: WebGL2RenderingContext): TileRenderer {
   const uColor = gl.getUniformLocation(program, 'u_color');
   const uTexture = gl.getUniformLocation(program, 'u_texture');
   const uUseTexture = gl.getUniformLocation(program, 'u_use_texture');
+  const uDirection = gl.getUniformLocation(program, 'u_direction');
 
   const textures = new Map<number, WebGLTexture>();
 
@@ -169,12 +178,16 @@ export function createTileRenderer(gl: WebGL2RenderingContext): TileRenderer {
         const z = tiles.z[i] ?? 0;
         const tileId = tiles.tile_id[i] ?? 0;
         const solid = tiles.solid[i] ?? 0;
+        const dir = tiles.direction ? (tiles.direction[i] ?? 0) : 0;
 
         mat4Translation(modelMatrix, x, y, z);
         if (solid !== 0) {
           modelMatrix[5] = WALL_HEIGHT; // scale local Y axis before translation offset
         }
         gl.uniformMatrix4fv(uModel, false, modelMatrix);
+        if (uDirection !== null) {
+          gl.uniform1f(uDirection, dir);
+        }
 
         if (tileId !== currentTexTileId) {
           currentTexTileId = tileId;

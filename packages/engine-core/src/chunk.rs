@@ -337,10 +337,11 @@ impl OutdoorChunkStreamer {
                                     world_x,
                                     0.0, // height logic ignores Y axis for now or we could use heights[i] but standard is 0.0
                                     world_y,
-                                    data.tiles[i] as f32,
-                                    0.0,
-                                    data.solid[i] as f32,
-                                    0.0,
+                                    data.tiles[i] as f32, // tile_id
+                                    0.0,                  // variant
+                                    data.solid[i] as f32, // solid
+                                    0.0,                  // vertical_opening
+                                    0.0,                  // direction
                                 );
                             }
                             self.resident_chunks.insert(
@@ -373,7 +374,7 @@ impl OutdoorChunkStreamer {
                 self.available_blocks.push(removed.block_index);
                 let offset = removed.block_index * CHUNK_TILES;
                 for i in 0..CHUNK_TILES {
-                    outdoor_tiles.set_tile(offset + i, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+                    outdoor_tiles.set_tile(offset + i, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
                 }
             }
         }
@@ -407,7 +408,7 @@ impl OutdoorChunkStreamer {
                     self.available_blocks.push(removed.block_index);
                     let offset = removed.block_index * CHUNK_TILES;
                     for i in 0..CHUNK_TILES {
-                        outdoor_tiles.set_tile(offset + i, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+                        outdoor_tiles.set_tile(offset + i, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
                     }
                 }
             }

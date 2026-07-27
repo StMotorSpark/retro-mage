@@ -45,16 +45,22 @@ pub struct CollisionConfig {
     pub player_radius: f32,
     /// Camera look sensitivity (radians/second/unit). Default: `DEFAULT_LOOK_SENSITIVITY` (2.0).
     pub look_sensitivity: f32,
+    pub player_height: f32,
+    pub gravity: f32,
+    pub max_fall_speed: f32,
 }
 
 #[wasm_bindgen]
 impl CollisionConfig {
     #[wasm_bindgen(constructor)]
-    pub fn new(player_speed: f32, player_radius: f32, look_sensitivity: f32) -> Self {
+    pub fn new(player_speed: f32, player_radius: f32, look_sensitivity: f32, player_height: f32, gravity: f32, max_fall_speed: f32) -> Self {
         CollisionConfig {
             player_speed,
             player_radius,
             look_sensitivity,
+            player_height,
+            gravity,
+            max_fall_speed,
         }
     }
 }
@@ -65,6 +71,9 @@ impl Default for CollisionConfig {
             player_speed: DEFAULT_PLAYER_SPEED,
             player_radius: DEFAULT_PLAYER_RADIUS,
             look_sensitivity: DEFAULT_LOOK_SENSITIVITY,
+            player_height: 1.6,
+            gravity: 9.8,
+            max_fall_speed: 15.0,
         }
     }
 }
@@ -133,15 +142,21 @@ pub fn compute_movement_delta(
 /// Each solid tile is treated as an AABB centered at `(tx, tz)` spanning
 /// `[tx - 0.5, tx + 0.5] × [tz - 0.5, tz + 0.5]`. Y-axis elevation is not
 /// considered in phase 1; all solid tiles contribute to XZ collision.
-fn check_collision(px: f32, pz: f32, radius: f32, master_tiles: &TilesBuffer) -> bool {
+fn check_collision(px: f32, py: f32, pz: f32, radius: f32, player_height: f32, master_tiles: &TilesBuffer) -> bool {
     let r_sq = radius * radius;
     for i in 0..master_tiles.count {
         if master_tiles.solid[i] == 0.0 {
             continue;
         }
         let tx = master_tiles.x[i];
+        let ty = master_tiles.y[i];
         let tz = master_tiles.z[i];
-        // Closest point on tile AABB to player circle centre
+
+        let vertical_overlap = py < ty + 1.0 && py + player_height > ty;
+        if !vertical_overlap {
+            continue;
+        }
+
         let closest_x = px.clamp(tx - 0.5, tx + 0.5);
         let closest_z = pz.clamp(tz - 0.5, tz + 0.5);
         let dist_sq = (px - closest_x) * (px - closest_x) + (pz - closest_z) * (pz - closest_z);
@@ -165,72 +180,144 @@ fn check_collision(px: f32, pz: f32, radius: f32, master_tiles: &TilesBuffer) ->
 /// player radius to prevent tunneling.
 pub fn resolve_movement(
     px: f32,
+    py: f32,
     pz: f32,
     dx: f32,
+    vy: f32,
     dz: f32,
-    radius: f32,
+    config: &CollisionConfig,
+    dt: f32,
     master_tiles: &TilesBuffer,
-) -> (f32, f32) {
+) -> (f32, f32, f32, f32) {
+    let mut new_px = px;
+    let mut new_pz = pz;
+
     let distance = (dx * dx + dz * dz).sqrt();
-    if distance < 1e-6 {
-        return (px, pz);
-    }
+    if distance >= 1e-6 {
+        let max_step = (config.player_radius * 0.5).max(0.05);
+        let steps = (distance / max_step).ceil() as usize;
+        let step_dx = dx / steps as f32;
+        let step_dz = dz / steps as f32;
 
-    // Sub-step size: at most radius * 0.5 to prevent tunneling through solid tiles
-    let max_step = (radius * 0.5).max(0.05);
-    let steps = (distance / max_step).ceil() as usize;
-    let step_dx = dx / steps as f32;
-    let step_dz = dz / steps as f32;
+        let mut curr_x = px;
+        let mut curr_z = pz;
 
-    let mut curr_x = px;
-    let mut curr_z = pz;
-
-    for _ in 0..steps {
-        let (next_x, next_z) =
-            resolve_single_step(curr_x, curr_z, step_dx, step_dz, radius, master_tiles);
-        if (next_x - curr_x).abs() < 1e-6 && (next_z - curr_z).abs() < 1e-6 {
-            break;
+        for _ in 0..steps {
+            let (next_x, next_z) =
+                resolve_single_step(curr_x, py, curr_z, step_dx, step_dz, config, master_tiles);
+            if (next_x - curr_x).abs() < 1e-6 && (next_z - curr_z).abs() < 1e-6 {
+                break;
+            }
+            curr_x = next_x;
+            curr_z = next_z;
         }
-        curr_x = next_x;
-        curr_z = next_z;
+
+        new_px = curr_x;
+        new_pz = curr_z;
     }
 
-    (curr_x, curr_z)
+    let floor_x = new_px.round();
+    let floor_z = new_pz.round();
+    let mut tile_idx = None;
+    let mut max_y = -f32::INFINITY;
+
+    for i in 0..master_tiles.count {
+        if master_tiles.x[i].round() == floor_x && master_tiles.z[i].round() == floor_z {
+            let ty = master_tiles.y[i];
+            if ty <= py + 0.5 && ty > max_y {
+                max_y = ty;
+                tile_idx = Some(i);
+            }
+        }
+    }
+
+    let mut new_py = py;
+    let mut new_vy = vy;
+
+    if let Some(i) = tile_idx {
+        if master_tiles.vertical_opening[i] == 1.0 {
+            new_vy -= config.gravity * dt;
+            if new_vy < -config.max_fall_speed {
+                new_vy = -config.max_fall_speed;
+            }
+            new_py += new_vy * dt;
+        } else {
+            let direction = master_tiles.direction[i];
+            let base_y = if direction > 0.0 {
+                let dx = new_px - floor_x;
+                let dz = new_pz - floor_z;
+                if direction == 1.0 {
+                    master_tiles.y[i] + (0.5 - dz).clamp(0.0, 1.0)
+                } else if direction == 2.0 {
+                    master_tiles.y[i] + (dz + 0.5).clamp(0.0, 1.0)
+                } else if direction == 3.0 {
+                    master_tiles.y[i] + (dx + 0.5).clamp(0.0, 1.0)
+                } else if direction == 4.0 {
+                    master_tiles.y[i] + (0.5 - dx).clamp(0.0, 1.0)
+                } else {
+                    master_tiles.y[i]
+                }
+            } else {
+                master_tiles.y[i]
+            };
+            
+            if new_py > base_y + 0.1 {
+                new_vy -= config.gravity * dt;
+                if new_vy < -config.max_fall_speed {
+                    new_vy = -config.max_fall_speed;
+                }
+                new_py += new_vy * dt;
+                if new_py <= base_y {
+                    new_py = base_y;
+                    new_vy = 0.0;
+                }
+            } else {
+                new_py = base_y;
+                new_vy = 0.0;
+            }
+        }
+    } else {
+        new_vy -= config.gravity * dt;
+        if new_vy < -config.max_fall_speed {
+            new_vy = -config.max_fall_speed;
+        }
+        new_py += new_vy * dt;
+    }
+
+    (new_px, new_py, new_pz, new_vy)
 }
 
 fn resolve_single_step(
     px: f32,
+    py: f32,
     pz: f32,
     dx: f32,
     dz: f32,
-    radius: f32,
+    config: &CollisionConfig,
     master_tiles: &TilesBuffer,
 ) -> (f32, f32) {
-    // 1. Full move
-    if !check_collision(px + dx, pz + dz, radius, master_tiles) {
+    let radius = config.player_radius;
+    let height = config.player_height;
+    if !check_collision(px + dx, py, pz + dz, radius, height, master_tiles) {
         return (px + dx, pz + dz);
     }
 
-    // 2. X-only
-    let new_x = if dx.abs() > 1e-6 && !check_collision(px + dx, pz, radius, master_tiles) {
+    let new_x = if dx.abs() > 1e-6 && !check_collision(px + dx, py, pz, radius, height, master_tiles) {
         px + dx
     } else {
         px
     };
 
-    // 3. Z-only
-    let new_z = if dz.abs() > 1e-6 && !check_collision(px, pz + dz, radius, master_tiles) {
+    let new_z = if dz.abs() > 1e-6 && !check_collision(px, py, pz + dz, radius, height, master_tiles) {
         pz + dz
     } else {
         pz
     };
 
-    // 4. Combined sliding result
-    if !check_collision(new_x, new_z, radius, master_tiles) {
+    if !check_collision(new_x, py, new_z, radius, height, master_tiles) {
         return (new_x, new_z);
     }
 
-    // 5. Fallback: no movement
     (px, pz)
 }
 
@@ -246,9 +333,16 @@ mod tests {
     fn make_tiles_with_solid_at(positions: &[(f32, f32, f32)]) -> TilesBuffer {
         let mut buf = TilesBuffer::new();
         for (i, &(x, y, z)) in positions.iter().enumerate() {
-            buf.set_tile(i, x, y, z, 1.0, 0.0, 1.0, 0.0);
+            buf.set_tile(i, x, y, z, 1.0, 0.0, 1.0, 0.0, 0.0);
         }
         buf
+    }
+
+    fn helper_resolve_movement(px: f32, pz: f32, dx: f32, dz: f32, radius: f32, master_tiles: &TilesBuffer) -> (f32, f32) {
+        let mut config = CollisionConfig::default();
+        config.player_radius = radius;
+        let (nx, _ny, nz, _nvy) = resolve_movement(px, 0.0, pz, dx, 0.0, dz, &config, 1.0, master_tiles);
+        (nx, nz)
     }
 
     // --- apply_look ---
@@ -315,7 +409,7 @@ mod tests {
     #[test]
     fn test_open_space_no_collision() {
         let tiles = TilesBuffer::new(); // no tiles
-        let (nx, nz) = resolve_movement(0.0, 0.0, 1.0, 1.0, 0.3, &tiles);
+        let (nx, nz) = helper_resolve_movement(0.0, 0.0, 1.0, 1.0, 0.3, &tiles);
         assert!((nx - 1.0).abs() < 1e-5);
         assert!((nz - 1.0).abs() < 1e-5);
     }
@@ -326,7 +420,7 @@ mod tests {
         // Tile AABB Z is [-2.5, -1.5]; wall face is at Z = -1.5.
         // With player radius 0.3, player must stop at Z >= -1.2 (not penetrating Z = -1.5).
         let tiles = make_tiles_with_solid_at(&[(0.0, 0.0, -2.0)]);
-        let (_, nz) = resolve_movement(0.0, 0.0, 0.0, -5.0, 0.3, &tiles);
+        let (_, nz) = helper_resolve_movement(0.0, 0.0, 0.0, -5.0, 0.3, &tiles);
         assert!(nz >= -1.2 - 1e-3, "Player penetrated wall face: nz={}", nz);
         assert!(nz < 0.0, "Player did not move at all: nz={}", nz);
     }
@@ -334,8 +428,8 @@ mod tests {
     #[test]
     fn test_non_solid_tile_does_not_block() {
         let mut tiles = TilesBuffer::new();
-        tiles.set_tile(0, 0.0, 0.0, -0.5, 1.0, 0.0, 0.0, 0.0); // solid=0
-        let (_, nz) = resolve_movement(0.0, 0.0, 0.0, -1.0, 0.3, &tiles);
+        tiles.set_tile(0, 0.0, 0.0, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0); // solid=0
+        let (_, nz) = helper_resolve_movement(0.0, 0.0, 0.0, -1.0, 0.3, &tiles);
         assert!((nz - (-1.0)).abs() < 1e-5);
     }
 
@@ -344,7 +438,7 @@ mod tests {
         // Solid wall along X at z=0 (tile centred at (0, 0, 0) — right in front)
         // Player at (-2, 0) tries to move diagonally (+X, -Z):
         let tiles = make_tiles_with_solid_at(&[(0.0, 0.0, 0.0)]);
-        let (nx, _nz) = resolve_movement(-2.0, 0.0, 1.5, -0.1, 0.3, &tiles);
+        let (nx, _nz) = helper_resolve_movement(-2.0, 0.0, 1.5, -0.1, 0.3, &tiles);
         // X moved (slide)
         assert!(nx > -2.0, "Expected X movement (slide), got nx={}", nx);
     }
@@ -354,7 +448,7 @@ mod tests {
         // Solid wall at (0, 0, 0); player at (0, 2) moving toward tile
         // and strafing right; Z is blocked, X should slide
         let tiles = make_tiles_with_solid_at(&[(0.0, 0.0, 0.0)]);
-        let (nx, _nz) = resolve_movement(0.0, 2.0, 0.5, -3.0, 0.3, &tiles);
+        let (nx, _nz) = helper_resolve_movement(0.0, 2.0, 0.5, -3.0, 0.3, &tiles);
         // X should have moved (slide)
         assert!(nx > 0.0, "Expected X slide, got nx={}", nx);
     }
@@ -363,7 +457,7 @@ mod tests {
     fn test_doorway_clearance_at_radius_0_3() {
         // 1-tile-wide doorway centered at X=0 between walls at X=-1.0 and X=1.0.
         let tiles = make_tiles_with_solid_at(&[(-1.0, 0.0, 0.0), (1.0, 0.0, 0.0)]);
-        let (nx, nz) = resolve_movement(0.0, 2.0, 0.0, -4.0, 0.3, &tiles);
+        let (nx, nz) = helper_resolve_movement(0.0, 2.0, 0.0, -4.0, 0.3, &tiles);
         assert!((nx).abs() < 1e-5);
         assert!((nz - (-2.0)).abs() < 1e-5, "Player with radius 0.3 should pass cleanly through 1-tile doorway: nz={}", nz);
     }
@@ -378,7 +472,7 @@ mod tests {
             (0.0, 0.0, 0.8),
             (0.0, 0.0, -0.8),
         ]);
-        let (nx, nz) = resolve_movement(0.0, 0.0, 0.5, 0.5, 0.3, &tiles);
+        let (nx, nz) = helper_resolve_movement(0.0, 0.0, 0.5, 0.5, 0.3, &tiles);
         assert!((nx).abs() < 1e-5, "nx={}", nx);
         assert!((nz).abs() < 1e-5, "nz={}", nz);
     }
@@ -393,9 +487,42 @@ mod tests {
 
     #[test]
     fn test_collision_config_custom() {
-        let cfg = CollisionConfig::new(6.0, 0.4, 3.0);
+        let cfg = CollisionConfig::new(6.0, 0.4, 3.0, 1.8, 12.0, 20.0);
         assert_eq!(cfg.player_speed, 6.0);
         assert_eq!(cfg.player_radius, 0.4);
         assert_eq!(cfg.look_sensitivity, 3.0);
+    }
+
+    #[test]
+    fn test_gravity_fall_in_hole() {
+        let mut tiles = TilesBuffer::new();
+        tiles.set_tile(0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0); // vertical opening
+        let config = CollisionConfig::default();
+        let (_nx, ny, _nz, vy) = resolve_movement(0.0, 1.0, 0.0, 0.0, 0.0, 0.0, &config, 0.1, &tiles);
+        assert!(vy < 0.0);
+        assert!(ny < 1.0);
+    }
+
+    #[test]
+    fn test_stair_interpolation() {
+        let mut tiles = TilesBuffer::new();
+        // Stair direction 1 (North, z- is higher)
+        tiles.set_tile(0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0);
+        let config = CollisionConfig::default();
+        let (_nx, ny, _nz, _vy) = resolve_movement(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, &config, 0.1, &tiles);
+        assert!((ny - 0.5).abs() < 1e-4);
+    }
+
+    #[test]
+    fn test_ceiling_bump() {
+        let mut tiles = TilesBuffer::new();
+        // Solid wall at y=2.0 directly in front
+        tiles.set_tile(0, 0.0, 2.0, -1.0, 1.0, 0.0, 1.0, 0.0, 0.0);
+        let mut config = CollisionConfig::default();
+        config.player_height = 1.6;
+        let (_nx, _ny, nz, _vy) = resolve_movement(0.0, 1.0, 0.0, 0.0, 0.0, -1.0, &config, 0.1, &tiles);
+        // Player height + py = 1.6 + 1.0 = 2.6, overlaps with wall y=2.0..3.0
+        // Should block Z movement
+        assert!(nz > -0.5);
     }
 }
