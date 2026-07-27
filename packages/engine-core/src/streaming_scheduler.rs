@@ -233,7 +233,7 @@ impl StreamingScheduler {
                 continue;
             }
             let state = runtime.state(id).unwrap_or(RuntimeState::Known);
-            if matches!(state, RuntimeState::Loading | RuntimeState::Resident | RuntimeState::Active) {
+            if matches!(state, RuntimeState::Loading | RuntimeState::Resident | RuntimeState::Active | RuntimeState::Failed) {
                 continue;
             }
             if !self.active_requests.contains(id) && !self.queue.iter().any(|r| r.instance_id == *id) {

@@ -153,14 +153,14 @@ Call log:
   129 |   // Need to get back to x < 4 to trigger eviction.
   130 |   await strafe(page, -120, (snapshot) => {
   131 |     const outdoor = snapshot.instances.find(i => i.id === 'outdoor-instance');
-  132 |     return outdoor === undefined || outdoor.state === 0 || outdoor.state === 1; // Unneeded or Evicted
+  132 |     return outdoor === undefined || outdoor.state === 0 || outdoor.state === 5; // Known or Evicted
   133 |   });
   134 |   
   135 |   const evicted = await debug(page);
   136 |   expect(evicted.activeInstance).toBe('dungeon-instance');
   137 |   const outdoorEvicted = evicted.instances.find((instance) => instance.id === 'outdoor-instance');
-  138 |   // It should be 0 (Unknown) or 1 (Evicted)
-  139 |   expect(outdoorEvicted?.state === 0 || outdoorEvicted?.state === 1).toBe(true);
+  138 |   // It should be 0 (Known) or 5 (Evicted)
+  139 |   expect(outdoorEvicted?.state === 0 || outdoorEvicted?.state === 5).toBe(true);
   140 |   
   141 |   // Move back toward the seam to trigger reload
 ```

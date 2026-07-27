@@ -129,14 +129,14 @@ test('unneeded content becomes evictable and reloads when relevant', async ({ pa
   // Need to get back to x < 4 to trigger eviction.
   await strafe(page, -120, (snapshot) => {
     const outdoor = snapshot.instances.find(i => i.id === 'outdoor-instance');
-    return outdoor === undefined || outdoor.state === 0 || outdoor.state === 1; // Unneeded or Evicted
+    return outdoor === undefined || outdoor.state === 0 || outdoor.state === 5; // Known or Evicted
   });
   
   const evicted = await debug(page);
   expect(evicted.activeInstance).toBe('dungeon-instance');
   const outdoorEvicted = evicted.instances.find((instance) => instance.id === 'outdoor-instance');
-  // It should be 0 (Unknown) or 1 (Evicted)
-  expect(outdoorEvicted?.state === 0 || outdoorEvicted?.state === 1).toBe(true);
+  // It should be 0 (Known) or 5 (Evicted)
+  expect(outdoorEvicted?.state === 0 || outdoorEvicted?.state === 5).toBe(true);
   
   // Move back toward the seam to trigger reload
   await strafe(page, 70, (snapshot) => {
