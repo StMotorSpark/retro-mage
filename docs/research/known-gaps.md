@@ -49,7 +49,7 @@ This doc records unresolved implementation details and deliberately deferred cap
 
 ## Content and Platform
 
-- Parallel Playwright workers intermittently destroy the browser execution context during the seamless proof; serial execution is stable, so CI worker policy requires measurement and hardening.
+- Parallel Playwright workers intermittently destroy the browser execution context during the seamless proof; CI enforces one worker for deterministic proof execution. Parallel hardening remains deferred until suite size justifies the investigation.
 
 - Consuming-game texture and level source folder conventions remain application-owned.
 - Audio, animated sprites, additional biomes, and structured content authoring lack feature docs.
