@@ -8,6 +8,7 @@ relates-to:
   - "[World Streaming](../architecture/world-streaming.md)"
   - "[Rendering](../architecture/rendering.md)"
   - "[Collision](../architecture/collision.md)"
+  - "[Crossing Policy](../architecture/crossing-policy.md)"
 ---
 
 # Level Transitions
@@ -33,6 +34,8 @@ Links contain:
 - crossing policy
 - directionality
 
+Crossing policy separates target preload relevance from traversal activation. The default doorway policy uses the authored anchor volume without padding, requires movement toward the destination, and re-arms only after the player leaves the connection volume by 0.5 world units.
+
 The same reusable definition can connect to different destinations in different manifests.
 
 ## Target Placement
@@ -45,7 +48,7 @@ Teleporters and other non-spatial links use an explicit target transform and spa
 
 A target is preloaded while it can become relevant or visible from the source. If target geometry is visible through an open connection, it is submitted to the same global render scene as source geometry. The player can see the target before crossing.
 
-A crossing becomes legal only when target content, transformed geometry, render data, collision data, and safe arrival data are resident. The source remains playable if target loading fails.
+A crossing becomes legal only when the player is inside the active endpoint's crossing volume, movement points toward the destination when directional crossing is enabled, and target content, transformed geometry, render data, collision data, and safe arrival data are resident. A successful crossing disarms the link until the player clears its re-arm distance. The source remains playable if target loading fails.
 
 Connected levels may touch at a boundary or intentionally overlap. Overlap uses explicit collision ownership when multiple solids occupy the same space; it never relies on an implicit nearest-level rule.
 
@@ -62,3 +65,4 @@ Actors do not migrate between instances automatically. Application gameplay expl
 - [World Streaming](../architecture/world-streaming.md) — preload, failure, and eviction
 - [Rendering](../architecture/rendering.md) — one global scene and depth handling
 - [Collision](../architecture/collision.md) — active geometry and overlap ownership
+- [Crossing Policy](../architecture/crossing-policy.md) — preload separation, direction, and re-arm behavior

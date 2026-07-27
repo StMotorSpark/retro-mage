@@ -11,6 +11,7 @@ relates-to:
   - "[WASM Bridge](../architecture/wasm-bridge.md)"
   - "[Collision](../architecture/collision.md)"
   - "[Demo Scope](../features/demo-scope.md)"
+  - "[Crossing Policy](../architecture/crossing-policy.md)"
   - "[Test-Driven Development](../principles/test-driven-development.md)"
 ---
 
@@ -29,7 +30,6 @@ This doc records unresolved implementation details and deliberately deferred cap
 - Link overlap collision ownership needs a concrete policy implementation beyond explicit masks/ownership metadata.
 - Collision projection currently reaches `EngineState` through an explicit transport snapshot sync; automatic runtime-owned projection remains undefined.
 - Demo preload uses a deterministic asynchronous provider path with explicit application-triggered loads; general runtime-driven preload scheduling remains unimplemented.
-- Anchor crossing uses a fixed proximity padding value; link-specific crossing/preload distance policy remains undefined.
 
 ## Rendering and Bridge
 
@@ -82,4 +82,5 @@ These decisions are recorded in their authoritative design docs:
 - [WASM Bridge](../architecture/wasm-bridge.md) — scene transport boundary
 - [Collision](../architecture/collision.md) — multi-floor capability boundary
 - [Demo Scope](../features/demo-scope.md) — first proof scene
+- [Crossing Policy](../architecture/crossing-policy.md) — traversal activation and hysteresis contract
 - [Test-Driven Development](../principles/test-driven-development.md) — testing expectations
