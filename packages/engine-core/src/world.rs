@@ -254,6 +254,9 @@ pub enum WorldContractError {
     InvertedBounds,
     DuplicateAnchor(String),
     DefinitionMismatch,
+    DuplicateDefinition(String),
+    DuplicateInstance(String),
+    UnknownDefinition(String),
 }
 
 fn validate_id(id: &str, kind: &'static str) -> Result<(), WorldContractError> {

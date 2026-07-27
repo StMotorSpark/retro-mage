@@ -5,6 +5,7 @@ pub mod camera;
 pub mod chunk;
 pub mod collision;
 pub mod input;
+pub mod instance_runtime;
 pub mod lights;
 pub mod level_provider;
 pub mod room;

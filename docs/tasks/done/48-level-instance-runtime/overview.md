@@ -1,12 +1,12 @@
 ---
 task: "48"
 slug: level-instance-runtime
-status: pending
+status: done
 depends-on: ["45", "46", "47"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-27
-outcome: ""
+outcome: "Added LevelInstanceRuntime with immutable shared definition storage, stable instance creation, exactly-once local-to-global content transforms, transformed bounds, persistence/runtime state isolation, lookup, and idempotent destruction. Added tests covering reusable definitions at distinct transforms, isolation, duplicate IDs, and safe destruction."
 ---
 
 # Implement Level Instance Runtime
