@@ -1,12 +1,12 @@
 ---
 task: "73"
 slug: demo-crossing-proof
-status: pending
+status: done
 depends-on: ["72"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-27
-outcome: ""
+outcome: "Demo anchors expose directional orientation and browser proof separates target residency from active-instance crossing. Forward traversal, hysteresis clearance, reverse traversal, and failed preload pass under serial CI Playwright."
 ---
 
 # Prove Doorway Crossing Timing

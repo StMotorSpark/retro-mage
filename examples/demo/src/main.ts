@@ -14,6 +14,7 @@ interface DemoDebugSnapshot {
   targetVisible: boolean;
   instances: Array<{ id: string; state: number; renderResident: boolean; collisionActive: boolean }>;
   sourcePlayable: boolean;
+  debugMovement?: { x: number; z: number; yaw: number };
 }
 
 declare global {
@@ -112,7 +113,9 @@ async function main(): Promise<void> {
     engineState.tick(dtMs / 1000);
 
     const cameraBeforeCrossing = legacyReader.read().camera;
-    if ((input.move.x !== 0 || input.move.y !== 0) && worldTransport.try_crossing(cameraBeforeCrossing.x[0] ?? 0, cameraBeforeCrossing.y[0] ?? 0, cameraBeforeCrossing.z[0] ?? 0)) {
+    const movementX = input.move.y * Math.sin(cameraBeforeCrossing.yaw[0] ?? 0) + input.move.x * Math.cos(cameraBeforeCrossing.yaw[0] ?? 0);
+    const movementZ = -input.move.y * Math.cos(cameraBeforeCrossing.yaw[0] ?? 0) + input.move.x * Math.sin(cameraBeforeCrossing.yaw[0] ?? 0);
+    if ((input.move.x !== 0 || input.move.y !== 0) && worldTransport.try_crossing(cameraBeforeCrossing.x[0] ?? 0, cameraBeforeCrossing.y[0] ?? 0, cameraBeforeCrossing.z[0] ?? 0, movementX, movementZ)) {
       engineState.set_camera(worldTransport.crossing_pose_x(), worldTransport.crossing_pose_y(), worldTransport.crossing_pose_z(), cameraBeforeCrossing.yaw[0] ?? 0, cameraBeforeCrossing.pitch[0] ?? 0);
       worldTransport.sync_collision(engineState);
     }
@@ -146,6 +149,7 @@ async function main(): Promise<void> {
       targetVisible: world.scene.instanceIds.includes('outdoor-instance'),
       instances,
       sourcePlayable: instances.some((instance) => instance.id === 'dungeon-instance' && instance.collisionActive),
+      debugMovement: { x: movementX, z: movementZ, yaw: camera.yaw[0] ?? 0 },
     };
     requestAnimationFrame(frame);
   };

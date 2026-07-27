@@ -88,10 +88,15 @@ test('target is visible before crossing and forward/reverse traversal stays cont
   expect(forward.pose.x).toBeGreaterThan(startX + 1);
   expect(forward.renderFrame).toBeGreaterThan(before.renderFrame);
 
-  await strafe(page, 70, (snapshot) => snapshot.activeInstance === 'dungeon-instance');
+  // Clear re-arm hysteresis before attempting return traversal.
+  await strafe(page, 30, (snapshot) => snapshot.pose.x > forward.pose.x + 0.75);
+  const outside = await debug(page);
+  expect(outside.activeInstance).toBe('outdoor-instance');
+
+  await strafe(page, -70, (snapshot) => snapshot.activeInstance === 'dungeon-instance');
   const reverse = await debug(page);
   expect(reverse.activeInstance).toBe('dungeon-instance');
-  expect(reverse.pose.x).toBeGreaterThan(forward.pose.x + 1);
+  expect(reverse.pose.x).toBeLessThan(outside.pose.x - 0.5);
   expect(reverse.sourcePlayable).toBe(true);
 });
 

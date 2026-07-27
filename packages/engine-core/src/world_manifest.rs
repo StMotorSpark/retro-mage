@@ -49,6 +49,17 @@ pub enum AnchorSharingPolicy {
     Shared,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CrossingPolicy {
+    pub padding: f32,
+    pub rearm_distance: f32,
+    pub require_direction: bool,
+}
+
+impl Default for CrossingPolicy {
+    fn default() -> Self { Self { padding: 0.0, rearm_distance: 0.5, require_direction: true } }
+}
+
 /// Controls target placement and player arrival for a crossing.
 #[derive(Debug, Clone, PartialEq)]
 pub enum LinkTransform {
@@ -66,6 +77,7 @@ pub struct LevelLink {
     pub direction: LinkDirection,
     pub anchor_sharing: AnchorSharingPolicy,
     pub transform: LinkTransform,
+    pub crossing_policy: CrossingPolicy,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -223,8 +235,10 @@ impl WorldTopology {
     /// Test player position against an anchor's transformed crossing volume.
     pub fn anchor_contains_world(&self, reference: &AnchorRef, point: crate::world::Vec3, padding: f32) -> Result<bool, WorldManifestError> {
         let instance = &self.instances.get(&reference.instance_id).ok_or_else(|| WorldManifestError::UnknownInstance(reference.instance_id.clone()))?.instance;
-        let local = instance.transform.inverse().map_err(WorldManifestError::InvalidContract)?.transform_point(point);
-        let volume = &self.anchor(reference)?.volume;
+        let instance_local = instance.transform.inverse().map_err(WorldManifestError::InvalidContract)?.transform_point(point);
+        let anchor = self.anchor(reference)?;
+        let local = anchor.transform.inverse().map_err(WorldManifestError::InvalidContract)?.transform_point(instance_local);
+        let volume = &anchor.volume;
         Ok(local.x >= volume.min.x - padding && local.x <= volume.max.x + padding
             && local.y >= volume.min.y - padding && local.y <= volume.max.y + padding
             && local.z >= volume.min.z - padding && local.z <= volume.max.z + padding)
@@ -276,6 +290,16 @@ impl WorldTopology {
 
     fn anchor(&self, reference: &AnchorRef) -> Result<&LevelAnchor, WorldManifestError> {
         self.anchors.get(&(reference.instance_id.clone(), reference.anchor_id.clone())).ok_or_else(|| WorldManifestError::UnknownAnchor { instance_id: reference.instance_id.clone(), anchor_id: reference.anchor_id.clone() })
+    }
+
+    pub fn anchor_forward_world(&self, reference: &AnchorRef) -> Result<crate::world::Vec3, WorldManifestError> {
+        let world = self.anchor_world(reference)?;
+        let tip = world.transform_point(crate::world::Vec3 { x: 0.0, y: 0.0, z: -1.0 });
+        Ok(crate::world::Vec3 { x: tip.x - world.translation.x, y: tip.y - world.translation.y, z: tip.z - world.translation.z })
+    }
+
+    pub fn anchor_center_world(&self, reference: &AnchorRef) -> Result<crate::world::Vec3, WorldManifestError> {
+        Ok(self.anchor_world(reference)?.translation)
     }
 
     fn anchor_world(&self, reference: &AnchorRef) -> Result<crate::world::Transform, WorldManifestError> {
@@ -377,16 +401,16 @@ mod tests {
     #[test]
     fn startup_manifest_registers_instances_and_links() {
         let mut topology = WorldTopology::from_manifest(manifest()).unwrap();
-        let link = LevelLink { id: "door-link".into(), source: AnchorRef { instance_id: "a".into(), anchor_id: "door".into() }, target: LinkTarget::Instance(AnchorRef { instance_id: "b".into(), anchor_id: "door".into() }), direction: LinkDirection::Bidirectional, anchor_sharing: AnchorSharingPolicy::Exclusive, transform: LinkTransform::Spatial };
+        let link = LevelLink { id: "door-link".into(), source: AnchorRef { instance_id: "a".into(), anchor_id: "door".into() }, target: LinkTarget::Instance(AnchorRef { instance_id: "b".into(), anchor_id: "door".into() }), direction: LinkDirection::Bidirectional, anchor_sharing: AnchorSharingPolicy::Exclusive, transform: LinkTransform::Spatial, crossing_policy: CrossingPolicy::default() };
         topology.register_link(link).unwrap(); assert_eq!(topology.instance_count(), 2); assert_eq!(topology.link_count(), 1);
     }
 
     #[test]
     fn rejects_unknown_refs_and_duplicate_exclusive_anchor() {
         let mut topology = WorldTopology::from_manifest(manifest()).unwrap();
-        let bad = LevelLink { id: "bad".into(), source: AnchorRef { instance_id: "missing".into(), anchor_id: "door".into() }, target: LinkTarget::Instance(AnchorRef { instance_id: "b".into(), anchor_id: "door".into() }), direction: LinkDirection::OneWay, anchor_sharing: AnchorSharingPolicy::Exclusive, transform: LinkTransform::Spatial };
+        let bad = LevelLink { id: "bad".into(), source: AnchorRef { instance_id: "missing".into(), anchor_id: "door".into() }, target: LinkTarget::Instance(AnchorRef { instance_id: "b".into(), anchor_id: "door".into() }), direction: LinkDirection::OneWay, anchor_sharing: AnchorSharingPolicy::Exclusive, transform: LinkTransform::Spatial, crossing_policy: CrossingPolicy::default() };
         assert_eq!(topology.register_link(bad), Err(WorldManifestError::UnknownInstance("missing".into())));
-        let link = LevelLink { id: "one".into(), source: AnchorRef { instance_id: "a".into(), anchor_id: "door".into() }, target: LinkTarget::Instance(AnchorRef { instance_id: "b".into(), anchor_id: "door".into() }), direction: LinkDirection::OneWay, anchor_sharing: AnchorSharingPolicy::Exclusive, transform: LinkTransform::Spatial };
+        let link = LevelLink { id: "one".into(), source: AnchorRef { instance_id: "a".into(), anchor_id: "door".into() }, target: LinkTarget::Instance(AnchorRef { instance_id: "b".into(), anchor_id: "door".into() }), direction: LinkDirection::OneWay, anchor_sharing: AnchorSharingPolicy::Exclusive, transform: LinkTransform::Spatial, crossing_policy: CrossingPolicy::default() };
         topology.register_link(link.clone()).unwrap(); let mut second = link; second.id = "two".into(); assert!(matches!(topology.register_link(second), Err(WorldManifestError::AnchorAlreadyLinked { .. })));
     }
 
@@ -395,7 +419,7 @@ mod tests {
         let mut world = manifest();
         world.instances.pop();
         let mut topology = WorldTopology::from_manifest(world).unwrap();
-        let link = LevelLink { id: "generated".into(), source: AnchorRef { instance_id: "a".into(), anchor_id: "door".into() }, target: LinkTarget::Definition { definition_id: "room".into(), definition_version: "1".into(), anchor_id: "door".into(), instance_id: "generated-b".into() }, direction: LinkDirection::OneWay, anchor_sharing: AnchorSharingPolicy::Shared, transform: LinkTransform::Spatial };
+        let link = LevelLink { id: "generated".into(), source: AnchorRef { instance_id: "a".into(), anchor_id: "door".into() }, target: LinkTarget::Definition { definition_id: "room".into(), definition_version: "1".into(), anchor_id: "door".into(), instance_id: "generated-b".into() }, direction: LinkDirection::OneWay, anchor_sharing: AnchorSharingPolicy::Shared, transform: LinkTransform::Spatial, crossing_policy: CrossingPolicy::default() };
         topology.register_link(link).unwrap();
         assert_eq!(topology.instance_count(), 1);
         assert_eq!(topology.materialize_link_target("generated").unwrap(), "generated-b");
@@ -407,7 +431,7 @@ mod tests {
         let mut world = manifest();
         world.instances[1].instance.transform = Transform::from_translation_yaw_scale(Vec3 { x: 10.0, y: 7.0, z: -3.0 }, std::f32::consts::FRAC_PI_2, 1.0);
         let mut topology = WorldTopology::from_manifest(world).unwrap();
-        topology.register_link(LevelLink { id: "spatial".into(), source: AnchorRef { instance_id: "a".into(), anchor_id: "door".into() }, target: LinkTarget::Instance(AnchorRef { instance_id: "b".into(), anchor_id: "door".into() }), direction: LinkDirection::Bidirectional, anchor_sharing: AnchorSharingPolicy::Exclusive, transform: LinkTransform::Spatial }).unwrap();
+        topology.register_link(LevelLink { id: "spatial".into(), source: AnchorRef { instance_id: "a".into(), anchor_id: "door".into() }, target: LinkTarget::Instance(AnchorRef { instance_id: "b".into(), anchor_id: "door".into() }), direction: LinkDirection::Bidirectional, anchor_sharing: AnchorSharingPolicy::Exclusive, transform: LinkTransform::Spatial, crossing_policy: CrossingPolicy::default() }).unwrap();
         let source = AnchorRef { instance_id: "a".into(), anchor_id: "door".into() };
         let result = topology.resolve_crossing("spatial", &source, Transform::IDENTITY).unwrap();
         assert!((result.instance_transform.translation.y - 0.0).abs() < 0.0001);
@@ -418,15 +442,27 @@ mod tests {
     #[test]
     fn one_way_rejects_reverse_crossing() {
         let mut topology = WorldTopology::from_manifest(manifest()).unwrap();
-        topology.register_link(LevelLink { id: "one-way".into(), source: AnchorRef { instance_id: "a".into(), anchor_id: "door".into() }, target: LinkTarget::Instance(AnchorRef { instance_id: "b".into(), anchor_id: "door".into() }), direction: LinkDirection::OneWay, anchor_sharing: AnchorSharingPolicy::Exclusive, transform: LinkTransform::Spatial }).unwrap();
+        topology.register_link(LevelLink { id: "one-way".into(), source: AnchorRef { instance_id: "a".into(), anchor_id: "door".into() }, target: LinkTarget::Instance(AnchorRef { instance_id: "b".into(), anchor_id: "door".into() }), direction: LinkDirection::OneWay, anchor_sharing: AnchorSharingPolicy::Exclusive, transform: LinkTransform::Spatial, crossing_policy: CrossingPolicy::default() }).unwrap();
         let reverse = AnchorRef { instance_id: "b".into(), anchor_id: "door".into() };
         assert_eq!(topology.resolve_crossing("one-way", &reverse, Transform::IDENTITY), Err(WorldManifestError::ReverseCrossingNotAllowed));
     }
 
     #[test]
+    fn crossing_policy_uses_narrow_defaults_and_anchor_relative_volume() {
+        let mut world = manifest();
+        world.definitions[0].anchors[0].transform = Transform::from_translation_yaw_scale(Vec3 { x: 4.0, y: 0.0, z: 0.0 }, 0.0, 1.0);
+        let topology = WorldTopology::from_manifest(world).unwrap();
+        let endpoint = AnchorRef { instance_id: "a".into(), anchor_id: "door".into() };
+        assert_eq!(topology.link("door-link"), None);
+        assert!(topology.anchor_contains_world(&endpoint, Vec3 { x: 4.5, y: 0.5, z: 0.5 }, 0.0).unwrap());
+        assert!(!topology.anchor_contains_world(&endpoint, Vec3 { x: 9.0, y: 0.5, z: 0.5 }, 0.0).unwrap());
+        assert_eq!(CrossingPolicy::default(), CrossingPolicy { padding: 0.0, rearm_distance: 0.5, require_direction: true });
+    }
+
+    #[test]
     fn explicit_link_returns_target_pose_with_safe_offset() {
         let mut topology = WorldTopology::from_manifest(manifest()).unwrap();
-        topology.register_link(LevelLink { id: "teleport".into(), source: AnchorRef { instance_id: "a".into(), anchor_id: "door".into() }, target: LinkTarget::Instance(AnchorRef { instance_id: "b".into(), anchor_id: "door".into() }), direction: LinkDirection::Bidirectional, anchor_sharing: AnchorSharingPolicy::Exclusive, transform: LinkTransform::Explicit { instance_transform: Transform { translation: Vec3 { x: 20.0, y: 3.0, z: 4.0 }, ..Transform::IDENTITY }, arrival_offset: Vec3 { x: 1.0, y: 2.0, z: 0.0 } } }).unwrap();
+        topology.register_link(LevelLink { id: "teleport".into(), source: AnchorRef { instance_id: "a".into(), anchor_id: "door".into() }, target: LinkTarget::Instance(AnchorRef { instance_id: "b".into(), anchor_id: "door".into() }), direction: LinkDirection::Bidirectional, anchor_sharing: AnchorSharingPolicy::Exclusive, transform: LinkTransform::Explicit { instance_transform: Transform { translation: Vec3 { x: 20.0, y: 3.0, z: 4.0 }, ..Transform::IDENTITY }, arrival_offset: Vec3 { x: 1.0, y: 2.0, z: 0.0 } }, crossing_policy: CrossingPolicy::default() }).unwrap();
         let source = AnchorRef { instance_id: "a".into(), anchor_id: "door".into() };
         let result = topology.resolve_crossing("teleport", &source, Transform::IDENTITY).unwrap();
         assert_eq!(result.player_pose.translation, Vec3 { x: 21.0, y: 5.0, z: 4.0 });

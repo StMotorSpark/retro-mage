@@ -1,12 +1,12 @@
 ---
 task: "72"
 slug: engine-crossing-policy
-status: pending
+status: done
 depends-on: ["71"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-27
-outcome: ""
+outcome: "Added link crossing policy with narrow default volumes, directional movement gating, and 0.5-unit re-arm hysteresis. Anchor volumes resolve relative to anchor transforms; Rust coverage and regenerated WASM pass."
 ---
 
 # Implement Directional Crossing Policy
