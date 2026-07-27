@@ -6,6 +6,7 @@ relates-to:
   - "[World Model](../features/world-model.md)"
   - "[Level Transitions](../features/level-transitions.md)"
   - "[World Streaming](./world-streaming.md)"
+  - "[Streaming Scheduler](./streaming-scheduler.md)"
   - "[WASM Bridge](./wasm-bridge.md)"
   - "[Repo Structure](./repo-structure.md)"
   - "[Crossing Policy](./crossing-policy.md)"
@@ -13,7 +14,7 @@ relates-to:
 
 # World Runtime
 
-The world runtime joins application-owned topology and content providers to engine-owned level instances. It keeps content loading, render residency, gameplay activation, and persistence distinct.
+The world runtime joins application-owned topology and content providers to engine-owned level instances. It keeps content loading, render residency, gameplay activation, persistence, and scheduling intent distinct.
 
 ## World Manifest
 
@@ -56,11 +57,11 @@ The runtime tracks three independent concerns:
 
 A preload target is normally render-resident without full actor simulation. A crossed target becomes collision-active and simulation-active. A source instance remains resident while return visibility or transition safety requires it, then becomes evictable.
 
-The current instance and any immediately traversable transition pair are pinned. Applications can pin additional instances with a simple explicit policy; no general priority framework is required.
+The current instance and any immediately traversable transition pair are pinned. Applications can pin additional instances and provide priority hints through the streaming scheduler; scheduling priority does not activate gameplay or override runtime safety.
 
 ## Preload and Crossing Gate
 
-The engine and application keep preload policy separate from crossing policy. Preload uses anchor relevance, visibility range, player proximity, and application priority; explicit application loads can satisfy the same readiness contract. Crossing uses the active endpoint's narrow anchor volume, directional movement, and link re-arm hysteresis. A target is loaded before its geometry can become visually relevant when possible.
+The scheduler and application keep preload intent separate from crossing policy. The scheduler evaluates coarse global relevance, transformed bounds, link preload policy, and application priority, then submits bounded provider work through the runtime. Explicit application loads can satisfy the same readiness contract. Crossing uses the active endpoint's narrow anchor volume, directional movement, and link re-arm hysteresis. A target is loaded before its geometry can become visually relevant when possible.
 
 Crossing requires:
 
@@ -83,6 +84,7 @@ The engine owns transient instance state while an instance is resident. The appl
 - [World Model](../features/world-model.md) — definitions and instances
 - [Level Transitions](../features/level-transitions.md) — anchor and link semantics
 - [World Streaming](./world-streaming.md) — residency policies
+- [Streaming Scheduler](./streaming-scheduler.md) — relevance, request scheduling, and retention intent
 - [WASM Bridge](./wasm-bridge.md) — simulation data crossing into rendering
 - [Repo Structure](./repo-structure.md) — package ownership boundaries
 - [Crossing Policy](./crossing-policy.md) — narrow directional traversal and re-arm hysteresis

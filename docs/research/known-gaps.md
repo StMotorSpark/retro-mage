@@ -29,7 +29,7 @@ This doc records unresolved implementation details and deliberately deferred cap
 - Memory budgets and platform-specific eviction heuristics require measurement against representative content.
 - Link overlap collision ownership needs a concrete policy implementation beyond explicit masks/ownership metadata.
 - Collision projection currently reaches `EngineState` through an explicit transport snapshot sync; automatic runtime-owned projection remains undefined.
-- Demo preload uses a deterministic asynchronous provider path with explicit application-triggered loads; general runtime-driven preload scheduling remains unimplemented.
+- The streaming scheduler contract is defined in [Streaming Scheduler](../architecture/streaming-scheduler.md), but runtime-driven relevance evaluation, bounded request scheduling, and automatic retention/eviction remain unimplemented.
 
 ## Rendering and Bridge
 
@@ -78,6 +78,7 @@ These decisions are recorded in their authoritative design docs:
 - [World Runtime](../architecture/world-runtime.md) — lifecycle and provider boundaries
 - [Example Deployment](../architecture/example-deployment.md) — PWA and deployed demo behavior
 - [World Streaming](../architecture/world-streaming.md) — residency behavior
+- [Streaming Scheduler](../architecture/streaming-scheduler.md) — scheduling contract and implementation boundary
 - [Rendering](../architecture/rendering.md) — renderer capabilities
 - [WASM Bridge](../architecture/wasm-bridge.md) — scene transport boundary
 - [Collision](../architecture/collision.md) — multi-floor capability boundary
