@@ -4,8 +4,23 @@ import { createInputSource, FACE1 } from 'input';
 import { PerfOverlay } from './perf-overlay.js';
 import { createDemoLevelProvider, demoManifest, registerDemoWorld } from './demo-world.js';
 
+interface DemoDebugSnapshot {
+  ready: boolean;
+  wasmReady: boolean;
+  assetsReady: boolean;
+  renderFrame: number;
+  pose: { x: number; y: number; z: number };
+  activeInstance: 'dungeon-instance' | 'outdoor-instance';
+  targetVisible: boolean;
+  instances: Array<{ id: string; state: number; renderResident: boolean; collisionActive: boolean }>;
+  sourcePlayable: boolean;
+}
+
 declare global {
-  interface Window { __debugPos?: { x: number; y: number; z: number } }
+  interface Window {
+    __debugPos?: { x: number; y: number; z: number };
+    __retroMageDebug?: DemoDebugSnapshot;
+  }
 }
 
 /** Demo proof: authored instances share one global scene, collision, and traversal path. */
@@ -18,6 +33,9 @@ async function main(): Promise<void> {
 
   const wasmOutput = await init();
   const engineState = new EngineState();
+  const failOutdoor = new URLSearchParams(window.location.search).has('failOutdoor');
+  let assetsReady = false;
+  let renderFrame = 0;
   const worldTransport = new WorldTransport();
   const provider = createDemoLevelProvider();
 
@@ -28,7 +46,10 @@ async function main(): Promise<void> {
   // Both sides stay render-resident near link. Target geometry therefore exists before crossing.
   const activeInstances = new Set<string>();
   for (const instance of demoManifest.instances) {
-    if (worldTransport.set_instance_state(instance.id, 3, true, true, true)) activeInstances.add(instance.id);
+    if (failOutdoor && instance.id === 'outdoor-instance') {
+      worldTransport.set_instance_state(instance.id, 6, false, false, false);
+      console.warn('Outdoor preload failed by debug request; source remains playable.');
+    } else if (worldTransport.set_instance_state(instance.id, 3, true, true, true)) activeInstances.add(instance.id);
     else if (instance.id === 'dungeon-instance') throw new Error('Failed to activate source dungeon.');
     else console.warn(`Outdoor preload failed for ${instance.id}; source remains playable.`);
   }
@@ -49,7 +70,7 @@ async function main(): Promise<void> {
     }
   }
 
-  engineState.set_camera(0, 0, 5, 0, 0);
+  engineState.set_camera(0, 0, 4, 0, 0);
   engineState.set_ambient_light(0.05);
   engineState.set_max_sight_distance(64);
   engineState.set_cull_precision_distance(64);
@@ -78,6 +99,7 @@ async function main(): Promise<void> {
   } catch (err) {
     console.error('Failed to load demo textures:', err);
   }
+  assetsReady = true;
 
   const inputSource = createInputSource(overlay, { touch: { lookSensitivity: 5 } });
   const perfOverlay = new PerfOverlay({
@@ -107,7 +129,25 @@ async function main(): Promise<void> {
       cullPrecisionDistance: engineState.cull_precision_distance(), ambientLight: engineState.ambient_light(),
       tilesCount: world.tiles.count, actorsCount: world.actors.count, activeWorldStructure: x >= 10 ? 'Outdoor' : 'Indoor',
     });
-    window.__debugPos = { x, y: camera.y[0] ?? 0, z: camera.z[0] ?? 0 };
+    const pose = { x, y: camera.y[0] ?? 0, z: camera.z[0] ?? 0 };
+    const instances = world.instances.map((instance) => ({
+      id: instance.id,
+      state: instance.state,
+      renderResident: instance.render_resident,
+      collisionActive: instance.collision_active,
+    }));
+    window.__debugPos = pose;
+    window.__retroMageDebug = {
+      ready: true,
+      wasmReady: true,
+      assetsReady,
+      renderFrame: ++renderFrame,
+      pose,
+      activeInstance: x >= 10 ? 'outdoor-instance' : 'dungeon-instance',
+      targetVisible: world.scene.instanceIds.includes('outdoor-instance'),
+      instances,
+      sourcePlayable: instances.some((instance) => instance.id === 'dungeon-instance' && instance.collisionActive),
+    };
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);
