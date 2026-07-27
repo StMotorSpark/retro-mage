@@ -1,12 +1,12 @@
 ---
 task: "77"
 slug: streaming-retention-eviction
-status: pending
+status: done
 depends-on: ["75"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-27
-outcome: ""
+outcome: "Implemented eviction logic in StreamingScheduler::update. Added eviction_reason to SchedulerDiagnostic. Retention hysteresis and pins already functioned correctly, so hooked up unneeded Resident states to transition to Evictable and then Evict."
 ---
 
 # Implement Streaming Retention and Eviction

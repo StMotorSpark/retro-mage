@@ -152,6 +152,7 @@ pub struct SchedulerDiagnostic {
     pub intent: ResidencyIntent,
     pub cancel_reason: Option<String>,
     pub failure_reason: Option<String>,
+    pub eviction_reason: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -189,6 +190,24 @@ impl StreamingScheduler {
                 self.active_requests.remove(&id);
                 if let Some(diag) = self.diagnostics.get_mut(&id) {
                     diag.cancel_reason = Some("Unneeded".into());
+                }
+            }
+        }
+
+        let mut to_evict = Vec::new();
+        for (id, decision) in decisions {
+            if decision.intent == ResidencyIntent::Unneeded {
+                if runtime.state(id) == Some(RuntimeState::Resident) {
+                    to_evict.push(id.clone());
+                }
+            }
+        }
+        for id in to_evict {
+            if runtime.mark_evictable(&id).is_ok() {
+                if let Ok(_) = runtime.evict(&id) {
+                    if let Some(diag) = self.diagnostics.get_mut(&id) {
+                        diag.eviction_reason = Some("Unneeded".into());
+                    }
                 }
             }
         }
@@ -233,6 +252,7 @@ impl StreamingScheduler {
                 intent: decision.intent,
                 cancel_reason: None,
                 failure_reason: None,
+                eviction_reason: None,
             });
             diag.intent = decision.intent;
             diag.priority = decision.priority;
