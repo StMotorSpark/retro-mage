@@ -1,381 +1,120 @@
 import init, { EngineState, WorldTransport } from 'engine-core';
-import { createRenderer, loadKtx2Texture, WorldStateReader } from 'render';
+import { createRenderer, loadKtx2Texture, WorldStateReader, WorldTransportReader } from 'render';
 import { createInputSource, FACE1 } from 'input';
 import { PerfOverlay } from './perf-overlay.js';
 import { createDemoLevelProvider, demoManifest, registerDemoWorld } from './demo-world.js';
 
 declare global {
-  interface Window {
-    __debugPos?: { x: number; y: number; z: number };
-  }
+  interface Window { __debugPos?: { x: number; y: number; z: number } }
 }
 
-/**
- * Demo app: 3-room indoor dungeon scene (Entry Hall, Armory, Gate Room)
- * exercising textured tile rendering, LUT lighting, collision-driven movement,
- * and indoor room graph streaming per docs/features/demo-scope.md.
- */
+/** Demo proof: authored instances share one global scene, collision, and traversal path. */
 async function main(): Promise<void> {
   const canvas = document.querySelector<HTMLCanvasElement>('#scene');
   const overlay = document.querySelector<HTMLElement>('#input-overlay');
-
-  if (!canvas || !overlay) {
-    throw new Error('Expected #scene canvas and #input-overlay elements in index.html.');
-  }
-
+  if (!canvas || !overlay) throw new Error('Expected #scene canvas and #input-overlay elements in index.html.');
   const gl = canvas.getContext('webgl2');
-  if (!gl) {
-    throw new Error('WebGL2 context not supported.');
-  }
+  if (!gl) throw new Error('WebGL2 context not supported.');
 
-  // engine-core ships as a wasm-bindgen `web` target module — must init before use.
   const wasmOutput = await init();
-
   const engineState = new EngineState();
   const worldTransport = new WorldTransport();
+  const provider = createDemoLevelProvider();
 
-  // App owns authored definitions/provider/manifest. Submit resolved content through browser/WASM API.
-  registerDemoWorld(worldTransport);
+  // Application owns provider + manifest. Transport receives resolved authored content.
+  registerDemoWorld(worldTransport, provider);
+  if (demoManifest.link.preload !== 'before-visible') throw new Error('Demo link must preload before visible.');
 
-  // App owns definitions/provider/manifest. Engine receives resolved content below.
-  const levelProvider = createDemoLevelProvider();
-  const dungeonDefinition = levelProvider.resolve('dungeon');
-  const outdoorDefinition = levelProvider.resolve('outdoor');
-  if (demoManifest.link.preload !== 'before-visible' || dungeonDefinition.anchors.length !== 1 || outdoorDefinition.anchors.length !== 1) {
-    throw new Error('Invalid seamless demo manifest.');
+  // Both sides stay render-resident near link. Target geometry therefore exists before crossing.
+  const activeInstances = new Set<string>();
+  for (const instance of demoManifest.instances) {
+    if (worldTransport.set_instance_state(instance.id, 3, true, true, true)) activeInstances.add(instance.id);
+    else if (instance.id === 'dungeon-instance') throw new Error('Failed to activate source dungeon.');
+    else console.warn(`Outdoor preload failed for ${instance.id}; source remains playable.`);
   }
 
-  // Populate 3-room indoor dungeon scene into engine-core
-  // Camera starting pose at (0, 0, 6) looking down -Z into starting room (Room 0: Entry Hall).
-  // y must match the tile grid's floor elevation (0 = Entry Hall floor tiles' y), since
-  // engine-core's visibility culling rounds camera.y to an integer "elev" layer and only
-  // tiles on that same elev are shadowcast-visible (see recompute_visibility/visibility.rs).
-  // A fractional eye-height y (e.g. 1.5) rounds to a different elev than the floor tiles,
-  // producing zero visible tiles.
-  engineState.set_camera(0, 0, 6, 0, 0);
+  // Global collision consumes same provider data and instance transforms as render transport.
+  for (const instance of demoManifest.instances) {
+    if (!activeInstances.has(instance.id)) continue;
+    const definition = provider.resolve(instance.definitionId);
+    for (const tile of definition.tiles) {
+      if (!tile.solid) continue;
+      const [ox, oy, oz] = instance.position;
+      engineState.submit_global_collision_solid(
+        instance.id,
+        ox + tile.x - 0.5, oy + tile.y, oz + tile.z - 0.5,
+        ox + tile.x + 0.5, oy + tile.y + 1, oz + tile.z + 0.5,
+        true,
+      );
+    }
+  }
+
+  engineState.set_camera(0, 0, 5, 0, 0);
   engineState.set_ambient_light(0.05);
-  engineState.set_max_sight_distance(32.0);
-  engineState.set_cull_precision_distance(32.0);
+  engineState.set_max_sight_distance(64);
+  engineState.set_cull_precision_distance(64);
 
-  // Configure world streaming tuning parameters (task:30)
-  // Load radius = 2 chunks, Evict radius = 3 chunks, Hop depth = 1 hop, Seam trigger = 32 tiles
-  engineState.set_outdoor_load_radius(2);
-  engineState.set_outdoor_evict_radius(3);
-  engineState.set_indoor_hop_depth(1);
-  engineState.set_seam_trigger_distance(32.0);
-  engineState.set_seam_crossing_threshold(1.5);
-
-  // Set up 3-room graph (task:36)
-  // Room 0: Entry Hall (starting room, wide, 2 torches)
-  // Room 1: Armory (narrower side room connected to Entry Hall, 1 torch)
-  // Room 2: Gate Room (connected to Entry Hall, 1 torch, contains seam exit tile)
-  engineState.add_room_to_graph(0, 'Entry Hall');
-  engineState.add_room_to_graph(1, 'Armory');
-  engineState.add_room_to_graph(2, 'Gate Room');
-  engineState.add_room_to_graph(3, 'Multi Floor Area');
-  engineState.add_room_edge(0, 1);
-  engineState.add_room_edge(0, 2);
-  engineState.add_room_edge(0, 3);
-  engineState.set_indoor_current_room(0);
-
-  // Doorways
-  engineState.register_indoor_doorway(-100.0, -4.0, -100.0, 100.0, 0, 1); // Entry -> Armory
-  engineState.register_indoor_doorway(-4.0, 100.0, -100.0, 100.0, 1, 0);  // Armory -> Entry
-  engineState.register_indoor_doorway(4.0, 100.0, -100.0, 100.0, 0, 2);   // Entry -> Gate Room
-  engineState.register_indoor_doorway(-100.0, 4.0, -100.0, 100.0, 2, 0);  // Gate Room -> Entry
-  engineState.register_indoor_doorway(-3.0, 3.0, 7.0, 9.0, 0, 3);         // Entry -> Multi Floor
-  engineState.register_indoor_doorway(-3.0, 3.0, 7.0, 9.0, 3, 0);         // Multi Floor -> Entry
-
-  engineState.set_active_world_structure(0); // 0 = Indoor, 1 = Outdoor
-  engineState.set_outdoor_default_tile_id(3); // tile_id 3 = grass terrain
-
-  let tileIdx = 0;
-
-  // 1. Room 0: Entry Hall floor grid (y = 0.0): x in [-3, 3], z in [2, 7]
-  for (let x = -3; x <= 3; x++) {
-    for (let z = 2; z <= 7; z++) {
-      engineState.set_indoor_tile(tileIdx++, x, 0, z, 2, 0, 0, 0, 0); // tile_id 2 = floor
-    }
-  }
-
-  // Entry Hall walls (tile_id 1 = wall, solid = 1.0)
-  for (let x = -4; x <= 4; x++) {
-    if (x !== 0 && x !== -1 && x !== 1) {
-      engineState.set_indoor_tile(tileIdx++, x, 0, 8, 1, 0, 1.0, 0, 0); // South wall
-    }
-    engineState.set_indoor_tile(tileIdx++, x, 0, 1, 1, 0, 1.0, 0, 0); // North wall
-  }
-  for (let z = 2; z <= 7; z++) {
-    if (z !== 4) {
-      engineState.set_indoor_tile(tileIdx++, -4, 0, z, 1, 0, 1.0, 0, 0); // West wall (doorway at z=4)
-      engineState.set_indoor_tile(tileIdx++, 4, 0, z, 1, 0, 1.0, 0, 0); // East wall (doorway at z=4)
-    }
-  }
-
-  // 2. Room 1: Armory floor grid (y = 0.0): x in [-9, -5], z in [3, 6]
-  for (let x = -9; x <= -5; x++) {
-    for (let z = 3; z <= 6; z++) {
-      engineState.set_indoor_tile(tileIdx++, x, 0, z, 2, 0, 0, 0, 0); // floor
-    }
-  }
-  // Doorway connection between Entry Hall & Armory
-  engineState.set_indoor_tile(tileIdx++, -4, 0, 4, 2, 0, 0, 0, 0);
-
-  // Armory walls
-  for (let x = -10; x <= -4; x++) {
-    engineState.set_indoor_tile(tileIdx++, x, 0, 7, 1, 0, 1.0, 0, 0); // South wall
-    engineState.set_indoor_tile(tileIdx++, x, 0, 2, 1, 0, 1.0, 0, 0); // North wall
-  }
-  for (let z = 3; z <= 6; z++) {
-    engineState.set_indoor_tile(tileIdx++, -10, 0, z, 1, 0, 1.0, 0, 0); // West wall
-    if (z !== 4) {
-      engineState.set_indoor_tile(tileIdx++, -4, 0, z, 1, 0, 1.0, 0, 0); // East wall
-    }
-  }
-
-  // 3. Room 2: Gate Room floor grid (y = 0.0): x in [5, 9], z in [3, 6]
-  for (let x = 5; x <= 9; x++) {
-    for (let z = 3; z <= 6; z++) {
-      engineState.set_indoor_tile(tileIdx++, x, 0, z, 2, 0, 0, 0, 0); // floor
-    }
-  }
-  // Doorway connection between Entry Hall & Gate Room
-  engineState.set_indoor_tile(tileIdx++, 4, 0, 4, 2, 0, 0, 0, 0);
-  // Seam exit tile
-  engineState.set_indoor_tile(tileIdx++, 10, 0, 4, 2, 0, 0, 0, 0);
-
-  // Gate Room walls
-  for (let x = 4; x <= 10; x++) {
-    engineState.set_indoor_tile(tileIdx++, x, 0, 7, 1, 0, 1.0, 0, 0); // South wall
-    engineState.set_indoor_tile(tileIdx++, x, 0, 2, 1, 0, 1.0, 0, 0); // North wall
-  }
-  for (let z = 3; z <= 6; z++) {
-    if (z !== 4) {
-      engineState.set_indoor_tile(tileIdx++, 4, 0, z, 1, 0, 1.0, 0, 0); // West wall
-      engineState.set_indoor_tile(tileIdx++, 10, 0, z, 1, 0, 1.0, 0, 0); // East wall (gate exit at z=4)
-    }
-  }
-
-  // 4. Room 3: Multi Floor Area
-  // Stairs going up from z=8 to z=9 at x in [-1, 1]
-  for (let x = -1; x <= 1; x++) {
-    engineState.set_indoor_tile(tileIdx++, x, 0, 8, 2, 0, 0, 0, 2.0); // direction=2.0 (ramp up towards +Z)
-  }
-
-  // Upstairs floor y=1.0: x in [-2, 2], z in [9, 12]
-  for (let x = -2; x <= 2; x++) {
-    for (let z = 9; z <= 12; z++) {
-      if (x === 0 && z === 10) {
-        // Vertical opening (hole)
-        engineState.set_indoor_tile(tileIdx++, x, 1.0, z, 2, 0, 0, 1.0, 0);
-      } else {
-        // Normal floor
-        engineState.set_indoor_tile(tileIdx++, x, 1.0, z, 2, 0, 0, 0, 0);
-      }
-    }
-  }
-
-  // Basement floor y=0.0 under the hole
-  for (let x = -1; x <= 1; x++) {
-    for (let z = 9; z <= 11; z++) {
-      engineState.set_indoor_tile(tileIdx++, x, 0.0, z, 2, 0, 0, 0, 0);
-    }
-  }
-
-  // Low ceiling obstacle at x=1, z=10, y=2.0 (blocks player of height 1.6 from floor y=1.0)
-  engineState.set_indoor_tile(tileIdx++, 1, 2.0, 10, 1, 0, 1.0, 0, 0);
-
-  // Walls for Room 3
-  for (let z = 9; z <= 12; z++) {
-    engineState.set_indoor_tile(tileIdx++, -3, 1.0, z, 1, 0, 1.0, 0, 0); // West
-    engineState.set_indoor_tile(tileIdx++, 3, 1.0, z, 1, 0, 1.0, 0, 0); // East
-  }
-  for (let x = -3; x <= 3; x++) {
-    engineState.set_indoor_tile(tileIdx++, x, 1.0, 13, 1, 0, 1.0, 0, 0); // South
-  }
-
-
-  // Torch Point Lights (5 total): warm orange-yellow (r=1.0, g=0.7, b=0.3)
-  // Entry Hall Torch 1 & 2
-  engineState.set_light(0, -2.0, 1.5, 4.0, 1.0, 0.7, 0.3, 8.0, 1.0);
-  engineState.set_light(1, 2.0, 1.5, 4.0, 1.0, 0.7, 0.3, 8.0, 1.0);
-  // Armory Torch
-  engineState.set_light(2, -7.0, 1.5, 4.5, 1.0, 0.7, 0.3, 8.0, 1.0);
-  // Gate Room Torch
-  engineState.set_light(3, 7.0, 1.5, 4.5, 1.0, 0.7, 0.3, 8.0, 1.0);
-  // Multi Floor Area Torch (upstairs, illuminating ramp and second floor)
-  engineState.set_light(4, 0.0, 2.5, 11.0, 1.0, 0.7, 0.3, 12.0, 1.0);
-
-  // Tree Billboard Sprite Actors (6 total) in outdoor chunk area (task:38)
-  // Scattered across outdoor area around seam exit (32, 32), avoiding direct path
-  engineState.set_outdoor_actor(0, 25.0, 0.0, 24.0, 0.0, 1.0, 1.0);
-  engineState.set_outdoor_actor(1, 38.0, 0.0, 26.0, 0.0, 1.0, 1.0);
-  engineState.set_outdoor_actor(2, 22.0, 0.0, 36.0, 0.0, 1.0, 1.0);
-  engineState.set_outdoor_actor(3, 40.0, 0.0, 38.0, 0.0, 1.0, 1.0);
-  engineState.set_outdoor_actor(4, 28.0, 0.0, 44.0, 0.0, 1.0, 1.0);
-  engineState.set_outdoor_actor(5, 36.0, 0.0, 42.0, 0.0, 1.0, 1.0);
-
-  // A pair of solid stone wall tiles (tile_id 1) marking the seam entrance back to the dungeon
-  engineState.set_outdoor_tile(0, 31.0, 0.0, 32.0, 1, 0, 1.0, 0.0, 0.0);
-  engineState.set_outdoor_tile(1, 33.0, 0.0, 32.0, 1, 0, 1.0, 0.0, 0.0);
-
-  // Set up world state reader over WASM memory
-  const reader = new WorldStateReader(engineState, wasmOutput.memory);
-
-  // Pass reader view getter to the render loop
+  const legacyReader = new WorldStateReader(engineState, wasmOutput.memory);
+  const transportReader = new WorldTransportReader(worldTransport, wasmOutput.memory);
   const renderer = createRenderer(canvas, {
-    getViews: () => reader.read(),
+    getViews: () => {
+      const camera = legacyReader.read();
+      const world = transportReader.read();
+      return { ...camera, tiles: world.tiles, actors: world.actors, lights: world.lights, scene: world.scene, ambient_light: world.ambient_light };
+    },
   });
 
-  // Wire textures into world-tiles and sprites renderers
   try {
-    const stoneWallRes = await fetch('/assets/textures/stone-wall.ktx2');
-    if (stoneWallRes.ok) {
-      const buffer = await stoneWallRes.arrayBuffer();
-      const loaded = await loadKtx2Texture(gl, buffer);
-      renderer.tileRenderer?.setTexture(1, loaded.texture); // stone wall (tile_id 1)
+    for (const [path, setter, id] of [
+      ['/assets/textures/stone-wall.ktx2', renderer.tileRenderer?.setTexture, 1],
+      ['/assets/textures/stone-floor.ktx2', renderer.tileRenderer?.setTexture, 2],
+      ['/assets/textures/grass.ktx2', renderer.tileRenderer?.setTexture, 3],
+    ] as const) {
+      const response = await fetch(path);
+      if (response.ok && setter) setter.call(renderer.tileRenderer, id, (await loadKtx2Texture(gl, await response.arrayBuffer())).texture);
     }
-    const stoneFloorRes = await fetch('/assets/textures/stone-floor.ktx2');
-    if (stoneFloorRes.ok) {
-      const buffer = await stoneFloorRes.arrayBuffer();
-      const loaded = await loadKtx2Texture(gl, buffer);
-      renderer.tileRenderer?.setTexture(2, loaded.texture); // stone floor (tile_id 2)
-    }
-    const grassRes = await fetch('/assets/textures/grass.ktx2');
-    if (grassRes.ok) {
-      const buffer = await grassRes.arrayBuffer();
-      const loaded = await loadKtx2Texture(gl, buffer);
-      renderer.tileRenderer?.setTexture(3, loaded.texture); // grass terrain (tile_id 3)
-    }
-    const treeRes = await fetch('/assets/sprites/tree-sprite.ktx2');
-    if (treeRes.ok) {
-      const buffer = await treeRes.arrayBuffer();
-      const loaded = await loadKtx2Texture(gl, buffer);
-      renderer.spriteRenderer?.setTexture(1, loaded.texture); // tree sprite (sprite_id 1)
-    }
+    const tree = await fetch('/assets/sprites/tree-sprite.ktx2');
+    if (tree.ok && renderer.spriteRenderer) renderer.spriteRenderer.setTexture(1, (await loadKtx2Texture(gl, await tree.arrayBuffer())).texture);
   } catch (err) {
-    // eslint-disable-next-line no-console
     console.error('Failed to load demo textures:', err);
   }
 
-  // Override touch look sensitivity default (3) up to 5 for this demo's feel.
   const inputSource = createInputSource(overlay, { touch: { lookSensitivity: 5 } });
   const perfOverlay = new PerfOverlay({
-    onAdjustMaxSight: (delta: number) => {
-      const cur = engineState.max_sight_distance();
-      const next = Math.max(1, Math.min(64, cur + delta));
-      engineState.set_max_sight_distance(next);
-    },
-    onAdjustCullPrecision: (delta: number) => {
-      const cur = engineState.cull_precision_distance();
-      const next = Math.max(1, Math.min(64, cur + delta));
-      engineState.set_cull_precision_distance(next);
-    },
-    onAdjustAmbientLight: (delta: number) => {
-      const cur = engineState.ambient_light();
-      const next = Math.max(0, Math.min(1, cur + delta));
-      engineState.set_ambient_light(next);
-    },
-    onAdjustSeamTrigger: (delta: number) => {
-      const cur = engineState.seam_trigger_distance();
-      const next = Math.max(1, Math.min(64, cur + delta));
-      engineState.set_seam_trigger_distance(next);
-    },
-    onAdjustOutdoorLoadRadius: (delta: number) => {
-      const cur = engineState.outdoor_load_radius();
-      const next = Math.max(1, Math.min(8, cur + delta));
-      engineState.set_outdoor_load_radius(next);
-    },
-    onAdjustIndoorHopDepth: (delta: number) => {
-      const cur = engineState.indoor_hop_depth();
-      const next = Math.max(1, Math.min(5, cur + delta));
-      engineState.set_indoor_hop_depth(next);
-    },
+    onAdjustMaxSight: (delta) => engineState.set_max_sight_distance(Math.max(1, Math.min(128, engineState.max_sight_distance() + delta))),
+    onAdjustCullPrecision: (delta) => engineState.set_cull_precision_distance(Math.max(1, Math.min(128, engineState.cull_precision_distance() + delta))),
+    onAdjustAmbientLight: (delta) => engineState.set_ambient_light(Math.max(0, Math.min(1, engineState.ambient_light() + delta))),
   });
-
   renderer.start();
 
   let lastTime = performance.now();
-
   const frame = (time: number): void => {
-    const dt = (time - lastTime) / 1000;
     const dtMs = time - lastTime;
     lastTime = time;
+    const input = inputSource.getState();
+    engineState.set_input(input.move.x, input.move.y, input.look.x, input.look.y, input.vertical, input.buttons, input.buttonsPressed);
+    if ((input.buttonsPressed & FACE1) !== 0) perfOverlay.toggle();
+    engineState.tick(dtMs / 1000);
 
-    const inputState = inputSource.getState();
-
-    engineState.set_input(
-      inputState.move.x,
-      inputState.move.y,
-      inputState.look.x,
-      inputState.look.y,
-      inputState.vertical,
-      inputState.buttons,
-      inputState.buttonsPressed
-    );
-
-    // Toggle perf overlay visibility on face1 edge press
-    if ((inputState.buttonsPressed & FACE1) !== 0) {
-      perfOverlay.toggle();
-    }
-
-    // Advance engine tick: applies look, computes facing movement delta,
-    // and resolves tile collision with sliding resolution (task:33)
-    engineState.tick(dt);
-
-
-    const activeStruct = engineState.active_world_structure();
-    const isOutdoor = activeStruct === 1;
-
-    // Active world structure updates rendering skybox and outdoor ambient lighting
-    renderer.setSkyboxEnabled(isOutdoor);
-    
-    // Smoothly transition ambient light instead of snapping to prevent flashing during cooldown/hysteresis
-    const targetAmbient = isOutdoor ? 1.0 : 0.05;
-    const currentAmbient = engineState.ambient_light();
-    engineState.set_ambient_light(
-      currentAmbient + (targetAmbient - currentAmbient) * (1.0 - Math.exp(-5.0 * dt))
-    );
-
+    const world = transportReader.read();
+    const camera = legacyReader.read().camera;
+    const x = camera.x[0] ?? 0;
+    renderer.setSkyboxEnabled(x >= 10);
+    const targetAmbient = x >= 10 ? 1 : 0.05;
+    engineState.set_ambient_light(engineState.ambient_light() + (targetAmbient - engineState.ambient_light()) * (1 - Math.exp(-5 * dtMs / 1000)));
     perfOverlay.update(dtMs, time, {
-      sightRadius: engineState.sight_radius(),
-      maxSightDistance: engineState.max_sight_distance(),
-      cullPrecisionDistance: engineState.cull_precision_distance(),
-      ambientLight: engineState.ambient_light(),
-      tilesCount: engineState.tiles_count(),
-      actorsCount: engineState.actors_count(),
-      activeWorldStructure: activeStruct === 0 ? 'Indoor' : 'Outdoor',
-      currentRoomId: engineState.indoor_current_room_id(),
-      residentRoomsCount: engineState.resident_room_count(),
-      residentChunksCount: engineState.resident_chunk_count(),
-      seamTriggerDistance: engineState.seam_trigger_distance(),
-      outdoorLoadRadius: engineState.outdoor_load_radius(),
-      indoorHopDepth: engineState.indoor_hop_depth(),
+      sightRadius: engineState.sight_radius(), maxSightDistance: engineState.max_sight_distance(),
+      cullPrecisionDistance: engineState.cull_precision_distance(), ambientLight: engineState.ambient_light(),
+      tilesCount: world.tiles.count, actorsCount: world.actors.count, activeWorldStructure: x >= 10 ? 'Outdoor' : 'Indoor',
     });
-
-    const v = reader.read();
-    window.__debugPos = { x: v.camera.x[0] ?? 0, y: v.camera.y[0] ?? 0, z: v.camera.z[0] ?? 0 };
-
+    window.__debugPos = { x, y: camera.y[0] ?? 0, z: camera.z[0] ?? 0 };
     requestAnimationFrame(frame);
   };
-
   requestAnimationFrame(frame);
 }
 
-main().catch((err) => {
-  // eslint-disable-next-line no-console
-  console.error('Demo failed to start:', err);
-});
+main().catch((err) => console.error('Demo failed to start:', err));
 
-// Register the generated service worker so the app shell (JS, WASM, CSS, HTML)
-// installs to the home screen and reloads without a network round-trip.
-// generateSW strategy only emits sw.js on `vite build`; dev server has no
-// service worker to register, so skip in dev to avoid a text/html 404 mismatch.
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch((err) => {
-      // eslint-disable-next-line no-console
-      console.error('Service worker registration failed:', err);
-    });
-  });
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch((err) => console.error('Service worker registration failed:', err)));
 }

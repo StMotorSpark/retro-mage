@@ -1,12 +1,12 @@
 ---
 task: "62"
 slug: migrate-demo-runtime
-status: pending
+status: done
 depends-on: ["57", "58", "60", "61"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-27
-outcome: ""
+outcome: "Migrated demo proof path to authored global transport: dungeon and outdoor instances render together, share transformed global collision, and remain playable across the bidirectional gate. Preserved touch/gamepad input, PWA registration, texture loading, and source playability when outdoor activation fails."
 ---
 
 # Migrate Demo to Global Level Runtime

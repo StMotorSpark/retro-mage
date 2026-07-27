@@ -64,7 +64,13 @@ function dungeonTiles(): DemoTile[] {
   const tiles: DemoTile[] = [];
   for (let x = -4; x <= 10; x += 1) for (let z = 2; z <= 7; z += 1) tiles.push(floor(x, z, 2, 2));
   for (let x = -5; x <= 10; x += 1) { tiles.push(wall(x, 1)); tiles.push(wall(x, 8)); }
-  for (let z = 2; z <= 7; z += 1) { if (z !== 4) tiles.push(wall(-5, z)); if (z !== 4) tiles.push(wall(10, z)); }
+  for (let z = 2; z <= 7; z += 1) { tiles.push(wall(-5, z)); if (z !== 4) tiles.push(wall(10, z)); }
+  return tiles;
+}
+
+function outdoorTiles(): DemoTile[] {
+  const tiles: DemoTile[] = [];
+  for (let x = 0; x <= 24; x += 1) for (let z = -8; z <= 16; z += 1) tiles.push(floor(x, z, 3, 3));
   return tiles;
 }
 
@@ -81,11 +87,11 @@ const dungeon: DemoLevelDefinition = {
 };
 
 const outdoor: DemoLevelDefinition = {
-  id: 'outdoor', version: '1', bounds: { min: [20, 0, 20], max: [45, 4, 46] },
-  tiles: [floor(0, 0, 3, 3), floor(1, 0, 3, 3), floor(0, 1, 3, 3), floor(1, 1, 3, 3)],
-  actors: ([[25, 24], [38, 26], [22, 36], [40, 38], [28, 44], [36, 42]] as const).map(([x, z], index) => ({ x, y: 0, z, actorId: `tree-${index}`, spriteId: 1, facing: 0, active: true, spawn: true })),
-  lights: [{ x: 32, y: 3, z: 32, color: [0.8, 0.9, 1], intensity: 1, active: true }],
-  anchors: [anchor('dungeon-gate', 32, 32, 'both')], providerMetadata: { kind: 'authored-outdoor' },
+  id: 'outdoor', version: '1', bounds: { min: [0, 0, -9], max: [25, 4, 17] },
+  tiles: outdoorTiles(),
+  actors: ([[15, -4], [22, -2], [12, 4], [20, 7], [8, 12], [18, 11]] as const).map(([x, z], index) => ({ x, y: 0, z, actorId: `tree-${index}`, spriteId: 1, facing: 0, active: true, spawn: true })),
+  lights: [{ x: 12, y: 3, z: 4, color: [0.8, 0.9, 1], intensity: 1, active: true }],
+  anchors: [anchor('dungeon-gate', 0, 0, 'both')], providerMetadata: { kind: 'authored-outdoor' },
 };
 
 export const demoDefinitions: readonly DemoLevelDefinition[] = [dungeon, outdoor];
@@ -93,7 +99,7 @@ export const demoManifest: DemoWorldManifest = {
   definitions: demoDefinitions,
   instances: [
     { id: 'dungeon-instance', definitionId: 'dungeon', position: [0, 0, 0] },
-    { id: 'outdoor-instance', definitionId: 'outdoor', position: [0, 0, 0] },
+    { id: 'outdoor-instance', definitionId: 'outdoor', position: [10, 0, 4] },
   ],
   link: { id: 'dungeon-outdoor', source: { instanceId: 'dungeon-instance', anchorId: 'outdoor-gate' }, target: { instanceId: 'outdoor-instance', anchorId: 'dungeon-gate' }, direction: 'bidirectional', preload: 'before-visible' },
 };
