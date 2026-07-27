@@ -1,12 +1,12 @@
 ---
 task: "60"
 slug: remove-legacy-world-path
-status: pending
+status: done
 depends-on: ["57", "58", "59"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-27
-outcome: ""
+outcome: "Gated legacy room/chunk/seam handoff and seam injection behind global-world activation. Global collision mode now owns movement/transition state without legacy pose or residency mutation; compatibility APIs remain documented and isolated. Added regression coverage for cross-path isolation."
 ---
 
 # Remove Conflicting Legacy World Path

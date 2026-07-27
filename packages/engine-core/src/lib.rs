@@ -179,50 +179,54 @@ impl EngineState {
         self.camera.z[0] = new_pz;
         self.player_velocity_y = new_vy;
 
-        // Ground plane for streaming/seams is XZ (camera.y is elevation, not a horizontal axis) —
-        // see docs/architecture/world-streaming.md and docs/architecture/collision.md.
-        let mut px = self.camera.x[0];
-        let mut pz = self.camera.z[0];
+        // Legacy room/chunk/seam runtime is compatibility-only. Once global collision
+        // content is configured, global instances own movement and transitions; legacy
+        // seam transforms must not mutate pose, residency, or visibility state.
+        if !self.global_collision_configured {
+            // Ground plane for legacy streaming is XZ (camera.y is elevation, not a horizontal axis).
+            let mut px = self.camera.x[0];
+            let mut pz = self.camera.z[0];
 
-        self.seam_manager.update_and_check_crossing(
-            &mut px,
-            &mut pz,
-            &mut self.indoor_streamer,
-            &mut self.room_graph,
-            &mut self.chunk_streamer,
-            &mut self.chunk_provider,
-            &mut self.outdoor_tiles,
-        );
-
-        self.camera.x[0] = px;
-        self.camera.z[0] = pz;
-
-        if self.seam_manager.active_structure() == seam::ActiveWorldStructure::Outdoor {
-            self.chunk_streamer.update_for_player_pos(
-                px,
-                pz,
+            self.seam_manager.update_and_check_crossing(
+                &mut px,
+                &mut pz,
+                &mut self.indoor_streamer,
+                &mut self.room_graph,
+                &mut self.chunk_streamer,
                 &mut self.chunk_provider,
                 &mut self.outdoor_tiles,
             );
-        } else {
-            // Check doorways first
-            for i in 0..self.doorways_count {
-                let d = &self.doorways[i];
-                if d.from_room_id == self.indoor_streamer.current_room_id() {
-                    if px >= d.min_x && px <= d.max_x && pz >= d.min_z && pz <= d.max_z {
+
+            self.camera.x[0] = px;
+            self.camera.z[0] = pz;
+
+            if self.seam_manager.active_structure() == seam::ActiveWorldStructure::Outdoor {
+                self.chunk_streamer.update_for_player_pos(
+                    px,
+                    pz,
+                    &mut self.chunk_provider,
+                    &mut self.outdoor_tiles,
+                );
+            } else {
+                for i in 0..self.doorways_count {
+                    let d = &self.doorways[i];
+                    if d.from_room_id == self.indoor_streamer.current_room_id()
+                        && px >= d.min_x && px <= d.max_x && pz >= d.min_z && pz <= d.max_z
+                    {
                         self.set_indoor_current_room(d.to_room_id);
                         break;
                     }
                 }
+
+                self.indoor_streamer
+                    .update_for_current_room(&mut self.room_graph);
             }
 
-            self.indoor_streamer
-                .update_for_current_room(&mut self.room_graph);
+            // Compatibility seam injection is never part of global scene rendering.
+            self.update_seam_injection();
+        } else {
+            self.seam_injection_tiles.count = 0;
         }
-
-        // Build seam injection buffer before visibility so cross-seam tiles participate
-        // in occlusion culling and rendering (Option C: seam-local coordinate injection).
-        self.update_seam_injection();
 
         self.recompute_visibility();
     }
@@ -255,10 +259,14 @@ impl EngineState {
         self.camera.z[0]
     }
 
-    /// Set player position in active structure's coordinate space (x, z ground plane).
+    /// Set player position. Legacy structure updates are compatibility-only and are
+    /// skipped when global collision/world content is active.
     pub fn set_player_pos(&mut self, x: f32, z: f32) {
         self.camera.x[0] = x;
         self.camera.z[0] = z;
+        if self.global_collision_configured {
+            return;
+        }
         match self.seam_manager.active_structure() {
             seam::ActiveWorldStructure::Outdoor => {
                 self.chunk_streamer
@@ -917,7 +925,9 @@ impl EngineState {
 
     pub fn set_camera(&mut self, x: f32, y: f32, z: f32, yaw: f32, pitch: f32) {
         self.camera.set_camera(x, y, z, yaw, pitch);
-        self.chunk_streamer.update_for_player_pos(x, z, &mut self.chunk_provider, &mut self.outdoor_tiles);
+        if !self.global_collision_configured {
+            self.chunk_streamer.update_for_player_pos(x, z, &mut self.chunk_provider, &mut self.outdoor_tiles);
+        }
         self.recompute_visibility();
     }
 
@@ -925,7 +935,8 @@ impl EngineState {
     // Seam Injection
     // ==========================================
 
-    /// Update the seam injection buffer with transformed far-side tiles.
+    /// Update compatibility seam injection buffer with transformed far-side tiles.
+    /// Never called by global-world runtime.
     fn update_seam_injection(&mut self) {
         self.seam_injection_tiles.count = 0;
         
@@ -1874,6 +1885,23 @@ mod tests {
         state.tick(0.5);
         let pz = unsafe { *state.camera_z_ptr() };
         assert!(pz < z_before, "Expected Z slide (forward movement), got z={}", pz);
+    }
+
+    #[test]
+    fn global_world_path_does_not_run_legacy_seam_handoff() {
+        let mut state = EngineState::new();
+        state.set_active_world_structure(0);
+        state.register_seam(1, 0, 0.0, 0.0, 100.0, 100.0, 100.0, 100.0, 0.0);
+        state.set_camera(0.0, 0.0, 0.0, 0.0, 0.0);
+        state.add_global_collision_solid("global", 50.0, 0.0, 50.0, 51.0, 1.0, 51.0, true);
+        assert!(state.global_collision_configured);
+
+        state.tick(0.016);
+
+        assert_eq!(state.active_world_structure(), 0);
+        assert_eq!(state.seam_injection_tiles.count, 0);
+        assert_eq!(state.camera.x[0], 0.0);
+        assert_eq!(state.camera.z[0], 0.0);
     }
 
     #[test]

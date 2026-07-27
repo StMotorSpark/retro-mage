@@ -1,8 +1,7 @@
-//! Outdoor chunk data contract and provider interface.
+//! Deprecated compatibility outdoor chunk provider and streamer.
 //!
-//! Per `docs/architecture/world-streaming.md`, outdoor terrain streams as fixed 32×32 tile
-//! grid chunks. This module defines the engine-owned `ChunkData` contract, the `ChunkProvider`
-//! trait, and a reference implementation (`FlatChunkProvider`).
+//! Global level instances are authoritative for current runtime behavior. `EngineState`
+//! only drives this module while global-world content is not configured.
 
 /// Fixed dimensions for an outdoor chunk: 32×32 tiles (1024 total tiles).
 pub const CHUNK_SIZE: usize = 32;
