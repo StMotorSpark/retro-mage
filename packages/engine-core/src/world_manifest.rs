@@ -230,6 +230,19 @@ impl WorldTopology {
     pub fn instances(&self) -> impl Iterator<Item = &InstanceDescriptor> { self.instances.values() }
     pub fn link(&self, id: &str) -> Option<&LevelLink> { self.links.get(id) }
     pub fn links(&self) -> impl Iterator<Item = &LevelLink> { self.links.values() }
+
+    /// Resolve placement for a spatial target before provider data becomes resident.
+    pub(crate) fn spatial_target_transform(&self, target_instance_id: &str) -> Result<Option<crate::world::Transform>, WorldManifestError> {
+        let Some(link) = self.links.values().find(|link| {
+            matches!(link.transform, LinkTransform::Spatial)
+                && link.target_ref().instance_id == target_instance_id
+        }) else { return Ok(None) };
+        let source_world = self.anchor_world(&link.source)?;
+        let target = link.target_ref();
+        let target_anchor = self.anchor(&target)?;
+        let target_local_inverse = target_anchor.transform.inverse().map_err(WorldManifestError::InvalidContract)?;
+        Ok(Some(source_world.compose(&target_local_inverse)))
+    }
     pub fn starting_locations(&self) -> &[StartLocation] { &self.starting_locations }
 
     /// Test player position against an anchor's transformed crossing volume.

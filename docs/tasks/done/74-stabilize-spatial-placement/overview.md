@@ -1,12 +1,12 @@
 ---
 task: "74"
 slug: stabilize-spatial-placement
-status: pending
+status: done
 depends-on: ["73"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-27
-outcome: ""
+outcome: "Resolved spatial target transforms during preload before provider residency; crossing no longer relocates resident spatial content, while explicit links retain teleport placement. Added end-to-end Rust coverage for pre-residency placement, render/collision transform stability, forward/reverse traversal, and source continuity."
 ---
 
 # Stabilize Spatial Target Placement

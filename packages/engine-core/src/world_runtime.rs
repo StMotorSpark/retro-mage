@@ -139,18 +139,32 @@ impl WorldRuntime {
     pub fn resolve_crossing(&mut self, link_id: &str, from: &AnchorRef, player_pose: crate::world::Transform) -> Result<CrossingResolution, WorldRuntimeError> {
         let target_id = self.materialize_link_target(link_id)?;
         let resolution = self.topology.resolve_crossing(link_id, from, player_pose)?;
-        self.residency.set_transform(&target_id, resolution.instance_transform)?;
-        self.sync_topology_instance(&target_id);
+        // Spatial targets are placed during preload. Never relocate resident
+        // geometry at crossing time; explicit links retain teleport placement.
+        if matches!(self.topology.link(link_id).map(|link| &link.transform), Some(crate::world_manifest::LinkTransform::Explicit { .. })) {
+            self.residency.set_transform(&target_id, resolution.instance_transform)?;
+            self.sync_topology_instance(&target_id);
+        }
         Ok(resolution)
     }
 
     pub fn begin_load(&mut self, id: &str, metadata: LevelProviderMetadata) -> Result<LevelProviderRequest, WorldRuntimeError> {
+        // Spatial placement is committed before provider data can become resident.
+        // Crossing only activates this already-placed content.
+        if let Some(transform) = self.topology.spatial_target_transform(id)? {
+            self.residency.set_transform(id, transform)?;
+            self.sync_topology_instance(id);
+        }
         let request = self.residency.begin_load(id, metadata)?;
         self.sync_topology_instance(id);
         Ok(request)
     }
 
     pub fn resolve<P: LevelProvider + ?Sized>(&mut self, provider: &mut P, id: &str, metadata: LevelProviderMetadata) -> Result<ProviderUpdate, WorldRuntimeError> {
+        if let Some(transform) = self.topology.spatial_target_transform(id)? {
+            self.residency.set_transform(id, transform)?;
+            self.sync_topology_instance(id);
+        }
         let update = self.residency.resolve(provider, id, metadata)?;
         self.sync_topology_instance(id);
         Ok(update)
