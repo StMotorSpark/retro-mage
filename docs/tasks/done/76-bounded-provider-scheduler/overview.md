@@ -1,12 +1,12 @@
 ---
 task: "76"
 slug: bounded-provider-scheduler
-status: pending
+status: done
 depends-on: ["75"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-27
-outcome: ""
+outcome: "Implemented StreamingScheduler with a priority queue bounded by concurrency policy. Integrated smoothly with WorldRuntime and maintained opaque request lifecycle."
 ---
 
 # Implement Bounded Provider Scheduler

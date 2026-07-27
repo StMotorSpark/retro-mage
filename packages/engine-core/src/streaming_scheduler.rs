@@ -1,6 +1,8 @@
 use std::collections::{HashMap, HashSet};
 use crate::world::{Transform, Vec3, RuntimeState};
 use crate::world_manifest::{WorldTopology, LinkPreloadPolicy};
+use crate::world_runtime::WorldRuntime;
+use crate::level_provider::LevelProviderMetadata;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SchedulerPolicy {
@@ -140,6 +142,132 @@ fn distance(a: Vec3, b: Vec3) -> f32 {
     let dy = a.y - b.y;
     let dz = a.z - b.z;
     (dx*dx + dy*dy + dz*dz).sqrt()
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SchedulerDiagnostic {
+    pub instance_id: String,
+    pub request_id: Option<u64>,
+    pub priority: i32,
+    pub intent: ResidencyIntent,
+    pub cancel_reason: Option<String>,
+    pub failure_reason: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct QueuedRequest {
+    pub instance_id: String,
+    pub priority: i32,
+    pub timestamp: u64,
+}
+
+#[derive(Debug, Default)]
+pub struct StreamingScheduler {
+    pub policy: SchedulerPolicy,
+    pub queue: Vec<QueuedRequest>,
+    pub active_requests: HashSet<String>,
+    pub diagnostics: HashMap<String, SchedulerDiagnostic>,
+    next_timestamp: u64,
+}
+
+impl StreamingScheduler {
+    pub fn new(policy: SchedulerPolicy) -> Self {
+        Self { policy, queue: Vec::new(), active_requests: HashSet::new(), diagnostics: HashMap::new(), next_timestamp: 0 }
+    }
+
+    pub fn update(&mut self, runtime: &mut WorldRuntime, decisions: &HashMap<String, IntentDecision>) {
+        let mut to_cancel = Vec::new();
+        for active_id in &self.active_requests {
+            let decision = decisions.get(active_id);
+            let intent = decision.map(|d| d.intent).unwrap_or(ResidencyIntent::Unneeded);
+            if intent == ResidencyIntent::Unneeded {
+                to_cancel.push(active_id.clone());
+            }
+        }
+        for id in to_cancel {
+            if let Ok(Some(_req)) = runtime.cancel_load(&id) {
+                self.active_requests.remove(&id);
+                if let Some(diag) = self.diagnostics.get_mut(&id) {
+                    diag.cancel_reason = Some("Unneeded".into());
+                }
+            }
+        }
+
+        self.queue.retain_mut(|req| {
+            let decision = decisions.get(&req.instance_id);
+            let intent = decision.map(|d| d.intent).unwrap_or(ResidencyIntent::Unneeded);
+            if intent == ResidencyIntent::Unneeded {
+                if let Some(diag) = self.diagnostics.get_mut(&req.instance_id) {
+                    diag.cancel_reason = Some("Unneeded before start".into());
+                }
+                false
+            } else {
+                if let Some(decision) = decision {
+                    req.priority = decision.priority;
+                }
+                true
+            }
+        });
+
+        for (id, decision) in decisions {
+            if decision.intent == ResidencyIntent::Unneeded {
+                continue;
+            }
+            let state = runtime.state(id).unwrap_or(RuntimeState::Known);
+            if matches!(state, RuntimeState::Loading | RuntimeState::Resident | RuntimeState::Active) {
+                continue;
+            }
+            if !self.active_requests.contains(id) && !self.queue.iter().any(|r| r.instance_id == *id) {
+                self.queue.push(QueuedRequest {
+                    instance_id: id.clone(),
+                    priority: decision.priority,
+                    timestamp: self.next_timestamp,
+                });
+                self.next_timestamp += 1;
+            }
+            
+            let diag = self.diagnostics.entry(id.clone()).or_insert(SchedulerDiagnostic {
+                instance_id: id.clone(),
+                request_id: None,
+                priority: decision.priority,
+                intent: decision.intent,
+                cancel_reason: None,
+                failure_reason: None,
+            });
+            diag.intent = decision.intent;
+            diag.priority = decision.priority;
+        }
+
+        self.queue.sort_by(|a, b| b.priority.cmp(&a.priority).then_with(|| a.timestamp.cmp(&b.timestamp)));
+
+        while self.active_requests.len() < self.policy.default_concurrency && !self.queue.is_empty() {
+            let req = self.queue.remove(0);
+            match runtime.begin_load(&req.instance_id, LevelProviderMetadata::default()) {
+                Ok(provider_req) => {
+                    self.active_requests.insert(req.instance_id.clone());
+                    if let Some(diag) = self.diagnostics.get_mut(&req.instance_id) {
+                        diag.request_id = Some(provider_req.request_id);
+                        diag.cancel_reason = None;
+                    }
+                }
+                Err(e) => {
+                    if let Some(diag) = self.diagnostics.get_mut(&req.instance_id) {
+                        diag.failure_reason = Some(format!("{:?}", e));
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn handle_completion(&mut self, runtime: &mut WorldRuntime, result: crate::level_provider::LevelProviderResult) {
+        self.active_requests.remove(&result.instance_id);
+        if let crate::level_provider::LevelProviderOutcome::Failed(f) = &result.outcome {
+            if let Some(diag) = self.diagnostics.get_mut(&result.instance_id) {
+                diag.failure_reason = Some(format!("{:?}", f));
+            }
+        }
+        let _ = runtime.accept(result);
+    }
 }
 
 #[cfg(test)]
