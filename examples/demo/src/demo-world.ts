@@ -117,14 +117,26 @@ export class DemoLevelProvider {
     if (!valid(definition)) throw new Error(`Invalid demo definition: ${definitionId}`);
     return definition;
   }
+
+  resolveAsync(definitionId: DemoLevelId, options: { delayMs: number; fail: boolean; signal?: AbortSignal }): Promise<DemoLevelDefinition> {
+    return new Promise((resolve, reject) => {
+      const timer = window.setTimeout(() => {
+        if (options.fail) reject(new Error(`Provider failed: ${definitionId}`));
+        else resolve(this.resolve(definitionId));
+      }, options.delayMs);
+      options.signal?.addEventListener('abort', () => {
+        window.clearTimeout(timer);
+        reject(new DOMException('Provider request cancelled', 'AbortError'));
+      }, { once: true });
+    });
+  }
 }
 
 export function createDemoLevelProvider(): DemoLevelProvider { return new DemoLevelProvider(); }
 
-/** Submit authored content + topology through scalar browser/WASM API. */
-export function registerDemoWorld(transport: WorldTransport, provider = createDemoLevelProvider()): void {
-  for (const definition of demoManifest.definitions) {
-    const resolved = provider.resolve(definition.id);
+/** Submit authored definitions + topology; instance content loads separately. */
+export function registerDemoWorld(transport: WorldTransport): void {
+  for (const resolved of demoManifest.definitions) {
     if (!transport.begin_definition(resolved.id, resolved.version, ...resolved.bounds.min, ...resolved.bounds.max)) throw new Error(`Failed to begin ${resolved.id}`);
     for (const tile of resolved.tiles) if (!transport.definition_tile(resolved.id, tile.x, tile.y, tile.z, tile.tileId, tile.materialId, tile.variant, tile.orientation, tile.solid, tile.openings?.north ?? false, tile.openings?.east ?? false, tile.openings?.south ?? false, tile.openings?.west ?? false, tile.openings?.vertical ?? false)) throw new Error(`Failed tile in ${resolved.id}`);
     for (const actor of resolved.actors) if (!transport.definition_actor(resolved.id, actor.x, actor.y, actor.z, actor.actorId, actor.spriteId, actor.facing, actor.active, actor.spawn)) throw new Error(`Failed actor in ${resolved.id}`);

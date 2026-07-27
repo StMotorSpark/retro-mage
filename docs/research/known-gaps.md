@@ -28,7 +28,7 @@ This doc records unresolved implementation details and deliberately deferred cap
 - Memory budgets and platform-specific eviction heuristics require measurement against representative content.
 - Link overlap collision ownership needs a concrete policy implementation beyond explicit masks/ownership metadata.
 - Collision projection currently reaches `EngineState` through an explicit transport snapshot sync; automatic runtime-owned projection remains undefined.
-- Demo preload uses a synchronous authored fixture; a real pending-provider completion path remains unproved.
+- Demo preload uses a deterministic asynchronous provider path with explicit application-triggered loads; general runtime-driven preload scheduling remains unimplemented.
 - Anchor crossing uses a fixed proximity padding value; link-specific crossing/preload distance policy remains undefined.
 
 ## Rendering and Bridge
