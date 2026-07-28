@@ -9,62 +9,51 @@ created: 2026-07-28
 outcome: ""
 ---
 
-# Harden Provider Lifecycle
+# Harden Provider Lifecycle Core
 
-Implement scheduler-driven provider request handling with pull-based application execution, explicit cancellation, terminal request cleanup, retry identity, and stale-result safety.
+Implement engine-owned provider request lifecycle with pull-queue records, terminal cleanup, cancellation identity, explicit retry, and stale-result safety.
 
 ## Desired Changes
 
-- Expose queued and active provider request records from the scheduler through a browser-safe pull/drain boundary.
-- Keep one current request per instance; replacing a request invalidates the previous request.
-- Remove ready, failed, and cancelled requests from active coordination while retaining terminal diagnostics.
-- Expose cancellation records so application providers can abort timers, fetches, workers, or generators using request identity.
-- Add explicit retry that creates a new request ID and preserves application-selected metadata.
-- Route demo provider execution through scheduler-emitted requests instead of direct application `begin_load` calls.
-- Preserve runtime ownership of lifecycle, validation, transformed content, collision, render residency, and simulation state.
+- Enforce one current provider request per instance; replacement invalidates predecessor.
+- Expose queued/active request records through a browser-safe transport-neutral API.
+- Remove ready, failed, and cancelled requests from active coordination while retaining diagnostics.
+- Preserve pending requests until matching terminal result.
+- Expose cancellation records with request ID and reason; app-owned abort remains outside engine.
+- Add explicit retry with a new request ID and selected metadata.
+- Preserve runtime ownership of lifecycle, validation, transformed content, collision, render residency, and simulation.
 
 ## Definition of Done
 
-- [ ] Scheduler queue exposes enough request data for an application provider to resolve work without reading Rust internals.
-- [ ] One active request per instance is enforced and replacement makes the old request stale.
-- [ ] `Ready`, `Failed`, and `Cancelled` outcomes remove active request state; late results are stale.
-- [ ] Pending results keep matching requests active and accept a later matching terminal result.
-- [ ] Scheduler cancellation exposes request identity and reason to the application; provider abort remains application-owned.
-- [ ] Explicit retry creates a new request ID and does not retry in a tight loop.
-- [ ] Definition ID/version validation and resolved-definition validation remain enforced.
-- [ ] Failed or cancelled target loading leaves current source content, collision, and gameplay unchanged.
-- [ ] Demo/browser proof consumes scheduler requests and covers delayed success, failure, cancellation, stale completion, and retry.
-- [ ] Rust, package, typecheck/build, and serial Playwright tests pass.
-- [ ] Diagnostics expose request status, priority/reason, cancellation/failure reason, retry identity, and terminal completion.
+- [ ] Queue records expose request ID, instance/definition identity, metadata, priority, and scheduling reason.
+- [ ] One active request per instance and stale replacement behavior are tested.
+- [ ] Ready/failed/cancelled outcomes clean active coordinator state.
+- [ ] Pending keeps request active; late terminal result with matching identity succeeds.
+- [ ] Cancellation and explicit retry APIs preserve scheduler concurrency/order rules.
+- [ ] Definition identity/version and resolved-definition validation remain enforced.
+- [ ] Failed/cancelled target load preserves current source state.
+- [ ] Rust and package tests cover all request states, stale results, cancellation, and retry.
+- [ ] Typecheck/build pass; regenerated WASM artifacts are updated when required.
 
 ## Out of Scope
 
-- Eviction/reload state restoration; task:89 owns that slice.
-- Persistence serialization or actor transfer.
-- Byte budgets, GPU resource accounting, or browser memory-pressure signals.
-- Provider file formats, network protocols, worker APIs, or generator schemas.
-- Topology mutation, crossing-policy changes, or new gameplay simulation.
-- Parallel Playwright worker hardening.
+- Demo/provider browser integration; task:89 owns it.
+- Eviction/reload; task:90 and task:91 own it.
+- Persistence serialization, provider file/network/worker formats, memory budgets, topology mutation, and gameplay changes.
 
 ## Implementation Steps
 
-1. Read `docs/architecture/provider-lifecycle.md`, `docs/architecture/streaming-scheduler.md`, `docs/architecture/world-runtime.md`, and existing provider/scheduler task outcomes.
-2. Trace `LevelProviderCoordinator`, `StreamingScheduler`, `WorldRuntime`, `WorldTransport`, and the demo provider path. Identify the browser-facing request/result types and current direct-load calls.
-3. Add the smallest pull/drain API that exposes request ID, instance/definition identity, metadata, priority, and scheduling reason without moving lifecycle ownership into TypeScript.
-4. Harden coordinator terminal transitions. Ensure failed and cancelled requests cannot accept later results, while replacement requests invalidate older identities.
-5. Add scheduler cancellation records and explicit retry entry points. Preserve stable queue ordering and concurrency limits.
-6. Migrate demo provider orchestration to consume scheduler-emitted requests. Keep provider execution application-owned and route every result through `WorldRuntime.accept`/transport acceptance.
-7. Extend Rust, TypeScript, integration, and browser diagnostics/tests for pending, ready, failed, cancelled, stale, replacement, and retry paths.
-8. Run Rust/package tests, regenerate WASM artifacts if required by the repo, run typecheck/build, then execute the documented serial Playwright proof.
-9. Record implementation decisions and any provider boundary limitations in the task outcome.
+1. Read provider lifecycle, scheduler, runtime, and WASM bridge design docs. Trace `LevelProviderCoordinator`, `StreamingScheduler`, `WorldRuntime`, and `WorldTransport`.
+2. Add request queue inspection/drain types without moving lifecycle authority into TypeScript.
+3. Harden terminal coordinator transitions and stale identity checks.
+4. Add cancellation records and explicit retry entry points.
+5. Extend Rust/integration tests; run Rust/package tests and typecheck/build.
+6. Record API and ownership decisions in task outcome.
 
 ## Context
 
-- Read: `docs/architecture/provider-lifecycle.md` — source of truth for request ownership and lifecycle.
-- Read: `docs/architecture/streaming-scheduler.md` — intent, queue, concurrency, and diagnostics.
-- Read: `docs/architecture/world-runtime.md` — authoritative runtime/provider boundary.
-- Related: task:70 — initial async provider proof.
-- Related: task:76 — bounded provider scheduler.
-- Related: task:78 — browser scheduler integration.
-- Related: task:89 — consumes terminal provider lifecycle for eviction/reload.
-- Key files: `packages/engine-core/src/level_provider.rs`, `packages/engine-core/src/streaming_scheduler.rs`, `packages/engine-core/src/world_runtime.rs`, `packages/engine-core/src/world_transport.rs`, `examples/demo/src/main.ts`, `examples/demo/tests/browser-seamless.spec.ts`.
+- Read: `docs/architecture/provider-lifecycle.md` — source of truth.
+- Read: `docs/architecture/streaming-scheduler.md` — queue/concurrency contract.
+- Related: task:70, task:76 — existing provider/scheduler proofs.
+- Related: task:89 — consumes browser-facing queue.
+- Key files: `packages/engine-core/src/level_provider.rs`, `packages/engine-core/src/streaming_scheduler.rs`, `packages/engine-core/src/world_runtime.rs`, `packages/engine-core/src/world_transport.rs`.
