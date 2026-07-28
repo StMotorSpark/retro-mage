@@ -69,7 +69,7 @@ Use this value as the `--add-dir` argument.
 ## Standard Prompt Template
 
 ```
-Use ultra caveman. Use the task-work skill to implement task {taskNumber} on the current branch. Once completed commit and push to remote.
+Use ultra caveman. Use the task-work skill to implement task {taskNumber} on the current branch. Verify every Definition of Done item against the diff and tests before marking done. Report exact test commands/results, changed files, unmet criteria, and artifact status. If any criterion is unmet, keep task in-flight or park with notes. Once verified complete, commit and push to remote.
 ```
 
 Replace `{taskNumber}` with the zero-padded task number (e.g., `03`).
@@ -86,6 +86,21 @@ echo "Antigravity launched (PID $!)"
 ```
 
 ---
+
+## Completion Requirements
+
+Antigravity must not treat subagent completion text as proof. Before task completion:
+
+- inspect the actual diff;
+- verify every Definition of Done checkbox;
+- run required tests with bounded commands;
+- check producer/consumer boundaries end-to-end;
+- reject weak browser assertions that only check object existence;
+- remove generated Playwright artifacts;
+- confirm task folder/frontmatter consistency;
+- include exact evidence in the final log.
+
+A blocked or partially implemented task stays in-flight or moves parked. It does not move to done.
 
 ## Workflow Context
 

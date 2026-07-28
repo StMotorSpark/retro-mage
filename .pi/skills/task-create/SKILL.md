@@ -152,6 +152,26 @@ Dependencies mean: those tasks must reach `done` before this task moves to `in-f
 
 ---
 
+## Boundary Decomposition Gate
+
+Before creating tasks, identify every producer/consumer boundary. Split tasks when work crosses any of these seams:
+
+- engine/core behavior;
+- WASM or TypeScript bridge;
+- browser/demo integration;
+- docs, known-gap reconciliation, and artifact cleanup.
+
+A browser-proof task depends on the bridge task that exposes the behavior it tests. A broad core task does not hide bridge or browser work inside its scope.
+
+For every cross-task seam, record shared contracts in task prompts:
+
+- API names/signatures;
+- state fields and enum/value semantics;
+- diagnostics fields;
+- ownership and failure behavior.
+
+Do not create a task graph until each consumer has an explicit producer dependency.
+
 ## Decomposing Large Work
 
 When goal too large for one task:
