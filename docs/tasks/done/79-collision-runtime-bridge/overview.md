@@ -1,12 +1,12 @@
 ---
 task: "79"
 slug: collision-runtime-bridge
-status: pending
+status: done
 depends-on: []
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-28
-outcome: ""
+outcome: "Added collision_world to ResidencyStore, updating collision index incrementally at lifecycle mutation boundaries. Prevents expensive snapshot creation. WorldRuntime uses cloned index. Unblocked task 80."
 ---
 
 # Implement Runtime-Owned Collision Index
