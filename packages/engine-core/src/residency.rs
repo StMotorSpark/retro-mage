@@ -29,6 +29,7 @@ pub enum ResidencyError {
     NotEvictable(String),
     Provider(ProviderCoordinatorError),
     InvalidDefinition(WorldContractError),
+    InvalidHandoffState(String),
 }
 
 impl From<ProviderCoordinatorError> for ResidencyError {
@@ -289,17 +290,46 @@ impl ResidencyStore {
         if record.descriptor.state != RuntimeState::Evictable {
             return Err(ResidencyError::NotEvictable(id.into()));
         }
-        let handoff = PersistenceHandoff { instance: record.descriptor.clone(), eviction_reason: reason, opaque_payload: record.opaque_payload.take() };
-        record.descriptor.state = RuntimeState::Evicted;
-        record.descriptor.render_resident = false;
-        record.descriptor.collision_active = false;
-        record.descriptor.simulation_active = false;
-        record.definition = None;
-        record.global = None;
-        record.render_ready = false;
-        record.collision_ready = false;
-        self.collision_world.remove_instance(id);
+        let handoff = PersistenceHandoff { instance: record.descriptor.clone(), eviction_reason: reason, opaque_payload: record.opaque_payload.clone() };
+
+        if record.descriptor.persistence == crate::world::PersistencePolicy::Persistent {
+            record.descriptor.handoff_status = crate::world::HandoffStatus::Pending;
+        } else {
+            record.descriptor.state = RuntimeState::Evicted;
+            record.descriptor.render_resident = false;
+            record.descriptor.collision_active = false;
+            record.descriptor.simulation_active = false;
+            record.definition = None;
+            record.global = None;
+            record.render_ready = false;
+            record.collision_ready = false;
+            record.opaque_payload = None;
+            self.collision_world.remove_instance(id);
+        }
         Ok(handoff)
+    }
+
+    pub fn acknowledge_handoff(&mut self, id: &str, success: bool, failure_reason: Option<String>) -> Result<(), ResidencyError> {
+        let record = self.records.get_mut(id).ok_or_else(|| ResidencyError::UnknownInstance(id.into()))?;
+        if record.descriptor.handoff_status != crate::world::HandoffStatus::Pending {
+            return Err(ResidencyError::InvalidHandoffState(id.into()));
+        }
+        if success {
+            record.descriptor.handoff_status = crate::world::HandoffStatus::Acknowledged;
+            record.descriptor.state = RuntimeState::Evicted;
+            record.descriptor.render_resident = false;
+            record.descriptor.collision_active = false;
+            record.descriptor.simulation_active = false;
+            record.definition = None;
+            record.global = None;
+            record.render_ready = false;
+            record.collision_ready = false;
+            record.opaque_payload = None;
+            self.collision_world.remove_instance(id);
+        } else {
+            record.descriptor.handoff_status = crate::world::HandoffStatus::Failed(failure_reason.unwrap_or_default());
+        }
+        Ok(())
     }
 
     pub fn set_application_payload(&mut self, id: &str, payload: Vec<u8>) -> Result<(), ResidencyError> {
@@ -378,6 +408,37 @@ mod tests {
 
     #[test]
     fn pinning_hysteresis_and_eviction_release_content_not_descriptor() {
-        let mut manager = ResidencyManager::new(); manager.register(instance("a")).unwrap(); let mut provider = FixtureProvider::ready(definition()); manager.resolve(&mut provider, "a", metadata()).unwrap(); manager.set_current(Some("a")).unwrap(); assert!(manager.mark_evictable("a").is_err()); manager.set_current(None).unwrap(); manager.mark_evictable("a").unwrap(); let handoff = manager.evict("a", "reason".into()).unwrap(); assert_eq!(handoff.instance.id, "a"); assert_eq!(manager.state("a"), Some(RuntimeState::Evicted)); assert!(manager.content("a").is_none());
+        let mut manager = ResidencyManager::new(); manager.register(instance("a")).unwrap(); let mut provider = FixtureProvider::ready(definition()); manager.resolve(&mut provider, "a", metadata()).unwrap(); manager.set_current(Some("a")).unwrap(); assert!(manager.mark_evictable("a").is_err()); manager.set_current(None).unwrap(); manager.mark_evictable("a").unwrap(); let handoff = manager.evict("a", "reason".into()).unwrap(); manager.acknowledge_handoff("a", true, None).unwrap(); assert_eq!(handoff.instance.id, "a"); assert_eq!(manager.state("a"), Some(RuntimeState::Evicted)); assert!(manager.content("a").is_none());
+    }
+
+    #[test]
+    fn persistent_handoff_retains_content_until_acknowledged() {
+        let mut manager = ResidencyManager::new();
+        let mut inst = instance("p");
+        inst.persistence = PersistencePolicy::Persistent;
+        manager.register(inst).unwrap();
+        let mut provider = FixtureProvider::ready(definition());
+        manager.resolve(&mut provider, "p", metadata()).unwrap();
+        manager.mark_evictable("p").unwrap();
+        
+        let handoff = manager.evict("p", "save".into()).unwrap();
+        assert_eq!(handoff.instance.id, "p");
+        assert_eq!(manager.state("p"), Some(RuntimeState::Evictable)); // state remains Evictable
+        assert_eq!(manager.instance("p").unwrap().handoff_status, crate::world::HandoffStatus::Pending);
+        assert!(manager.content("p").is_some());
+        
+        manager.acknowledge_handoff("p", false, Some("db error".into())).unwrap();
+        assert_eq!(manager.state("p"), Some(RuntimeState::Evictable));
+        assert!(matches!(manager.instance("p").unwrap().handoff_status, crate::world::HandoffStatus::Failed(_)));
+        assert!(manager.content("p").is_some());
+
+        // Can retry evict if it failed handoff
+        manager.evict("p", "retry".into()).unwrap();
+        assert_eq!(manager.instance("p").unwrap().handoff_status, crate::world::HandoffStatus::Pending);
+
+        manager.acknowledge_handoff("p", true, None).unwrap();
+        assert_eq!(manager.state("p"), Some(RuntimeState::Evicted));
+        assert_eq!(manager.instance("p").unwrap().handoff_status, crate::world::HandoffStatus::Acknowledged);
+        assert!(manager.content("p").is_none());
     }
 }

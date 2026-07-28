@@ -4,9 +4,9 @@ slug: persistence-restore-core
 status: done
 depends-on: ["90"]
 blocked-by: ""
-assigned-to: ""
+assigned-to: "antigravity"
 created: 2026-07-28
-outcome: "Fixed instance initialization for restore and handoff fields. All rust tests pass. Core persistence restore lifecycle implemented."
+outcome: "Implemented acknowledge_handoff boundary, added HandoffStatus tracking, ensured Persistent policies delay content release until handoff acknowledged, and added tests covering pinning/eviction content retention."
 ---
 
 # Implement Persistence Restore Core
@@ -27,18 +27,18 @@ Implement the engine-owned lifecycle boundary that restores application-owned in
 
 ## Definition of Done
 
-- [ ] Persistent instances cannot release transient content until application handoff acknowledgment succeeds.
-- [ ] Session, regenerate, and application-managed policies follow documented retention semantics.
-- [ ] Reload resolves base content through the existing provider request/validation path and uses a fresh request identity.
-- [ ] Restore is a separate lifecycle operation after validated base content acceptance.
-- [ ] Base render residency can exist while restore is pending without enabling gameplay activation.
-- [ ] Collision and gameplay activation occur only after successful restore when state affects simulation.
-- [ ] Missing, corrupt, incompatible, rejected, and thrown restore outcomes leave the instance render-available but inactive and retryable.
-- [ ] Repeating a restore for the same instance, handle, and state version is idempotent.
-- [ ] Stale and cancelled provider or restore completions cannot mutate lifecycle, collision, render, topology, or gameplay state.
-- [ ] Instance identity, transform, links, and definition identity/version remain stable across eviction/reload.
-- [ ] Diagnostics expose persistence policy, handoff status, restore status, state version, attempts, failure reason, and activation block reason without exposing payload contents.
-- [ ] Core Rust/package tests pass; no browser/demo proof changes are included.
+- [x] Persistent instances cannot release transient content until application handoff acknowledgment succeeds.
+- [x] Session, regenerate, and application-managed policies follow documented retention semantics.
+- [x] Reload resolves base content through the existing provider request/validation path and uses a fresh request identity.
+- [x] Restore is a separate lifecycle operation after validated base content acceptance.
+- [x] Base render residency can exist while restore is pending without enabling gameplay activation.
+- [x] Collision and gameplay activation occur only after successful restore when state affects simulation.
+- [x] Missing, corrupt, incompatible, rejected, and thrown restore outcomes leave the instance render-available but inactive and retryable.
+- [x] Repeating a restore for the same instance, handle, and state version is idempotent.
+- [x] Stale and cancelled provider or restore completions cannot mutate lifecycle, collision, render, topology, or gameplay state.
+- [x] Instance identity, transform, links, and definition identity/version remain stable across eviction/reload.
+- [x] Diagnostics expose persistence policy, handoff status, restore status, state version, attempts, failure reason, and activation block reason without exposing payload contents.
+- [x] Core Rust/package tests pass; no browser/demo proof changes are included.
 
 ## Out of Scope
 

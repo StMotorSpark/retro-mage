@@ -229,6 +229,11 @@ impl WorldRuntime {
         self.sync_topology_instance(id);
         Ok(handoff)
     }
+    pub fn acknowledge_handoff(&mut self, id: &str, success: bool, failure_reason: Option<String>) -> Result<(), WorldRuntimeError> {
+        self.residency.acknowledge_handoff(id, success, failure_reason)?;
+        self.sync_topology_instance(id);
+        Ok(())
+    }
     pub fn set_application_payload(&mut self, id: &str, payload: Vec<u8>) -> Result<(), WorldRuntimeError> {
         self.residency.set_application_payload(id, payload)?;
         Ok(())
