@@ -174,13 +174,13 @@ impl ResidencyStore {
         Ok(())
     }
 
-    pub fn cancel_load(&mut self, id: &str) -> Result<Option<LevelProviderRequest>, ResidencyError> {
+    pub fn cancel_load(&mut self, id: &str, reason: impl Into<String>) -> Result<Option<crate::level_provider::ProviderCancellation>, ResidencyError> {
         let record = self.records.get_mut(id).ok_or_else(|| ResidencyError::UnknownInstance(id.into()))?;
-        let request = self.provider.cancel(id);
-        if request.is_some() && record.descriptor.state == RuntimeState::Loading {
+        let cancellation = self.provider.cancel(id, reason);
+        if cancellation.is_some() && record.descriptor.state == RuntimeState::Loading {
             record.descriptor.state = RuntimeState::Known;
         }
-        Ok(request)
+        Ok(cancellation)
     }
 
     pub fn accept(&mut self, result: LevelProviderResult) -> Result<ProviderUpdate, ResidencyError> {

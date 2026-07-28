@@ -132,7 +132,7 @@ impl WorldTransport {
     }
 
     pub fn cancel_load(&mut self, id: &str) -> bool {
-        self.runtime.cancel_load(id).map(|_| { self.sync(); true }).unwrap_or(false)
+        self.runtime.cancel_load(id, "Transport explicitly cancelled").map(|_| { self.sync(); true }).unwrap_or(false)
     }
 
     pub fn register_bidirectional_link(&mut self, id: &str, source_instance_id: &str, source_anchor_id: &str, target_instance_id: &str, target_anchor_id: &str) -> bool {
@@ -465,4 +465,29 @@ impl WorldTransport {
     }
 
     pub fn scheduler_queue_depth(&self) -> usize { self.scheduler.queue.len() }
+
+    pub fn pending_requests_json(&self) -> String {
+        let mut out = String::new();
+        out.push('[');
+        let mut first = true;
+        for req in &self.scheduler.queue {
+            if !first { out.push(','); }
+            first = false;
+            let intent = self.scheduler.diagnostics.get(&req.instance_id).map(|d| format!("{:?}", d.intent)).unwrap_or_else(|| "Unneeded".into());
+            let reason = self.scheduler.diagnostics.get(&req.instance_id).and_then(|d| d.cancel_reason.as_deref()).unwrap_or("Queued");
+            out.push_str(&format!(r#"{{"instance_id":"{}","request_id":null,"priority":{},"intent":"{}","reason":"{}"}}"#, req.instance_id, req.priority, intent, reason));
+        }
+        for id in &self.scheduler.active_requests {
+            if !first { out.push(','); }
+            first = false;
+            let diag = self.scheduler.diagnostics.get(id);
+            let intent = diag.map(|d| format!("{:?}", d.intent)).unwrap_or_else(|| "Unneeded".into());
+            let reason = diag.and_then(|d| d.cancel_reason.as_deref()).unwrap_or("Active");
+            let req_id = diag.and_then(|d| d.request_id).map(|r| r.to_string()).unwrap_or_else(|| "null".into());
+            let priority = diag.map(|d| d.priority).unwrap_or(0);
+            out.push_str(&format!(r#"{{"instance_id":"{}","request_id":{},"priority":{},"intent":"{}","reason":"{}"}}"#, id, req_id, priority, intent, reason));
+        }
+        out.push(']');
+        out
+    }
 }

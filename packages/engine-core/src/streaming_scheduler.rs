@@ -188,7 +188,7 @@ impl StreamingScheduler {
             }
         }
         for id in to_cancel {
-            if let Ok(Some(_req)) = runtime.cancel_load(&id) {
+            if let Ok(Some(_req)) = runtime.cancel_load(&id, "Unneeded") {
                 self.active_requests.remove(&id);
                 if let Some(diag) = self.diagnostics.get_mut(&id) {
                     diag.cancel_reason = Some("Unneeded".into());

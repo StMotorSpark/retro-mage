@@ -59,13 +59,20 @@ pub struct LevelProviderResult {
 pub trait LevelProvider {
     fn resolve(&mut self, request: LevelProviderRequest) -> LevelProviderResult;
 
-    fn cancel(&mut self, request: &LevelProviderRequest) -> LevelProviderResult {
+    fn cancel(&mut self, request: &LevelProviderRequest, _reason: impl Into<String>) -> LevelProviderResult {
         LevelProviderResult {
             request_id: request.request_id,
             instance_id: request.instance_id.clone(),
             outcome: LevelProviderOutcome::Cancelled,
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ProviderCancellation {
+    pub request_id: ProviderRequestId,
+    pub instance_id: String,
+    pub reason: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -118,8 +125,13 @@ impl LevelProviderCoordinator {
         Ok(request)
     }
 
-    pub fn cancel(&mut self, instance_id: &str) -> Option<LevelProviderRequest> {
-        self.active.remove(instance_id)
+    pub fn cancel(&mut self, instance_id: &str, reason: impl Into<String>) -> Option<ProviderCancellation> {
+        let request = self.active.remove(instance_id)?;
+        Some(ProviderCancellation {
+            request_id: request.request_id,
+            instance_id: request.instance_id,
+            reason: reason.into(),
+        })
     }
 
     pub fn accept(&mut self, result: LevelProviderResult) -> Result<ProviderUpdate, ProviderCoordinatorError> {
@@ -136,6 +148,7 @@ impl LevelProviderCoordinator {
                     return Err(ProviderCoordinatorError::ResultIdentityMismatch);
                 }
                 self.resolved.insert(request.instance_id.clone(), definition.clone());
+                self.active.remove(&result.instance_id);
                 ProviderUpdate::Ready(definition)
             }
             LevelProviderOutcome::Pending => ProviderUpdate::Pending,
@@ -143,7 +156,10 @@ impl LevelProviderCoordinator {
                 self.active.remove(&result.instance_id);
                 ProviderUpdate::Cancelled
             }
-            LevelProviderOutcome::Failed(error) => ProviderUpdate::Failed(error),
+            LevelProviderOutcome::Failed(error) => {
+                self.active.remove(&result.instance_id);
+                ProviderUpdate::Failed(error)
+            }
         };
         Ok(update)
     }
@@ -228,7 +244,7 @@ mod tests {
     fn cancellation_and_stale_results_cannot_replace_current_definition() {
         let mut coordinator = LevelProviderCoordinator::new();
         let old = request(&mut coordinator, "room-instance");
-        assert_eq!(coordinator.cancel("room-instance").unwrap().request_id, old.request_id);
+        assert_eq!(coordinator.cancel("room-instance", "unneeded").unwrap().request_id, old.request_id);
         assert_eq!(coordinator.accept(LevelProviderResult { request_id: old.request_id, instance_id: old.instance_id.clone(), outcome: LevelProviderOutcome::Ready(definition("room", "1")) }).unwrap(), ProviderUpdate::Stale);
         let first = request(&mut coordinator, "room-instance");
         let second = request(&mut coordinator, "room-instance");

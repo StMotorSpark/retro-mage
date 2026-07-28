@@ -198,8 +198,8 @@ impl WorldRuntime {
         Ok(update)
     }
 
-    pub fn cancel_load(&mut self, id: &str) -> Result<Option<LevelProviderRequest>, WorldRuntimeError> {
-        let request = self.residency.cancel_load(id)?;
+    pub fn cancel_load(&mut self, id: &str, reason: impl Into<String>) -> Result<Option<crate::level_provider::ProviderCancellation>, WorldRuntimeError> {
+        let request = self.residency.cancel_load(id, reason)?;
         self.sync_topology_instance(id);
         Ok(request)
     }
