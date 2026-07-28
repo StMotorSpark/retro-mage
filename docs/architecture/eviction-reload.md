@@ -7,6 +7,7 @@ relates-to:
   - "[World Streaming](./world-streaming.md)"
   - "[Streaming Scheduler](./streaming-scheduler.md)"
   - "[Provider Lifecycle](./provider-lifecycle.md)"
+  - "[Persistence and Restore](./persistence-restore.md)"
   - "[Collision Bridge](./collision-bridge.md)"
   - "[Known Gaps](../research/known-gaps.md)"
 ---
@@ -144,5 +145,6 @@ This contract does not define byte-accurate memory accounting, GPU texture budge
 - [World Streaming](./world-streaming.md) — residency and release behavior
 - [Streaming Scheduler](./streaming-scheduler.md) — intent and candidate ordering
 - [Provider Lifecycle](./provider-lifecycle.md) — request/retry/cancellation semantics
+- [Persistence and Restore](./persistence-restore.md) — application state handoff and activation gating
 - [Collision Bridge](./collision-bridge.md) — collision participation follows runtime state
 - [Known Gaps](../research/known-gaps.md) — remaining implementation work

@@ -8,6 +8,7 @@ relates-to:
   - "[World Runtime](../architecture/world-runtime.md)"
   - "[Provider Lifecycle](../architecture/provider-lifecycle.md)"
   - "[Eviction and Reload](../architecture/eviction-reload.md)"
+  - "[Persistence and Restore](../architecture/persistence-restore.md)"
   - "[World Streaming](../architecture/world-streaming.md)"
   - "[Collision Bridge](../architecture/collision-bridge.md)"
   - "[Rendering](../architecture/rendering.md)"
@@ -78,6 +79,7 @@ These decisions are recorded in their authoritative design docs:
 - [World Runtime](../architecture/world-runtime.md) — lifecycle and provider boundaries
 - [Provider Lifecycle](../architecture/provider-lifecycle.md) — request execution and result acceptance
 - [Eviction and Reload](../architecture/eviction-reload.md) — protected release and reload boundary
+- [Persistence and Restore](../architecture/persistence-restore.md) — state handoff, restore, and activation safety
 - [Example Deployment](../architecture/example-deployment.md) — PWA and deployed demo behavior
 - [World Streaming](../architecture/world-streaming.md) — residency behavior
 - [Collision Bridge](../architecture/collision-bridge.md) — runtime-owned collision integration contract

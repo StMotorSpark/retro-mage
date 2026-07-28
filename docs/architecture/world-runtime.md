@@ -8,6 +8,7 @@ relates-to:
   - "[World Streaming](./world-streaming.md)"
   - "[Provider Lifecycle](./provider-lifecycle.md)"
   - "[Eviction and Reload](./eviction-reload.md)"
+  - "[Persistence and Restore](./persistence-restore.md)"
   - "[Collision Bridge](./collision-bridge.md)"
   - "[Streaming Scheduler](./streaming-scheduler.md)"
   - "[WASM Bridge](./wasm-bridge.md)"
@@ -89,6 +90,7 @@ The engine owns transient instance state while an instance is resident. The appl
 - [World Streaming](./world-streaming.md) — residency policies
 - [Provider Lifecycle](./provider-lifecycle.md) — request, cancellation, retry, and stale-result rules
 - [Eviction and Reload](./eviction-reload.md) — protected release and reload lifecycle
+- [Persistence and Restore](./persistence-restore.md) — application state handoff and activation gates
 - [Collision Bridge](./collision-bridge.md) — runtime-owned collision and world tick integration
 - [Streaming Scheduler](./streaming-scheduler.md) — relevance, request scheduling, and retention intent
 - [WASM Bridge](./wasm-bridge.md) — simulation data crossing into rendering
