@@ -222,6 +222,7 @@ impl WorldRuntime {
     }
 
     pub fn collision_world(&self) -> GlobalCollisionWorld { self.residency.collision_world().clone() }
+    pub fn collision_world_ref(&self) -> &GlobalCollisionWorld { self.residency.collision_world() }
     pub fn render_resident(&self, id: &str) -> bool { self.residency.render_resident(id) }
     pub fn collision_active(&self, id: &str) -> bool { self.residency.collision_active(id) }
     pub fn simulation_active(&self, id: &str) -> bool { self.residency.simulation_active(id) }

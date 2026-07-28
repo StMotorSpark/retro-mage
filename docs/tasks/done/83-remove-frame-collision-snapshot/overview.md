@@ -1,12 +1,12 @@
 ---
 task: "83"
 slug: remove-frame-collision-snapshot
-status: pending
+status: done
 depends-on: []
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-28
-outcome: ""
+outcome: "Replaced full collision clone per frame with direct collision_world_ref read. Extracted tick_world_aware on EngineState to bypass legacy collision checks without copying data. pnpm test passed."
 ---
 
 # Remove Per-Frame Collision Snapshot

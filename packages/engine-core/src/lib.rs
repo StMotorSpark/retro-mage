@@ -230,9 +230,51 @@ impl EngineState {
             self.seam_injection_tiles.count = 0;
         }
 
+        self.seam_injection_tiles.count = 0;
         self.recompute_visibility();
     }
+}
 
+impl EngineState {
+    /// World-aware tick directly querying an external collision view.
+    /// Replaces `tick()` for normal global gameplay flow.
+    pub fn tick_world_aware(&mut self, dt: f64, global_collision: &global_collision::GlobalCollisionWorld) {
+        self.tick_count += dt;
+        let dt_f32 = dt as f32;
+
+        let (new_yaw, new_pitch) = collision::apply_look(
+            self.camera.yaw[0],
+            self.camera.pitch[0],
+            self.input.look_x,
+            self.input.look_y,
+            self.collision_config.look_sensitivity,
+            dt_f32,
+        );
+        self.camera.yaw[0] = new_yaw;
+        self.camera.pitch[0] = new_pitch;
+
+        let (dx, dz) = collision::compute_movement_delta(
+            self.input.move_x,
+            self.input.move_y,
+            self.camera.yaw[0],
+            self.collision_config.player_speed,
+            dt_f32,
+        );
+
+        let pose = world::Transform { translation: world::Vec3 { x: self.camera.x[0], y: self.camera.y[0], z: self.camera.z[0] }, rotation: world::Quaternion { x: 0.0, y: (self.camera.yaw[0] * 0.5).sin(), z: 0.0, w: (self.camera.yaw[0] * 0.5).cos() }, scale: 1.0 };
+        let moved = global_collision.resolve_movement(pose, dx, dz, self.collision_config.player_radius, self.collision_config.player_height);
+        
+        self.camera.x[0] = moved.translation.x;
+        self.camera.y[0] = moved.translation.y;
+        self.camera.z[0] = moved.translation.z;
+
+        self.seam_injection_tiles.count = 0;
+        self.recompute_visibility();
+    }
+}
+
+#[wasm_bindgen]
+impl EngineState {
     /// Current active driving world structure (0 = Indoor, 1 = Outdoor).
     pub fn active_world_structure(&self) -> u32 {
         match self.seam_manager.active_structure() {
