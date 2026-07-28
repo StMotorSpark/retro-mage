@@ -164,6 +164,28 @@ impl WorldTransport {
         engine.set_global_collision_world(self.runtime.collision_world());
     }
 
+    /// Drives one world-aware frame: movement against runtime collision,
+    /// directional crossing, streaming relevance, and render publication.
+    pub fn tick_engine(&mut self, engine: &mut crate::EngineState, dt: f64) {
+        self.sync_collision(engine);
+        
+        let prev_x = engine.camera.x[0];
+        let prev_z = engine.camera.z[0];
+        
+        engine.tick(dt);
+        
+        let dx = engine.camera.x[0] - prev_x;
+        let dz = engine.camera.z[0] - prev_z;
+        
+        if self.try_crossing(engine.camera.x[0], engine.camera.y[0], engine.camera.z[0], dx, dz) {
+            engine.camera.x[0] = self.crossing_pose_x();
+            engine.camera.y[0] = self.crossing_pose_y();
+            engine.camera.z[0] = self.crossing_pose_z();
+        }
+        
+        self.update_scheduler(engine.camera.x[0], engine.camera.y[0], engine.camera.z[0]);
+    }
+
     pub fn refresh(&mut self) { self.sync(); }
     pub fn clear(&mut self) { self.tiles = 0; self.actors = 0; self.lights = 0; self.instances = 0; self.instance_ids.clear(); self.overflow = false; }
     pub fn overflowed(&self) -> bool { self.overflow }
@@ -283,6 +305,57 @@ mod tests {
         let mut t = WorldTransport::default();
         assert!(t.begin_definition("bad", "1", 2., 0., 0., 1., 1., 1.));
         assert!(!t.finish_definition("bad"));
+    }
+
+    #[test]
+    fn tick_engine_orders_movement_crossing_and_scheduler() {
+        let mut t = WorldTransport::with_capacity(4, 1, 1, 2);
+        assert!(t.begin_definition("room1", "1", -2., 0., -2., 2., 2., 2.));
+        assert!(t.definition_anchor("room1", "out", 1., 0., 0., -0.5, 0., -0.5, 0.5, 2., 0.5, 2));
+        assert!(t.finish_definition("room1"));
+        assert!(t.begin_definition("room2", "1", -2., 0., -2., 2., 2., 2.));
+        assert!(t.definition_anchor("room2", "in", 0., 0., 0., -0.5, 0., -0.5, 0.5, 2., 0.5, 2));
+        assert!(t.finish_definition("room2"));
+        
+        assert!(t.register_instance("inst1", "room1", 0., 0., 0., 0., 0., 0., 1., 1., 1));
+        assert!(t.register_instance("inst2", "room2", 3., 0., 0., 0., 0., 0., 1., 1., 1));
+        assert!(t.register_bidirectional_link("link", "inst1", "out", "inst2", "in"));
+        
+        let req1 = t.begin_load("inst1", "test");
+        assert!(t.accept_definition(req1, "inst1"));
+        assert!(t.set_instance_state("inst1", 3, true, true, true));
+        assert!(t.set_current_instance("inst1"));
+        
+        let mut engine = crate::EngineState::new();
+        engine.global_collision_configured = true;
+        engine.set_player_speed(10.0);
+        engine.camera.x[0] = 0.0;
+        engine.camera.y[0] = 0.0;
+        engine.camera.z[0] = 0.0;
+        
+        // Move towards the anchor
+        engine.set_input(0.0, 1.0, 0.0, 0.0, 0.0, 0, 0); // Move forward (Z direction)
+        
+        // First tick moves the player closer
+        t.tick_engine(&mut engine, 0.05);
+        assert_eq!(t.active_instance_id(), "inst1");
+        
+        // Ensure scheduler has queued the preload
+        assert!(t.scheduler_queue_depth() > 0 || t.scheduler_active_request_count() > 0);
+        
+        let req2 = t.begin_load("inst2", "test");
+        if req2 > 0 { t.accept_definition(req2, "inst2"); }
+        assert!(t.set_instance_state("inst2", 2, true, true, false));
+        
+        // Now force the player into the crossing volume (before center to pass directional check)
+        engine.camera.x[0] = 0.6;
+        engine.camera.z[0] = 0.0;
+        engine.set_player_speed(2.0); // Move 0.2 in dt=0.1
+        engine.set_input(1.0, 0.0, 0.0, 0.0, 0.0, 0, 0); // Move right (X direction)
+        t.tick_engine(&mut engine, 0.1);
+        
+        // Crossing should have triggered
+        assert_eq!(t.active_instance_id(), "inst2");
     }
 }
 

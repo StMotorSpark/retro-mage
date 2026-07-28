@@ -1,12 +1,12 @@
 ---
 task: "80"
 slug: world-aware-engine-tick
-status: pending
+status: done
 depends-on: ["79"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-28
-outcome: ""
+outcome: "Added WorldTransport::tick_engine to drive movement, crossing, and scheduler evaluation in order against authoritative runtime content."
 ---
 
 # Add World-Aware Engine Tick
