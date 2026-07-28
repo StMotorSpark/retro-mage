@@ -1,12 +1,12 @@
 ---
 task: "81"
 slug: wasm-demo-collision-integration
-status: pending
+status: done
 depends-on: ["80"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-28
-outcome: ""
+outcome: "Migrated demo to use worldTransport.tick_engine() instead of explicit tick and try_crossing. Removed sync_collision calls. Verified seamless movement and eviction via playwright tests."
 ---
 
 # Migrate WASM and Demo to World-Aware Collision

@@ -98,10 +98,7 @@ async function main(): Promise<void> {
     const input = inputSource.getState();
     engineState.set_input(input.move.x, input.move.y, input.look.x, input.look.y, input.vertical, input.buttons, input.buttonsPressed);
     if ((input.buttonsPressed & FACE1) !== 0) perfOverlay.toggle();
-    engineState.tick(dtMs / 1000);
-
-    const cameraBeforeCrossing = legacyReader.read().camera;
-    worldTransport.update_scheduler(cameraBeforeCrossing.x[0] ?? 0, cameraBeforeCrossing.y[0] ?? 0, cameraBeforeCrossing.z[0] ?? 0);
+    worldTransport.tick_engine(engineState, dtMs / 1000);
     const activeCount = worldTransport.scheduler_active_request_count();
     const currentActiveIds = new Set<string>();
     for (let i = 0; i < activeCount; i++) {
@@ -115,13 +112,11 @@ async function main(): Promise<void> {
         void provider.resolveAsync(definitionId, { delayMs: definitionId === 'outdoor' ? 250 : 40, fail: definitionId === 'outdoor' && failOutdoor, signal: controller.signal }).then(() => {
           if (!worldTransport.accept_definition(requestId, instanceId)) throw new Error(`Failed to accept ${instanceId}`);
           if (instanceId === 'dungeon-instance' && !worldTransport.set_instance_state(instanceId, 3, true, true, true)) throw new Error('Failed to activate source dungeon.');
-          worldTransport.sync_collision(engineState);
           pendingLoads.delete(instanceId);
         }).catch((error: unknown) => {
           pendingLoads.delete(instanceId);
           if (error instanceof DOMException && error.name === 'AbortError') return;
           if (!worldTransport.fail_load(requestId, instanceId, error instanceof Error ? error.message : String(error))) throw new Error(`Failed to reject ${instanceId}`);
-          worldTransport.sync_collision(engineState);
           if (instanceId === 'outdoor-instance') console.warn('Outdoor preload failed by debug request; source remains playable.');
         });
       }
@@ -132,14 +127,11 @@ async function main(): Promise<void> {
         pendingLoads.delete(id);
       }
     }
-    const movementX = input.move.y * Math.sin(cameraBeforeCrossing.yaw[0] ?? 0) + input.move.x * Math.cos(cameraBeforeCrossing.yaw[0] ?? 0);
-    const movementZ = -input.move.y * Math.cos(cameraBeforeCrossing.yaw[0] ?? 0) + input.move.x * Math.sin(cameraBeforeCrossing.yaw[0] ?? 0);
-    if ((input.move.x !== 0 || input.move.y !== 0) && worldTransport.try_crossing(cameraBeforeCrossing.x[0] ?? 0, cameraBeforeCrossing.y[0] ?? 0, cameraBeforeCrossing.z[0] ?? 0, movementX, movementZ)) {
-      engineState.set_camera(worldTransport.crossing_pose_x(), worldTransport.crossing_pose_y(), worldTransport.crossing_pose_z(), cameraBeforeCrossing.yaw[0] ?? 0, cameraBeforeCrossing.pitch[0] ?? 0);
-      worldTransport.sync_collision(engineState);
-    }
+    const cameraAfterTick = legacyReader.read().camera;
+    const movementX = input.move.y * Math.sin(cameraAfterTick.yaw[0] ?? 0) + input.move.x * Math.cos(cameraAfterTick.yaw[0] ?? 0);
+    const movementZ = -input.move.y * Math.cos(cameraAfterTick.yaw[0] ?? 0) + input.move.x * Math.sin(cameraAfterTick.yaw[0] ?? 0);
     const world = transportReader.read();
-    const camera = legacyReader.read().camera;
+    const camera = cameraAfterTick;
     const x = camera.x[0] ?? 0;
     const activeInstance = worldTransport.active_instance_id();
     renderer.setSkyboxEnabled(activeInstance === 'outdoor-instance');
