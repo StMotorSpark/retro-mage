@@ -54,6 +54,7 @@ export interface GlobalSceneCapacity {
   tiles: number;
   actors: number;
   lights: number;
+  instances: number;
 }
 
 export type GlobalSceneCounts = GlobalSceneCapacity;
@@ -80,7 +81,7 @@ export interface GlobalSceneView {
   readonly counts: GlobalSceneCounts;
 }
 
-const DEFAULT_CAPACITY: GlobalSceneCapacity = { tiles: 4096, actors: 256, lights: 128 };
+const DEFAULT_CAPACITY: GlobalSceneCapacity = { tiles: 4096, actors: 256, lights: 128, instances: 64 };
 
 /**
  * Collects all render-resident instances into one global scene submission.
@@ -102,6 +103,7 @@ export class GlobalSceneSubmission {
       tiles: capacity.tiles ?? DEFAULT_CAPACITY.tiles,
       actors: capacity.actors ?? DEFAULT_CAPACITY.actors,
       lights: capacity.lights ?? DEFAULT_CAPACITY.lights,
+      instances: capacity.instances ?? DEFAULT_CAPACITY.instances,
     };
     for (const [kind, value] of Object.entries(this.capacity)) {
       if (!Number.isInteger(value) || value < 0) throw new RangeError(`Invalid scene ${kind} capacity: ${value}`);
@@ -123,7 +125,7 @@ export class GlobalSceneSubmission {
   }
 
   get counts(): GlobalSceneCounts {
-    return { tiles: this.tileCount, actors: this.actorCount, lights: this.lightCount };
+    return { tiles: this.tileCount, actors: this.actorCount, lights: this.lightCount, instances: this.ids.length };
   }
 
   reset(): void {
@@ -134,8 +136,8 @@ export class GlobalSceneSubmission {
   submit(instance: GlobalSceneInstance): void {
     if (!instance.id.trim()) throw new Error('Global scene instance id must not be empty');
     const tiles = instance.tiles ?? [], actors = instance.actors ?? [], lights = instance.lights ?? [];
-    const next = { tiles: this.tileCount + tiles.length, actors: this.actorCount + actors.length, lights: this.lightCount + lights.length };
-    for (const kind of ['tiles', 'actors', 'lights'] as const) {
+    const next = { tiles: this.tileCount + tiles.length, actors: this.actorCount + actors.length, lights: this.lightCount + lights.length, instances: this.ids.length + 1 };
+    for (const kind of ['tiles', 'actors', 'lights', 'instances'] as const) {
       if (next[kind] > this.capacity[kind]) throw new SceneCapacityError(kind, next[kind], this.capacity[kind]);
     }
     let i = this.tileCount;

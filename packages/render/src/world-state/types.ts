@@ -1,7 +1,6 @@
 /**
  * ActorsView exposes typed-array views over WASM linear memory for all active actors.
  * Struct-of-Arrays (SoA) layout with 1 f32 slot per actor field.
- * Maximum capacity: 64 actors.
  */
 export interface ActorsView {
   readonly x: Float32Array;
@@ -17,7 +16,6 @@ export interface ActorsView {
 /**
  * LightsView exposes typed-array views over WASM linear memory for point light sources.
  * Struct-of-Arrays (SoA) layout with 1 f32 slot per light field.
- * Maximum capacity: 32 lights.
  */
 export interface LightsView {
   readonly x: Float32Array;
@@ -35,7 +33,6 @@ export interface LightsView {
 /**
  * TilesView exposes typed-array views over WASM linear memory for room tile geometry.
  * Struct-of-Arrays (SoA) layout with 1 f32 slot per tile field.
- * Maximum capacity: 1024 visible tiles.
  */
 export interface TilesView {
   readonly x: Float32Array;

@@ -1,12 +1,12 @@
 ---
 task: "84"
 slug: scene-capacity-contract
-status: pending
+status: done
 depends-on: []
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-28
-outcome: ""
+outcome: "Added missing instance capacity to TypeScript render scene to mirror the Rust contract, exposed values, updated defaults, and removed stale max capacity docstrings from typed arrays."
 ---
 
 # Establish Scene Capacity Contract
@@ -25,13 +25,13 @@ Align Rust/WASM and TypeScript scene capacity configuration around one applicati
 
 ## Definition of Done
 
-- [ ] `WorldTransport::with_capacity` configures all four categories and rejects invalid capacity values according to the contract.
-- [ ] Engine defaults are documented and consistent across Rust, TypeScript, and tests.
-- [ ] Capacity values are observable through the browser-facing API or equivalent typed view.
-- [ ] No runtime path silently reallocates or changes capacity during a frame.
-- [ ] TypeScript adapter validates and reports capacity using equivalent category names and semantics.
-- [ ] Unit tests cover defaults, custom capacities, zero capacities, invalid values, and capacity observability.
-- [ ] `cargo test` and relevant package tests pass.
+- [x] `WorldTransport::with_capacity` configures all four categories and rejects invalid capacity values according to the contract.
+- [x] Engine defaults are documented and consistent across Rust, TypeScript, and tests.
+- [x] Capacity values are observable through the browser-facing API or equivalent typed view.
+- [x] No runtime path silently reallocates or changes capacity during a frame.
+- [x] TypeScript adapter validates and reports capacity using equivalent category names and semantics.
+- [x] Unit tests cover defaults, custom capacities, zero capacities, invalid values, and capacity observability.
+- [x] `cargo test` and relevant package tests pass.
 
 ## Out of Scope
 
