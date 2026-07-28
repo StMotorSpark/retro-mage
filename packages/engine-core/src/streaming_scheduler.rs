@@ -180,7 +180,8 @@ impl StreamingScheduler {
         Self { policy, queue: Vec::new(), active_requests: HashSet::new(), diagnostics: HashMap::new(), next_timestamp: 0 }
     }
 
-    pub fn update(&mut self, runtime: &mut WorldRuntime, decisions: &HashMap<String, IntentDecision>) {
+    pub fn update(&mut self, runtime: &mut WorldRuntime, decisions: &HashMap<String, IntentDecision>) -> Vec<crate::residency::PersistenceHandoff> {
+        let mut evictions_list = Vec::new();
         let mut to_cancel = Vec::new();
         for active_id in &self.active_requests {
             let decision = decisions.get(active_id);
@@ -220,10 +221,11 @@ impl StreamingScheduler {
                 let _ = runtime.deactivate(&id);
             }
             if runtime.mark_evictable(&id).is_ok() {
-                if let Ok(_) = runtime.evict(&id, "Unneeded".into()) {
+                if let Ok(handoff) = runtime.evict(&id, "Unneeded".into()) {
                     if let Some(diag) = self.diagnostics.get_mut(&id) {
                         diag.eviction_reason = Some("Unneeded".into());
                     }
+                    evictions_list.push(handoff);
                 }
             }
         }
@@ -298,6 +300,7 @@ impl StreamingScheduler {
             }
         }
         self.next_timestamp += 1;
+        evictions_list
     }
 
     pub fn handle_completion(&mut self, runtime: &mut WorldRuntime, result: crate::level_provider::LevelProviderResult) {

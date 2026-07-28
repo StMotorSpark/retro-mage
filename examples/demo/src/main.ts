@@ -21,6 +21,8 @@ interface DemoDebugSnapshot {
   overflowed?: boolean;
   overflowDiagnostics?: string;
   cancelled?: boolean;
+  evictions: Array<{ instance_id: string; eviction_reason: string; payload: string }>;
+  restores: Record<string, string>;
 }
 
 declare global {
@@ -57,6 +59,10 @@ async function main(): Promise<void> {
   if (!worldTransport.set_scheduler_policy(10, 0, 2)) throw new Error('Failed to configure demo streaming scheduler.');
 
   const pendingLoads = new Map<string, AbortController>();
+  const savedPayloads: Record<string, string> = { 'outdoor-instance': 'initial-app-state-123' };
+  worldTransport.set_application_payload('outdoor-instance', savedPayloads['outdoor-instance']);
+  const demoEvictions: Array<{ instance_id: string; eviction_reason: string; payload: string }> = [];
+  const demoRestores: Record<string, string> = {};
 
   engineState.set_camera(0, 0, 4, 0, 0);
   engineState.set_ambient_light(0.05);
@@ -107,6 +113,15 @@ async function main(): Promise<void> {
     worldTransport.tick_engine(engineState, dtMs / 1000);
     const activeCount = worldTransport.scheduler_active_request_count();
     const currentActiveIds = new Set<string>();
+    const evictionsJson = worldTransport.take_evictions_json();
+    if (evictionsJson && evictionsJson !== '[]') {
+      const parsed = JSON.parse(evictionsJson);
+      demoEvictions.push(...parsed);
+      for (const e of parsed) {
+        if (e.payload) savedPayloads[e.instance_id] = e.payload;
+      }
+    }
+
     for (let i = 0; i < activeCount; i++) {
       const instanceId = worldTransport.scheduler_active_request_instance(i);
       currentActiveIds.add(instanceId);
@@ -117,6 +132,10 @@ async function main(): Promise<void> {
         pendingLoads.set(instanceId, controller);
         void provider.resolveAsync(definitionId, { delayMs: definitionId === 'outdoor' ? (slowOutdoor ? 2000 : 250) : 40, fail: definitionId === 'outdoor' && failOutdoor, signal: controller.signal }).then(() => {
           if (!worldTransport.accept_definition(requestId, instanceId)) throw new Error(`Failed to accept ${instanceId}`);
+          if (savedPayloads[instanceId]) {
+            worldTransport.set_application_payload(instanceId, savedPayloads[instanceId]);
+            demoRestores[instanceId] = savedPayloads[instanceId];
+          }
           if (instanceId === 'dungeon-instance' && !worldTransport.set_instance_state(instanceId, 3, true, true, true)) throw new Error('Failed to activate source dungeon.');
           pendingLoads.delete(instanceId);
         }).catch((error: unknown) => {
@@ -172,6 +191,8 @@ async function main(): Promise<void> {
       pins: instances.filter(i => worldTransport.scheduler_diagnostic_intent(i.id) === 3).length,
       overflowed: worldTransport.overflowed(),
       overflowDiagnostics: worldTransport.overflow_diagnostics_json(),
+      evictions: demoEvictions,
+      restores: demoRestores,
     };
     requestAnimationFrame(frame);
   };

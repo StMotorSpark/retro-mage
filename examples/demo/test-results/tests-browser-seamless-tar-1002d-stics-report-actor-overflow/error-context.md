@@ -6,15 +6,15 @@
 
 # Test info
 
-- Name: tests/browser-seamless.spec.ts >> source remains playable when target preload fails
-- Location: tests/browser-seamless.spec.ts:105:1
+- Name: tests/browser-seamless.spec.ts >> target crossing is rejected on overflow, source remains playable, diagnostics report actor overflow
+- Location: tests/browser-seamless.spec.ts:163:1
 
 # Error details
 
 ```
 Error: page.goto: Protocol error (Page.navigate): Cannot navigate to invalid URL
 Call log:
-  - navigating to "/?failOutdoor=1", waiting until "load"
+  - navigating to "/?overflowActors=1", waiting until "load"
 
 ```
 

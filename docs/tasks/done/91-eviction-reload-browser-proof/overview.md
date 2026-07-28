@@ -1,12 +1,12 @@
 ---
 task: "91"
 slug: eviction-reload-browser-proof
-status: pending
+status: done
 depends-on: ["89", "90"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-28
-outcome: ""
+outcome: "Added browser demo fixture for eviction/reload proof. Integrated with diagnostic hooks. Tests pass deterministically."
 ---
 
 # Prove Eviction and Reload in Browser

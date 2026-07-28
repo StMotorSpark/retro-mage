@@ -143,6 +143,10 @@ test('unneeded content becomes evictable and reloads when relevant', async ({ pa
   const outdoorEvicted = evicted.instances.find((instance) => instance.id === 'outdoor-instance');
   // It should be 0 (Known) or 5 (Evicted)
   expect(outdoorEvicted?.state === 0 || outdoorEvicted?.state === 5).toBe(true);
+  
+  // Verify eviction diagnostics
+  expect(evicted.evictions.length).toBeGreaterThan(0);
+  expect(evicted.evictions[evicted.evictions.length - 1].payload).toBe('initial-app-state-123');
 
   // Move back toward the seam to trigger reload
   await strafe(page, 70, (snapshot) => {
@@ -151,6 +155,9 @@ test('unneeded content becomes evictable and reloads when relevant', async ({ pa
   });
   const reloaded = await debug(page);
   expect(reloaded.instances.find((instance) => instance.id === 'outdoor-instance')?.state).toBe(2);
+  
+  // Verify restore diagnostics
+  expect(reloaded.restores['outdoor-instance']).toBe('initial-app-state-123');
 });
 
 test('target crossing is rejected on overflow, source remains playable, diagnostics report actor overflow', async ({ page }) => {

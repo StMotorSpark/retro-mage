@@ -6,15 +6,15 @@
 
 # Test info
 
-- Name: tests/browser-seamless.spec.ts >> source remains playable when target preload fails
-- Location: tests/browser-seamless.spec.ts:105:1
+- Name: tests/browser-seamless.spec.ts >> cancellation aborts app work and replacement uses new request identity
+- Location: tests/browser-seamless.spec.ts:187:1
 
 # Error details
 
 ```
 Error: page.goto: Protocol error (Page.navigate): Cannot navigate to invalid URL
 Call log:
-  - navigating to "/?failOutdoor=1", waiting until "load"
+  - navigating to "/?slowOutdoor=1", waiting until "load"
 
 ```
 
