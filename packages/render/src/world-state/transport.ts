@@ -1,5 +1,5 @@
 import type { ActorsView, LightsView, TilesView } from './types.js';
-import type { GlobalSceneView } from './scene.js';
+import type { GlobalSceneOverflowDiagnostic, GlobalSceneView } from './scene.js';
 
 export interface WorldTransportEngine {
   tiles_x_ptr(): number;
@@ -40,6 +40,8 @@ export interface WorldTransportEngine {
   instance_simulation_active(index: number): boolean;
   ambient_light?: () => number;
   overflowed?: () => boolean;
+  overflow_diagnostics_json?: () => string;
+  skipped_instances_json?: () => string;
 }
 
 export interface WorldTransportViews {
@@ -160,7 +162,12 @@ export class WorldTransportReader {
       actors,
       lights,
       instanceIds: instances.filter((instance) => instance.render_resident).map((instance) => instance.id),
-      counts: { tiles: tc, actors: ac, lights: lc },
+      counts: { tiles: tc, actors: ac, lights: lc, instances: instances.filter((instance) => instance.render_resident).length },
+      overflow: {
+        overflowed: this.engine.overflowed?.() ?? false,
+        diagnostics: this.parseDiagnostics(),
+        skippedInstances: this.parseSkippedInstances(),
+      },
     };
     this.cached = {
       tiles,
@@ -172,5 +179,25 @@ export class WorldTransportReader {
       overflowed: this.engine.overflowed?.bind(this.engine),
     };
     return this.cached;
+  }
+
+  private parseDiagnostics(): GlobalSceneOverflowDiagnostic[] {
+    const raw = this.engine.overflow_diagnostics_json?.();
+    if (!raw) return [];
+    try {
+      return JSON.parse(raw) as GlobalSceneOverflowDiagnostic[];
+    } catch {
+      return [];
+    }
+  }
+
+  private parseSkippedInstances(): string[] {
+    const raw = this.engine.skipped_instances_json?.();
+    if (!raw) return [];
+    try {
+      return JSON.parse(raw) as string[];
+    } catch {
+      return [];
+    }
   }
 }

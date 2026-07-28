@@ -172,7 +172,7 @@ impl WorldTransport {
             _ => false,
         }
     }
-    
+
     pub fn set_block_on_overflow(&mut self, block: bool) { self.block_on_overflow = block; }
     pub fn last_crossing_rejection(&self) -> u32 { self.last_crossing_rejection }
 
@@ -187,18 +187,18 @@ impl WorldTransport {
     pub fn tick_engine(&mut self, engine: &mut crate::EngineState, dt: f64) {
         let prev_x = engine.camera.x[0];
         let prev_z = engine.camera.z[0];
-        
+
         engine.tick_world_aware(dt, self.runtime.collision_world_ref());
-        
+
         let dx = engine.camera.x[0] - prev_x;
         let dz = engine.camera.z[0] - prev_z;
-        
+
         if self.try_crossing(engine.camera.x[0], engine.camera.y[0], engine.camera.z[0], dx, dz) {
             engine.camera.x[0] = self.crossing_pose_x();
             engine.camera.y[0] = self.crossing_pose_y();
             engine.camera.z[0] = self.crossing_pose_z();
         }
-        
+
         self.update_scheduler(engine.camera.x[0], engine.camera.y[0], engine.camera.z[0]);
     }
 
@@ -240,9 +240,9 @@ impl WorldTransport {
         for id in ids {
             let Some(instance) = self.runtime.instance(&id) else { continue };
             let content_opt = entries.iter().find(|(entry_id, _)| entry_id == &id).map(|(_, content)| content);
-            
+
             let (t_len, a_len, l_len) = if let Some(c) = content_opt { (c.tiles.len(), c.actors.len(), c.lights.len()) } else { (0, 0, 0) };
-            
+
             let instances_req = self.instances + 1;
             let t_req = self.tiles + t_len;
             let a_req = self.actors + a_len;
@@ -372,44 +372,44 @@ mod tests {
         assert!(t.begin_definition("room2", "1", -2., 0., -2., 2., 2., 2.));
         assert!(t.definition_anchor("room2", "in", 0., 0., 0., -0.5, 0., -0.5, 0.5, 2., 0.5, 2));
         assert!(t.finish_definition("room2"));
-        
+
         assert!(t.register_instance("inst1", "room1", 0., 0., 0., 0., 0., 0., 1., 1., 1));
         assert!(t.register_instance("inst2", "room2", 3., 0., 0., 0., 0., 0., 1., 1., 1));
         assert!(t.register_bidirectional_link("link", "inst1", "out", "inst2", "in"));
-        
+
         let req1 = t.begin_load("inst1", "test");
         assert!(t.accept_definition(req1, "inst1"));
         assert!(t.set_instance_state("inst1", 3, true, true, true));
         assert!(t.set_current_instance("inst1"));
-        
+
         let mut engine = crate::EngineState::new();
         engine.global_collision_configured = true;
         engine.set_player_speed(10.0);
         engine.camera.x[0] = 0.0;
         engine.camera.y[0] = 0.0;
         engine.camera.z[0] = 0.0;
-        
+
         // Move towards the anchor
         engine.set_input(0.0, 1.0, 0.0, 0.0, 0.0, 0, 0); // Move forward (Z direction)
-        
+
         // First tick moves the player closer
         t.tick_engine(&mut engine, 0.05);
         assert_eq!(t.active_instance_id(), "inst1");
-        
+
         // Ensure scheduler has queued the preload
         assert!(t.scheduler_queue_depth() > 0 || t.scheduler_active_request_count() > 0);
-        
+
         let req2 = t.begin_load("inst2", "test");
         if req2 > 0 { t.accept_definition(req2, "inst2"); }
         assert!(t.set_instance_state("inst2", 2, true, true, false));
-        
+
         // Now force the player into the crossing volume (before center to pass directional check)
         engine.camera.x[0] = 0.6;
         engine.camera.z[0] = 0.0;
         engine.set_player_speed(2.0); // Move 0.2 in dt=0.1
         engine.set_input(1.0, 0.0, 0.0, 0.0, 0.0, 0, 0); // Move right (X direction)
         t.tick_engine(&mut engine, 0.1);
-        
+
         // Crossing should have triggered
         assert_eq!(t.active_instance_id(), "inst2");
     }
@@ -454,7 +454,7 @@ impl WorldTransport {
         let instance = self.scheduler_active_request_instance(index);
         self.scheduler.diagnostics.get(&instance).and_then(|d| d.request_id).unwrap_or(0) as f64
     }
-    
+
     pub fn scheduler_diagnostic_intent(&self, id: &str) -> u32 {
         match self.scheduler.diagnostics.get(id).map(|d| d.intent).unwrap_or(crate::streaming_scheduler::ResidencyIntent::Unneeded) {
             crate::streaming_scheduler::ResidencyIntent::Unneeded => 0,
@@ -463,6 +463,6 @@ impl WorldTransport {
             crate::streaming_scheduler::ResidencyIntent::Pinned => 3,
         }
     }
-    
+
     pub fn scheduler_queue_depth(&self) -> usize { self.scheduler.queue.len() }
 }

@@ -4,7 +4,7 @@ slug: overflow-crossing-gate
 status: done
 depends-on: ["85"]
 blocked-by: ""
-assigned-to: "agent"
+assigned-to: ""
 created: 2026-07-28
 outcome: "Implemented crossing rejection on scene overflow with block_on_overflow toggle and diagnostics."
 ---

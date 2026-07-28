@@ -106,21 +106,21 @@ fn crossing_is_blocked_by_default_on_render_overflow_and_preserves_source() {
     runtime.activate("dungeon-instance").unwrap();
     runtime.set_current(Some("dungeon-instance")).unwrap();
     runtime.resolve_definition("outdoor-instance", outdoor()).unwrap();
-    
+
     // Simulate target is overflowing
     let overflowed = vec!["outdoor-instance"];
     let pose = Transform { translation: Vec3 { x: 3.2, y: 0.5, z: 0.0 }, ..Transform::IDENTITY };
-    
+
     // Crossing should be blocked due to SceneOverflow
     let eval = runtime.try_crossing(pose, Vec3 { x: -1.0, y: 0.0, z: 0.0 }, &overflowed, true).unwrap();
     assert!(eval.resolution.is_none());
     assert_eq!(eval.rejection, Some(engine_core::world_runtime::CrossingRejection::SceneOverflow));
-    
+
     // Source should remain active
     assert_eq!(runtime.current_instance(), Some("dungeon-instance"));
     assert_eq!(runtime.state("dungeon-instance"), Some(RuntimeState::Active));
     assert_eq!(runtime.state("outdoor-instance"), Some(RuntimeState::Resident));
-    
+
     // If block_on_overflow is false, it should cross successfully despite overflow
     let eval = runtime.try_crossing(pose, Vec3 { x: -1.0, y: 0.0, z: 0.0 }, &overflowed, false).unwrap();
     assert!(eval.resolution.is_some());

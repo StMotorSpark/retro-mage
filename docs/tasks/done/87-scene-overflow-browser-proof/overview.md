@@ -4,7 +4,7 @@ slug: scene-overflow-browser-proof
 status: done
 depends-on: ["86"]
 blocked-by: ""
-assigned-to: "Antigravity"
+assigned-to: ""
 created: 2026-07-28
 outcome: "Implemented browser tests proving scene capacity overflow is detected, rejected, and appropriately diagnosed without breaking continuous gameplay."
 ---

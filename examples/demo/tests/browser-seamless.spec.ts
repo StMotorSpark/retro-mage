@@ -120,7 +120,7 @@ test('source remains playable when target preload fails', async ({ page }) => {
 
 test('unneeded content becomes evictable and reloads when relevant', async ({ page }) => {
   await waitForDemo(page);
-  
+
   // Cross into outdoor
   await strafe(page, 70, (snapshot) => snapshot.activeInstance === 'outdoor-instance');
   const forward = await debug(page);
@@ -143,7 +143,7 @@ test('unneeded content becomes evictable and reloads when relevant', async ({ pa
   const outdoorEvicted = evicted.instances.find((instance) => instance.id === 'outdoor-instance');
   // It should be 0 (Known) or 5 (Evicted)
   expect(outdoorEvicted?.state === 0 || outdoorEvicted?.state === 5).toBe(true);
-  
+
   // Move back toward the seam to trigger reload
   await strafe(page, 70, (snapshot) => {
     const outdoor = snapshot.instances.find(i => i.id === 'outdoor-instance');
@@ -155,14 +155,14 @@ test('unneeded content becomes evictable and reloads when relevant', async ({ pa
 
 test('target crossing is rejected on overflow, source remains playable, diagnostics report actor overflow', async ({ page }) => {
   await waitForDemo(page, '/?overflowActors=1');
-  
+
   await expect.poll(async () => {
     const s = await debug(page);
     return s.overflowed;
   }, { timeout: 10_000, message: 'Expected overflow to occur' }).toBe(true);
 
   const overflowSnapshot = await debug(page);
-  
+
   expect(overflowSnapshot.instances.find(i => i.id === 'dungeon-instance')?.renderResident).toBe(true);
   expect(overflowSnapshot.targetVisible).toBe(false);
   expect(overflowSnapshot.sourcePlayable).toBe(true);
@@ -172,7 +172,7 @@ test('target crossing is rejected on overflow, source remains playable, diagnost
 
   await strafe(page, 70, (snapshot) => snapshot.renderFrame > overflowSnapshot.renderFrame + 10);
   const afterAttempt = await debug(page);
-  
+
   expect(afterAttempt.activeInstance).toBe('dungeon-instance');
   expect(afterAttempt.sourcePlayable).toBe(true);
 });
