@@ -349,6 +349,7 @@ mod tests {
         assert_eq!(t.instance_state(0), 3);
         assert!(t.instance_render_resident(0));
         assert!(t.instance_collision_active(0));
+        assert!(t.set_instance_state("room-instance", 2, true, false, false));
         assert!(t.set_instance_state("room-instance", 4, true, false, false));
         assert!(t.set_instance_state("room-instance", 5, false, false, false));
         t.refresh();

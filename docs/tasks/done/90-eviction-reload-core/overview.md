@@ -1,12 +1,12 @@
 ---
 task: "90"
 slug: eviction-reload-core
-status: pending
+status: done
 depends-on: ["88"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-28
-outcome: ""
+outcome: "Implemented protected deterministic eviction, opaque application persistence handoff, and safe reload through provider lifecycle. Fixed direct Active->Evictable transition in engine-core to require explicit deactivation."
 ---
 
 # Harden Eviction and Reload Core

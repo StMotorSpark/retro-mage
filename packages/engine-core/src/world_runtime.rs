@@ -214,15 +214,24 @@ impl WorldRuntime {
         self.sync_topology_instance(id);
         Ok(activated)
     }
+    pub fn deactivate(&mut self, id: &str) -> Result<(), WorldRuntimeError> {
+        self.residency.deactivate(id)?;
+        self.sync_topology_instance(id);
+        Ok(())
+    }
     pub fn mark_evictable(&mut self, id: &str) -> Result<(), WorldRuntimeError> {
         self.residency.mark_evictable(id)?;
         self.sync_topology_instance(id);
         Ok(())
     }
-    pub fn evict(&mut self, id: &str) -> Result<PersistenceHandoff, WorldRuntimeError> {
-        let handoff = self.residency.evict(id)?;
+    pub fn evict(&mut self, id: &str, reason: String) -> Result<PersistenceHandoff, WorldRuntimeError> {
+        let handoff = self.residency.evict(id, reason)?;
         self.sync_topology_instance(id);
         Ok(handoff)
+    }
+    pub fn set_application_payload(&mut self, id: &str, payload: Vec<u8>) -> Result<(), WorldRuntimeError> {
+        self.residency.set_application_payload(id, payload)?;
+        Ok(())
     }
     pub fn set_current(&mut self, id: Option<&str>) -> Result<(), WorldRuntimeError> { Ok(self.residency.set_current(id)?) }
     pub fn pin(&mut self, id: &str, pinned: bool) -> Result<(), WorldRuntimeError> { Ok(self.residency.pin(id, pinned)?) }
@@ -250,8 +259,13 @@ impl WorldRuntime {
         match state {
             RuntimeState::Active => self.activate(id)?,
             RuntimeState::Evictable => self.mark_evictable(id)?,
-            RuntimeState::Evicted => { let _ = self.evict(id)?; },
-            RuntimeState::Resident => self.residency.set_data_readiness(id, render, collision)?,
+            RuntimeState::Evicted => { let _ = self.evict(id, "Transport eviction".into())?; },
+            RuntimeState::Resident => {
+                if self.state(id) == Some(RuntimeState::Active) {
+                    self.deactivate(id)?;
+                }
+                self.residency.set_data_readiness(id, render, collision)?;
+            },
             RuntimeState::Failed => self.residency.mark_failed(id)?,
             RuntimeState::Known | RuntimeState::Loading => {
                 return Err(ResidencyError::InvalidTransition { instance_id: id.into(), from: self.state(id).unwrap_or(RuntimeState::Known), to: state }.into())

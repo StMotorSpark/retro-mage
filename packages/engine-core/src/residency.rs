@@ -17,6 +17,8 @@ use crate::world::{LevelInstance, RuntimeState, WorldContractError};
 #[derive(Debug, Clone, PartialEq)]
 pub struct PersistenceHandoff {
     pub instance: LevelInstance,
+    pub eviction_reason: String,
+    pub opaque_payload: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -38,6 +40,7 @@ struct Record {
     descriptor: LevelInstance,
     definition: Option<Arc<crate::world::LevelDefinition>>,
     global: Option<GlobalLevelContent>,
+    opaque_payload: Option<Vec<u8>>,
     render_ready: bool,
     collision_ready: bool,
 }
@@ -64,7 +67,7 @@ impl ResidencyStore {
         if self.records.contains_key(&id) {
             return Err(ResidencyError::InvalidTransition { instance_id: id, from: instance.state, to: instance.state });
         }
-        self.records.insert(id, Record { descriptor: instance, definition: None, global: None, render_ready: false, collision_ready: false });
+        self.records.insert(id, Record { descriptor: instance, definition: None, global: None, opaque_payload: None, render_ready: false, collision_ready: false });
         Ok(())
     }
 
@@ -144,6 +147,7 @@ impl ResidencyStore {
         record.descriptor.render_resident = false;
         record.descriptor.collision_active = false;
         record.descriptor.simulation_active = false;
+        record.opaque_payload = None;
         record.render_ready = false;
         record.collision_ready = false;
         self.collision_world.remove_instance(id);
@@ -254,10 +258,22 @@ impl ResidencyStore {
         Ok(())
     }
 
+    pub fn deactivate(&mut self, id: &str) -> Result<(), ResidencyError> {
+        let record = self.records.get_mut(id).ok_or_else(|| ResidencyError::UnknownInstance(id.into()))?;
+        if record.descriptor.state != RuntimeState::Active {
+            return Err(ResidencyError::InvalidTransition { instance_id: id.into(), from: record.descriptor.state, to: RuntimeState::Resident });
+        }
+        record.descriptor.state = RuntimeState::Resident;
+        record.descriptor.collision_active = false;
+        record.descriptor.simulation_active = false;
+        self.collision_world.set_collision_active(id, false);
+        Ok(())
+    }
+
     pub fn mark_evictable(&mut self, id: &str) -> Result<(), ResidencyError> {
         if self.is_pinned(id) { return Err(ResidencyError::Pinned(id.into())); }
         let record = self.records.get_mut(id).ok_or_else(|| ResidencyError::UnknownInstance(id.into()))?;
-        if record.descriptor.state != RuntimeState::Active && record.descriptor.state != RuntimeState::Resident {
+        if record.descriptor.state != RuntimeState::Resident {
             return Err(ResidencyError::InvalidTransition { instance_id: id.into(), from: record.descriptor.state, to: RuntimeState::Evictable });
         }
         record.descriptor.state = RuntimeState::Evictable;
@@ -267,13 +283,13 @@ impl ResidencyStore {
         Ok(())
     }
 
-    pub fn evict(&mut self, id: &str) -> Result<PersistenceHandoff, ResidencyError> {
+    pub fn evict(&mut self, id: &str, reason: String) -> Result<PersistenceHandoff, ResidencyError> {
         if self.is_pinned(id) { return Err(ResidencyError::Pinned(id.into())); }
         let record = self.records.get_mut(id).ok_or_else(|| ResidencyError::UnknownInstance(id.into()))?;
         if record.descriptor.state != RuntimeState::Evictable {
             return Err(ResidencyError::NotEvictable(id.into()));
         }
-        let handoff = PersistenceHandoff { instance: record.descriptor.clone() };
+        let handoff = PersistenceHandoff { instance: record.descriptor.clone(), eviction_reason: reason, opaque_payload: record.opaque_payload.take() };
         record.descriptor.state = RuntimeState::Evicted;
         record.descriptor.render_resident = false;
         record.descriptor.collision_active = false;
@@ -284,6 +300,12 @@ impl ResidencyStore {
         record.collision_ready = false;
         self.collision_world.remove_instance(id);
         Ok(handoff)
+    }
+
+    pub fn set_application_payload(&mut self, id: &str, payload: Vec<u8>) -> Result<(), ResidencyError> {
+        let record = self.records.get_mut(id).ok_or_else(|| ResidencyError::UnknownInstance(id.into()))?;
+        record.opaque_payload = Some(payload);
+        Ok(())
     }
 
     pub fn set_current(&mut self, id: Option<&str>) -> Result<(), ResidencyError> {
@@ -356,6 +378,6 @@ mod tests {
 
     #[test]
     fn pinning_hysteresis_and_eviction_release_content_not_descriptor() {
-        let mut manager = ResidencyManager::new(); manager.register(instance("a")).unwrap(); let mut provider = FixtureProvider::ready(definition()); manager.resolve(&mut provider, "a", metadata()).unwrap(); manager.set_current(Some("a")).unwrap(); assert!(manager.mark_evictable("a").is_err()); manager.set_current(None).unwrap(); manager.mark_evictable("a").unwrap(); let handoff = manager.evict("a").unwrap(); assert_eq!(handoff.instance.id, "a"); assert_eq!(manager.state("a"), Some(RuntimeState::Evicted)); assert!(manager.content("a").is_none());
+        let mut manager = ResidencyManager::new(); manager.register(instance("a")).unwrap(); let mut provider = FixtureProvider::ready(definition()); manager.resolve(&mut provider, "a", metadata()).unwrap(); manager.set_current(Some("a")).unwrap(); assert!(manager.mark_evictable("a").is_err()); manager.set_current(None).unwrap(); manager.mark_evictable("a").unwrap(); let handoff = manager.evict("a", "reason".into()).unwrap(); assert_eq!(handoff.instance.id, "a"); assert_eq!(manager.state("a"), Some(RuntimeState::Evicted)); assert!(manager.content("a").is_none());
     }
 }
