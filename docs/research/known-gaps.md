@@ -29,7 +29,7 @@ This doc records unresolved implementation details and deliberately deferred cap
 - Memory budgets and platform-specific eviction heuristics require measurement against representative content.
 - Link overlap collision ownership needs a concrete policy implementation beyond explicit masks/ownership metadata.
 - Collision projection currently reaches `EngineState` through an explicit transport snapshot sync; automatic runtime-owned projection remains undefined.
-
+- Legacy indoor/outdoor runtime paths and compatibility APIs remain contained but are not removed; removal depends on migrating `examples/bench`, replacing the collision snapshot bridge, and proving no active global-runtime consumers remain.
 
 ## Rendering and Bridge
 
