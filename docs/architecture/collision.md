@@ -6,6 +6,7 @@ relates-to:
   - "[World Model](../features/world-model.md)"
   - "[Level Transitions](../features/level-transitions.md)"
   - "[World Runtime](./world-runtime.md)"
+  - "[Collision Bridge](./collision-bridge.md)"
   - "[Input Event Schema](./input-schema.md)"
   - "[Rendering](./rendering.md)"
   - "[Repo Structure](./repo-structure.md)"
@@ -48,6 +49,7 @@ The model supports vertical support surfaces, body height, gravity, stairs, ramp
 - [World Model](../features/world-model.md) — global coordinates and level instances
 - [Level Transitions](../features/level-transitions.md) — crossing and overlap
 - [World Runtime](./world-runtime.md) — collision activation lifecycle
+- [Collision Bridge](./collision-bridge.md) — runtime-to-movement integration
 - [Input Event Schema](./input-schema.md) — movement input
 - [Rendering](./rendering.md) — global geometry representation
 - [Repo Structure](./repo-structure.md) — engine ownership

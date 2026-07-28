@@ -30,6 +30,7 @@ Each entry links to a design doc and includes the doc's one-line summary. Docs d
 | Doc | Summary |
 |-----|---------|
 | [`docs/architecture/asset-pipeline.md`](./architecture/asset-pipeline.md) | Retro Mage ships texture assets as KTX2/UASTC, compressed by the consuming game's build step and transcoded/uploaded at runtime by the engine's render package, splitting the compression step (build-time, app-owned) from the transcode step (runtime, engine-owned). |
+| [`docs/architecture/collision-bridge.md`](./architecture/collision-bridge.md) | The world transport drives one world-aware tick while runtime-owned collision state feeds engine movement without caller-managed snapshots. |
 | [`docs/architecture/collision.md`](./architecture/collision.md) | Retro Mage resolves player movement against active transformed level geometry while preserving a 3D-capable world and simple sliding movement for the initial ground-plane slice. |
 | [`docs/architecture/crossing-policy.md`](./architecture/crossing-policy.md) | Retro Mage separates link preload relevance from narrow directional crossing and explicit re-arm hysteresis so active-world state changes only during intentional traversal. |
 | [`docs/architecture/example-deployment.md`](./architecture/example-deployment.md) | Retro Mage example apps deploy as static sites to S3 + CloudFront under pixeldrip.games subdomains, so anyone can test the engine without running a local dev server. |
