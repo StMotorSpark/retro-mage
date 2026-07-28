@@ -31,7 +31,12 @@ pub struct WorldTransport {
     light_x: Vec<f32>, light_y: Vec<f32>, light_z: Vec<f32>, light_r: Vec<f32>, light_g: Vec<f32>, light_b: Vec<f32>, light_intensity: Vec<f32>, light_active: Vec<f32>,
     instance_ids: Vec<String>, instance_states: Vec<u32>, instance_render: Vec<f32>, instance_collision: Vec<f32>, instance_simulation: Vec<f32>,
     tiles: usize, actors: usize, lights: usize, instances: usize, overflow: bool,
-    crossing_pose: Transform,
+    frame: u64,
+    overflow_diagnostics: Vec<String>,
+    skipped_instances: Vec<String>,
+    crossing_pose: crate::world::Transform,
+    block_on_overflow: bool,
+    last_crossing_rejection: u32,
 }
 
 #[wasm_bindgen]
@@ -48,6 +53,7 @@ impl WorldTransport {
             light_x: vec![0.; light_capacity], light_y: vec![0.; light_capacity], light_z: vec![0.; light_capacity], light_r: vec![0.; light_capacity], light_g: vec![0.; light_capacity], light_b: vec![0.; light_capacity], light_intensity: vec![0.; light_capacity], light_active: vec![0.; light_capacity],
             instance_ids: Vec::with_capacity(instance_capacity), instance_states: vec![0; instance_capacity], instance_render: vec![0.; instance_capacity], instance_collision: vec![0.; instance_capacity], instance_simulation: vec![0.; instance_capacity],
             tiles: 0, actors: 0, lights: 0, instances: 0, overflow: false, crossing_pose: Transform::IDENTITY, scheduler: crate::streaming_scheduler::StreamingScheduler::new(policy),
+            frame: 0, overflow_diagnostics: vec![], skipped_instances: vec![], block_on_overflow: true, last_crossing_rejection: 0,
         }
     }
 
@@ -92,7 +98,10 @@ impl WorldTransport {
     }
 
     pub fn register_instance(&mut self, id: &str, definition_id: &str, x: f32, y: f32, z: f32, qx: f32, qy: f32, qz: f32, qw: f32, scale: f32, persistence: u32) -> bool {
-        if self.instances >= self.instance_ids.capacity() { self.overflow = true; return false; }
+        if self.instances >= self.instance_states.len() {
+            self.overflow = true;
+            return false;
+        }
         let policy = match persistence { 0 => PersistencePolicy::Persistent, 2 => PersistencePolicy::Regenerated, _ => PersistencePolicy::Session };
         let transform = Transform { translation: Vec3 { x, y, z }, rotation: crate::world::Quaternion { x: qx, y: qy, z: qz, w: qw }, scale };
         let Some(definition) = self.definitions.get(definition_id).cloned() else { return false; };
@@ -147,11 +156,25 @@ impl WorldTransport {
     /// residency/readiness gate and activation succeed.
     pub fn try_crossing(&mut self, x: f32, y: f32, z: f32, movement_x: f32, movement_z: f32) -> bool {
         let pose = Transform { translation: Vec3 { x, y, z }, rotation: crate::world::Quaternion::IDENTITY, scale: 1.0 };
-        match self.runtime.try_crossing(pose, Vec3 { x: movement_x, y: 0.0, z: movement_z }) {
-            Ok(Some(resolution)) => { self.crossing_pose = resolution.player_pose; self.sync(); true }
+        let overflowed: Vec<&str> = self.skipped_instances.iter().map(|s| s.as_str()).collect();
+        match self.runtime.try_crossing(pose, Vec3 { x: movement_x, y: 0.0, z: movement_z }, &overflowed, self.block_on_overflow) {
+            Ok(eval) => {
+                self.last_crossing_rejection = match eval.rejection {
+                    Some(crate::world_runtime::CrossingRejection::NotReady) => 1,
+                    Some(crate::world_runtime::CrossingRejection::ProviderFailed) => 2,
+                    Some(crate::world_runtime::CrossingRejection::SceneOverflow) => 3,
+                    None => 0,
+                };
+                if let Some(resolution) = eval.resolution {
+                    self.crossing_pose = resolution.player_pose; self.sync(); true
+                } else { false }
+            }
             _ => false,
         }
     }
+
+    pub fn set_block_on_overflow(&mut self, block: bool) { self.block_on_overflow = block; }
+    pub fn last_crossing_rejection(&self) -> u32 { self.last_crossing_rejection }
 
     pub fn active_instance_id(&self) -> String { self.runtime.current_instance().unwrap_or_default().into() }
     pub fn crossing_pose_x(&self) -> f32 { self.crossing_pose.translation.x }
@@ -164,24 +187,26 @@ impl WorldTransport {
     pub fn tick_engine(&mut self, engine: &mut crate::EngineState, dt: f64) {
         let prev_x = engine.camera.x[0];
         let prev_z = engine.camera.z[0];
-        
+
         engine.tick_world_aware(dt, self.runtime.collision_world_ref());
-        
+
         let dx = engine.camera.x[0] - prev_x;
         let dz = engine.camera.z[0] - prev_z;
-        
+
         if self.try_crossing(engine.camera.x[0], engine.camera.y[0], engine.camera.z[0], dx, dz) {
             engine.camera.x[0] = self.crossing_pose_x();
             engine.camera.y[0] = self.crossing_pose_y();
             engine.camera.z[0] = self.crossing_pose_z();
         }
-        
+
         self.update_scheduler(engine.camera.x[0], engine.camera.y[0], engine.camera.z[0]);
     }
 
     pub fn refresh(&mut self) { self.sync(); }
-    pub fn clear(&mut self) { self.tiles = 0; self.actors = 0; self.lights = 0; self.instances = 0; self.instance_ids.clear(); self.overflow = false; }
+    pub fn clear(&mut self) { self.tiles = 0; self.actors = 0; self.lights = 0; self.instances = 0; self.instance_ids.clear(); self.overflow = false; self.frame = 0; self.overflow_diagnostics.clear(); self.skipped_instances.clear(); }
     pub fn overflowed(&self) -> bool { self.overflow }
+    pub fn overflow_diagnostics_json(&self) -> String { format!("[{}]", self.overflow_diagnostics.join(",")) }
+    pub fn skipped_instances_json(&self) -> String { format!("[{}]", self.skipped_instances.iter().map(|s| format!("\"{}\"", s)).collect::<Vec<_>>().join(",")) }
     pub fn tile_count(&self) -> usize { self.tiles }
     pub fn actor_count(&self) -> usize { self.actors }
     pub fn light_count(&self) -> usize { self.lights }
@@ -205,17 +230,55 @@ ptr_api!(tiles_x_ptr: tile_x, tiles_y_ptr: tile_y, tiles_z_ptr: tile_z, tiles_ti
 
 impl WorldTransport {
     fn sync(&mut self) {
+        self.frame += 1;
+        self.overflow_diagnostics.clear();
+        self.skipped_instances.clear();
         self.tiles = 0; self.actors = 0; self.lights = 0; self.instances = 0; self.instance_ids.clear();
+        self.overflow = false;
         let entries: Vec<_> = self.runtime.resident_global_content().map(|(id, content)| (id.to_owned(), content.clone())).collect();
         let ids: Vec<_> = self.runtime.instances().map(|instance| instance.id.clone()).collect();
         for id in ids {
-            if self.instances >= self.instance_states.len() { self.overflow = true; break; }
             let Some(instance) = self.runtime.instance(&id) else { continue };
+            let content_opt = entries.iter().find(|(entry_id, _)| entry_id == &id).map(|(_, content)| content);
+
+            let (t_len, a_len, l_len) = if let Some(c) = content_opt { (c.tiles.len(), c.actors.len(), c.lights.len()) } else { (0, 0, 0) };
+
+            let instances_req = self.instances + 1;
+            let t_req = self.tiles + t_len;
+            let a_req = self.actors + a_len;
+            let l_req = self.lights + l_len;
+
+            if instances_req > self.instance_states.len() {
+                self.overflow = true;
+                self.overflow_diagnostics.push(format!("{{\"frame\":{},\"category\":\"instances\",\"requested\":{},\"capacity\":{},\"instance_id\":\"{}\"}}", self.frame, instances_req, self.instance_states.len(), id));
+                self.skipped_instances.push(id.clone());
+                continue;
+            }
+            if t_req > self.tile_x.len() {
+                self.overflow = true;
+                self.overflow_diagnostics.push(format!("{{\"frame\":{},\"category\":\"tiles\",\"requested\":{},\"capacity\":{},\"instance_id\":\"{}\"}}", self.frame, t_req, self.tile_x.len(), id));
+                self.skipped_instances.push(id.clone());
+                continue;
+            }
+            if a_req > self.actor_x.len() {
+                self.overflow = true;
+                self.overflow_diagnostics.push(format!("{{\"frame\":{},\"category\":\"actors\",\"requested\":{},\"capacity\":{},\"instance_id\":\"{}\"}}", self.frame, a_req, self.actor_x.len(), id));
+                self.skipped_instances.push(id.clone());
+                continue;
+            }
+            if l_req > self.light_x.len() {
+                self.overflow = true;
+                self.overflow_diagnostics.push(format!("{{\"frame\":{},\"category\":\"lights\",\"requested\":{},\"capacity\":{},\"instance_id\":\"{}\"}}", self.frame, l_req, self.light_x.len(), id));
+                self.skipped_instances.push(id.clone());
+                continue;
+            }
+
             self.instance_ids.push(id.clone()); self.instance_states[self.instances] = state_code(instance.state); self.instance_render[self.instances] = instance.render_resident as u8 as f32; self.instance_collision[self.instances] = instance.collision_active as u8 as f32; self.instance_simulation[self.instances] = instance.simulation_active as u8 as f32; self.instances += 1;
-            let Some(content) = entries.iter().find(|(entry_id, _)| entry_id == &id).map(|(_, content)| content) else { continue };
-            for tile in &content.tiles { if self.tiles >= self.tile_x.len() { self.overflow = true; break; } let i = self.tiles; self.tile_x[i]=tile.position.x; self.tile_y[i]=tile.position.y; self.tile_z[i]=tile.position.z; self.tile_id[i]=tile.tile_id as f32; self.tile_material[i]=tile.material_id as f32; self.tile_variant[i]=tile.variant as f32; self.tile_orientation[i]=tile.orientation as f32; self.tile_solid[i]=tile.solid as u8 as f32; self.tile_north[i]=tile.openings.north as u8 as f32; self.tile_east[i]=tile.openings.east as u8 as f32; self.tile_south[i]=tile.openings.south as u8 as f32; self.tile_west[i]=tile.openings.west as u8 as f32; self.tile_opening[i]=tile.openings.vertical as u8 as f32; self.tiles+=1; }
-            for actor in &content.actors { if self.actors >= self.actor_x.len() { self.overflow=true; break; } let i=self.actors; self.actor_x[i]=actor.position.x; self.actor_y[i]=actor.position.y; self.actor_z[i]=actor.position.z; self.actor_facing[i]=actor.facing; self.actor_sprite[i]=actor.sprite_id as f32; self.actor_active[i]=actor.active as u8 as f32; self.actors+=1; }
-            for light in &content.lights { if self.lights >= self.light_x.len() { self.overflow=true; break; } let i=self.lights; self.light_x[i]=light.position.x; self.light_y[i]=light.position.y; self.light_z[i]=light.position.z; self.light_r[i]=light.color[0]; self.light_g[i]=light.color[1]; self.light_b[i]=light.color[2]; self.light_intensity[i]=light.intensity; self.light_active[i]=light.active as u8 as f32; self.lights+=1; }
+            if let Some(content) = content_opt {
+                for tile in &content.tiles { let i = self.tiles; self.tile_x[i]=tile.position.x; self.tile_y[i]=tile.position.y; self.tile_z[i]=tile.position.z; self.tile_id[i]=tile.tile_id as f32; self.tile_material[i]=tile.material_id as f32; self.tile_variant[i]=tile.variant as f32; self.tile_orientation[i]=tile.orientation as f32; self.tile_solid[i]=tile.solid as u8 as f32; self.tile_north[i]=tile.openings.north as u8 as f32; self.tile_east[i]=tile.openings.east as u8 as f32; self.tile_south[i]=tile.openings.south as u8 as f32; self.tile_west[i]=tile.openings.west as u8 as f32; self.tile_opening[i]=tile.openings.vertical as u8 as f32; self.tiles+=1; }
+                for actor in &content.actors { let i=self.actors; self.actor_x[i]=actor.position.x; self.actor_y[i]=actor.position.y; self.actor_z[i]=actor.position.z; self.actor_facing[i]=actor.facing; self.actor_sprite[i]=actor.sprite_id as f32; self.actor_active[i]=actor.active as u8 as f32; self.actors+=1; }
+                for light in &content.lights { let i=self.lights; self.light_x[i]=light.position.x; self.light_y[i]=light.position.y; self.light_z[i]=light.position.z; self.light_r[i]=light.color[0]; self.light_g[i]=light.color[1]; self.light_b[i]=light.color[2]; self.light_intensity[i]=light.intensity; self.light_active[i]=light.active as u8 as f32; self.lights+=1; }
+            }
         }
     }
 }
@@ -309,44 +372,44 @@ mod tests {
         assert!(t.begin_definition("room2", "1", -2., 0., -2., 2., 2., 2.));
         assert!(t.definition_anchor("room2", "in", 0., 0., 0., -0.5, 0., -0.5, 0.5, 2., 0.5, 2));
         assert!(t.finish_definition("room2"));
-        
+
         assert!(t.register_instance("inst1", "room1", 0., 0., 0., 0., 0., 0., 1., 1., 1));
         assert!(t.register_instance("inst2", "room2", 3., 0., 0., 0., 0., 0., 1., 1., 1));
         assert!(t.register_bidirectional_link("link", "inst1", "out", "inst2", "in"));
-        
+
         let req1 = t.begin_load("inst1", "test");
         assert!(t.accept_definition(req1, "inst1"));
         assert!(t.set_instance_state("inst1", 3, true, true, true));
         assert!(t.set_current_instance("inst1"));
-        
+
         let mut engine = crate::EngineState::new();
         engine.global_collision_configured = true;
         engine.set_player_speed(10.0);
         engine.camera.x[0] = 0.0;
         engine.camera.y[0] = 0.0;
         engine.camera.z[0] = 0.0;
-        
+
         // Move towards the anchor
         engine.set_input(0.0, 1.0, 0.0, 0.0, 0.0, 0, 0); // Move forward (Z direction)
-        
+
         // First tick moves the player closer
         t.tick_engine(&mut engine, 0.05);
         assert_eq!(t.active_instance_id(), "inst1");
-        
+
         // Ensure scheduler has queued the preload
         assert!(t.scheduler_queue_depth() > 0 || t.scheduler_active_request_count() > 0);
-        
+
         let req2 = t.begin_load("inst2", "test");
         if req2 > 0 { t.accept_definition(req2, "inst2"); }
         assert!(t.set_instance_state("inst2", 2, true, true, false));
-        
+
         // Now force the player into the crossing volume (before center to pass directional check)
         engine.camera.x[0] = 0.6;
         engine.camera.z[0] = 0.0;
         engine.set_player_speed(2.0); // Move 0.2 in dt=0.1
         engine.set_input(1.0, 0.0, 0.0, 0.0, 0.0, 0, 0); // Move right (X direction)
         t.tick_engine(&mut engine, 0.1);
-        
+
         // Crossing should have triggered
         assert_eq!(t.active_instance_id(), "inst2");
     }
@@ -391,7 +454,7 @@ impl WorldTransport {
         let instance = self.scheduler_active_request_instance(index);
         self.scheduler.diagnostics.get(&instance).and_then(|d| d.request_id).unwrap_or(0) as f64
     }
-    
+
     pub fn scheduler_diagnostic_intent(&self, id: &str) -> u32 {
         match self.scheduler.diagnostics.get(id).map(|d| d.intent).unwrap_or(crate::streaming_scheduler::ResidencyIntent::Unneeded) {
             crate::streaming_scheduler::ResidencyIntent::Unneeded => 0,
@@ -400,6 +463,6 @@ impl WorldTransport {
             crate::streaming_scheduler::ResidencyIntent::Pinned => 3,
         }
     }
-    
+
     pub fn scheduler_queue_depth(&self) -> usize { self.scheduler.queue.len() }
 }

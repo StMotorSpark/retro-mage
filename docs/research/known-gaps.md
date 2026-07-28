@@ -33,7 +33,7 @@ This doc records unresolved implementation details and deliberately deferred cap
 
 ## Rendering and Bridge
 
-- The global scene submission contract needs an implementation that handles configurable capacity and observable overflow without silent geometry loss.
+- The scene capacity contract has defined application-configured buffers, atomic instance submission, and structured overflow diagnostics; its Rust/WASM implementation and browser proof remain incomplete.
 - WebGPU is an optional backend after the WebGL2 scene/material contract proves stable and measured workload justifies it.
 - Advanced portal or room occlusion is an optimization layered over frustum, distance, residency, and depth testing.
 - Procedural clouds and richer atmospheric weather are separate sky-rendering work.
@@ -82,6 +82,7 @@ These decisions are recorded in their authoritative design docs:
 - [Streaming Scheduler](../architecture/streaming-scheduler.md) — scheduling contract and implementation boundary
 - [Rendering](../architecture/rendering.md) — renderer capabilities
 - [WASM Bridge](../architecture/wasm-bridge.md) — scene transport boundary
+- [Scene Capacity](../architecture/scene-capacity.md) — configured buffers and overflow behavior
 - [Collision](../architecture/collision.md) — multi-floor capability boundary
 - [Demo Scope](../features/demo-scope.md) — first proof scene
 - [Crossing Policy](../architecture/crossing-policy.md) — traversal activation and hysteresis contract

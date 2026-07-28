@@ -126,7 +126,7 @@ impl ResidencyStore {
     /// Activate target only after render/collision data and safe arrival pose
     /// are ready. Source remains untouched on failure.
     pub fn activate_for_crossing(&mut self, id: &str, safe_arrival_pose: bool) -> Result<bool, ResidencyError> {
-        if !self.crossing_ready(id, safe_arrival_pose) { return Ok(false); }
+        if self.crossing_ready(id, safe_arrival_pose).is_err() { return Ok(false); }
         if self.state(id) != Some(RuntimeState::Active) { self.activate(id)?; }
         Ok(true)
     }
@@ -231,8 +231,13 @@ impl ResidencyStore {
         Ok(())
     }
 
-    pub fn crossing_ready(&self, id: &str, safe_arrival_pose: bool) -> bool {
-        self.records.get(id).is_some_and(|r| matches!(r.descriptor.state, RuntimeState::Resident | RuntimeState::Active) && r.render_ready && r.collision_ready && safe_arrival_pose)
+    pub fn crossing_ready(&self, id: &str, safe_arrival_pose: bool) -> Result<(), crate::world_runtime::CrossingRejection> {
+        let Some(r) = self.records.get(id) else { return Err(crate::world_runtime::CrossingRejection::NotReady) };
+        if r.descriptor.state == RuntimeState::Failed { return Err(crate::world_runtime::CrossingRejection::ProviderFailed); }
+        if !matches!(r.descriptor.state, RuntimeState::Resident | RuntimeState::Active) || !r.render_ready || !r.collision_ready || !safe_arrival_pose {
+            return Err(crate::world_runtime::CrossingRejection::NotReady);
+        }
+        Ok(())
     }
 
     pub fn activate(&mut self, id: &str) -> Result<(), ResidencyError> {
@@ -332,8 +337,8 @@ mod tests {
         let mut manager = ResidencyManager::new(); manager.register(instance("a")).unwrap();
         let mut provider = FixtureProvider::ready(definition());
         assert!(matches!(manager.resolve(&mut provider, "a", metadata()).unwrap(), ProviderUpdate::Ready(_)));
-        assert!(manager.crossing_ready("a", true));
-        manager.set_data_readiness("a", true, false).unwrap(); assert!(!manager.crossing_ready("a", true));
+        assert!(manager.crossing_ready("a", true).is_ok());
+        manager.set_data_readiness("a", true, false).unwrap(); assert!(manager.crossing_ready("a", true).is_err());
         manager.set_data_readiness("a", true, true).unwrap();
         assert!(manager.activate_for_crossing("a", true).unwrap());
         assert!(manager.simulation_active("a"));

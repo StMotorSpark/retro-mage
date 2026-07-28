@@ -54,6 +54,21 @@ export interface GlobalSceneCapacity {
   tiles: number;
   actors: number;
   lights: number;
+  instances: number;
+}
+
+export interface GlobalSceneOverflowDiagnostic {
+  frame: number;
+  category: keyof GlobalSceneCapacity;
+  requested: number;
+  capacity: number;
+  instance_id: string;
+}
+
+export interface GlobalSceneOverflowReport {
+  overflowed: boolean;
+  diagnostics: readonly GlobalSceneOverflowDiagnostic[];
+  skippedInstances: readonly string[];
 }
 
 export type GlobalSceneCounts = GlobalSceneCapacity;
@@ -78,9 +93,10 @@ export interface GlobalSceneView {
   readonly lights: LightsView;
   readonly instanceIds: readonly string[];
   readonly counts: GlobalSceneCounts;
+  readonly overflow: GlobalSceneOverflowReport;
 }
 
-const DEFAULT_CAPACITY: GlobalSceneCapacity = { tiles: 4096, actors: 256, lights: 128 };
+const DEFAULT_CAPACITY: GlobalSceneCapacity = { tiles: 4096, actors: 256, lights: 128, instances: 64 };
 
 /**
  * Collects all render-resident instances into one global scene submission.
@@ -96,12 +112,17 @@ export class GlobalSceneSubmission {
   private tileCount = 0;
   private actorCount = 0;
   private lightCount = 0;
+  private overflowed = false;
+  private diagnostics: GlobalSceneOverflowDiagnostic[] = [];
+  private skippedInstances: string[] = [];
+  private frame = 0;
 
   constructor(capacity: Partial<GlobalSceneCapacity> = {}) {
     this.capacity = {
       tiles: capacity.tiles ?? DEFAULT_CAPACITY.tiles,
       actors: capacity.actors ?? DEFAULT_CAPACITY.actors,
       lights: capacity.lights ?? DEFAULT_CAPACITY.lights,
+      instances: capacity.instances ?? DEFAULT_CAPACITY.instances,
     };
     for (const [kind, value] of Object.entries(this.capacity)) {
       if (!Number.isInteger(value) || value < 0) throw new RangeError(`Invalid scene ${kind} capacity: ${value}`);
@@ -123,20 +144,29 @@ export class GlobalSceneSubmission {
   }
 
   get counts(): GlobalSceneCounts {
-    return { tiles: this.tileCount, actors: this.actorCount, lights: this.lightCount };
+    return { tiles: this.tileCount, actors: this.actorCount, lights: this.lightCount, instances: this.ids.length };
   }
 
   reset(): void {
+    this.frame++;
     this.tileCount = 0; this.actorCount = 0; this.lightCount = 0; this.ids = [];
     this.tileData.count = 0; this.actorData.count = 0; this.lightData.count = 0;
+    this.overflowed = false;
+    this.diagnostics = [];
+    this.skippedInstances = [];
   }
 
   submit(instance: GlobalSceneInstance): void {
     if (!instance.id.trim()) throw new Error('Global scene instance id must not be empty');
     const tiles = instance.tiles ?? [], actors = instance.actors ?? [], lights = instance.lights ?? [];
-    const next = { tiles: this.tileCount + tiles.length, actors: this.actorCount + actors.length, lights: this.lightCount + lights.length };
-    for (const kind of ['tiles', 'actors', 'lights'] as const) {
-      if (next[kind] > this.capacity[kind]) throw new SceneCapacityError(kind, next[kind], this.capacity[kind]);
+    const next = { tiles: this.tileCount + tiles.length, actors: this.actorCount + actors.length, lights: this.lightCount + lights.length, instances: this.ids.length + 1 };
+    for (const kind of ['instances', 'tiles', 'actors', 'lights'] as const) {
+      if (next[kind] > this.capacity[kind]) {
+        this.overflowed = true;
+        this.diagnostics.push({ frame: this.frame, category: kind, requested: next[kind], capacity: this.capacity[kind], instance_id: instance.id });
+        this.skippedInstances.push(instance.id);
+        return;
+      }
     }
     let i = this.tileCount;
     for (const tile of tiles) {
@@ -161,7 +191,13 @@ export class GlobalSceneSubmission {
   }
 
   view(): GlobalSceneView {
-    return { tiles: this.tileData, actors: this.actorData, lights: this.lightData, instanceIds: this.ids, counts: this.counts };
+    return {
+      tiles: this.tileData, actors: this.actorData, lights: this.lightData,
+      instanceIds: this.ids, counts: this.counts,
+      overflow: {
+        overflowed: this.overflowed, diagnostics: this.diagnostics, skippedInstances: this.skippedInstances
+      }
+    };
   }
 }
 

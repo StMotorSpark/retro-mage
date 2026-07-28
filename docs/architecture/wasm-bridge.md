@@ -8,6 +8,7 @@ relates-to:
   - "[World Runtime](./world-runtime.md)"
   - "[Collision Bridge](./collision-bridge.md)"
   - "[Rendering](./rendering.md)"
+  - "[Scene Capacity](./scene-capacity.md)"
   - "[Visibility](./visibility.md)"
   - "[Input Event Schema](./input-schema.md)"
   - "[Test-Driven Development](../principles/test-driven-development.md)"
@@ -55,6 +56,7 @@ Each bridge schema has one documented owner and colocated tests. Changes update 
 - [World Runtime](./world-runtime.md) — residency and activation
 - [Collision Bridge](./collision-bridge.md) — runtime-owned movement integration
 - [Rendering](./rendering.md) — global scene consumer
+- [Scene Capacity](./scene-capacity.md) — configured buffers and overflow semantics
 - [Visibility](./visibility.md) — render relevance
 - [Input Event Schema](./input-schema.md) — reverse-direction input contract
 - [Test-Driven Development](../principles/test-driven-development.md) — boundary tests

@@ -8,6 +8,7 @@ relates-to:
   - "[World Runtime](./world-runtime.md)"
   - "[Tech Stack](./tech-stack.md)"
   - "[WASM Bridge](./wasm-bridge.md)"
+  - "[Scene Capacity](./scene-capacity.md)"
   - "[Lighting](./lighting.md)"
   - "[Asset Pipeline](./asset-pipeline.md)"
   - "[Visibility](./visibility.md)"
@@ -60,6 +61,7 @@ Outdoor level instances use streamed terrain content, atmospheric sky rendering,
 - [World Runtime](./world-runtime.md) — residency feeding the scene
 - [Tech Stack](./tech-stack.md) — WebGL2 baseline and WebGPU path
 - [WASM Bridge](./wasm-bridge.md) — simulation data transport
+- [Scene Capacity](./scene-capacity.md) — configured buffers and overflow behavior
 - [Lighting](./lighting.md) — LUT and dynamic light behavior
 - [Asset Pipeline](./asset-pipeline.md) — runtime texture contract
 - [Visibility](./visibility.md) — culling responsibilities
