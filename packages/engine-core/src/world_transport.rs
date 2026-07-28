@@ -34,7 +34,9 @@ pub struct WorldTransport {
     frame: u64,
     overflow_diagnostics: Vec<String>,
     skipped_instances: Vec<String>,
-    crossing_pose: Transform,
+    crossing_pose: crate::world::Transform,
+    block_on_overflow: bool,
+    last_crossing_rejection: u32,
 }
 
 #[wasm_bindgen]
@@ -51,7 +53,7 @@ impl WorldTransport {
             light_x: vec![0.; light_capacity], light_y: vec![0.; light_capacity], light_z: vec![0.; light_capacity], light_r: vec![0.; light_capacity], light_g: vec![0.; light_capacity], light_b: vec![0.; light_capacity], light_intensity: vec![0.; light_capacity], light_active: vec![0.; light_capacity],
             instance_ids: Vec::with_capacity(instance_capacity), instance_states: vec![0; instance_capacity], instance_render: vec![0.; instance_capacity], instance_collision: vec![0.; instance_capacity], instance_simulation: vec![0.; instance_capacity],
             tiles: 0, actors: 0, lights: 0, instances: 0, overflow: false, crossing_pose: Transform::IDENTITY, scheduler: crate::streaming_scheduler::StreamingScheduler::new(policy),
-            frame: 0, overflow_diagnostics: vec![], skipped_instances: vec![],
+            frame: 0, overflow_diagnostics: vec![], skipped_instances: vec![], block_on_overflow: true, last_crossing_rejection: 0,
         }
     }
 
@@ -154,11 +156,25 @@ impl WorldTransport {
     /// residency/readiness gate and activation succeed.
     pub fn try_crossing(&mut self, x: f32, y: f32, z: f32, movement_x: f32, movement_z: f32) -> bool {
         let pose = Transform { translation: Vec3 { x, y, z }, rotation: crate::world::Quaternion::IDENTITY, scale: 1.0 };
-        match self.runtime.try_crossing(pose, Vec3 { x: movement_x, y: 0.0, z: movement_z }) {
-            Ok(Some(resolution)) => { self.crossing_pose = resolution.player_pose; self.sync(); true }
+        let overflowed: Vec<&str> = self.skipped_instances.iter().map(|s| s.as_str()).collect();
+        match self.runtime.try_crossing(pose, Vec3 { x: movement_x, y: 0.0, z: movement_z }, &overflowed, self.block_on_overflow) {
+            Ok(eval) => {
+                self.last_crossing_rejection = match eval.rejection {
+                    Some(crate::world_runtime::CrossingRejection::NotReady) => 1,
+                    Some(crate::world_runtime::CrossingRejection::ProviderFailed) => 2,
+                    Some(crate::world_runtime::CrossingRejection::SceneOverflow) => 3,
+                    None => 0,
+                };
+                if let Some(resolution) = eval.resolution {
+                    self.crossing_pose = resolution.player_pose; self.sync(); true
+                } else { false }
+            }
             _ => false,
         }
     }
+    
+    pub fn set_block_on_overflow(&mut self, block: bool) { self.block_on_overflow = block; }
+    pub fn last_crossing_rejection(&self) -> u32 { self.last_crossing_rejection }
 
     pub fn active_instance_id(&self) -> String { self.runtime.current_instance().unwrap_or_default().into() }
     pub fn crossing_pose_x(&self) -> f32 { self.crossing_pose.translation.x }

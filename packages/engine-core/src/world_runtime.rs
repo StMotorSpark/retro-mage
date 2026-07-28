@@ -26,6 +26,18 @@ impl From<ResidencyError> for WorldRuntimeError {
     fn from(error: ResidencyError) -> Self { Self::Residency(error) }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum CrossingRejection {
+    NotReady,
+    ProviderFailed,
+    SceneOverflow,
+}
+
+pub struct CrossingEvaluation {
+    pub resolution: Option<CrossingResolution>,
+    pub rejection: Option<CrossingRejection>,
+}
+
 /// Composition root for one global world.
 #[derive(Debug)]
 pub struct WorldRuntime {
@@ -72,7 +84,7 @@ impl WorldRuntime {
 
     /// Resolve and commit spatial link crossing from player proximity. Runtime
     /// owns anchor selection, readiness gate, hysteresis, and activation.
-    pub fn try_crossing(&mut self, player_pose: crate::world::Transform, movement: Vec3) -> Result<Option<CrossingResolution>, WorldRuntimeError> {
+    pub fn try_crossing(&mut self, player_pose: crate::world::Transform, movement: Vec3, overflowed_targets: &[&str], block_on_overflow: bool) -> Result<CrossingEvaluation, WorldRuntimeError> {
         if !self.crossing_armed {
             let still_inside = self.residency.current().and_then(|current| self.topology.links().find_map(|link| {
                 let source = if link.source.instance_id == current { Some(&link.source) } else if link.direction == crate::world_manifest::LinkDirection::Bidirectional {
@@ -81,9 +93,9 @@ impl WorldRuntime {
                 source.map(|anchor| (anchor, link.crossing_policy))
             }));
             if !still_inside.map(|(anchor, policy)| self.topology.anchor_contains_world(anchor, player_pose.translation, policy.padding + policy.rearm_distance).unwrap_or(false)).unwrap_or(false) { self.crossing_armed = true; }
-            if !self.crossing_armed { return Ok(None); }
+            if !self.crossing_armed { return Ok(CrossingEvaluation { resolution: None, rejection: None }); }
         }
-        let Some(current) = self.residency.current().map(str::to_owned) else { return Ok(None) };
+        let Some(current) = self.residency.current().map(str::to_owned) else { return Ok(CrossingEvaluation { resolution: None, rejection: None }) };
         let candidate = self.topology.links().find_map(|link| {
             let from = if link.source.instance_id == current { Some(&link.source) } else if link.direction == crate::world_manifest::LinkDirection::Bidirectional {
                 match &link.target { crate::world_manifest::LinkTarget::Instance(target) if target.instance_id == current => Some(target), _ => None }
@@ -96,17 +108,22 @@ impl WorldRuntime {
             };
             (inside && directional).then(|| (link.id.clone(), from.clone()))
         });
-        let Some((link_id, from)) = candidate else { return Ok(None) };
+        let Some((link_id, from)) = candidate else { return Ok(CrossingEvaluation { resolution: None, rejection: None }) };
         let resolution = self.resolve_crossing(&link_id, &from, player_pose)?;
-        if !self.residency.crossing_ready(&resolution.target_instance_id, true) { return Ok(None); }
-        if !self.residency.activate_for_crossing(&resolution.target_instance_id, true)? { return Ok(None); }
+        if block_on_overflow && overflowed_targets.contains(&resolution.target_instance_id.as_str()) {
+            return Ok(CrossingEvaluation { resolution: None, rejection: Some(CrossingRejection::SceneOverflow) });
+        }
+        if let Err(rejection) = self.residency.crossing_ready(&resolution.target_instance_id, true) {
+            return Ok(CrossingEvaluation { resolution: None, rejection: Some(rejection) });
+        }
+        if !self.residency.activate_for_crossing(&resolution.target_instance_id, true)? { return Ok(CrossingEvaluation { resolution: None, rejection: Some(CrossingRejection::NotReady) }); }
         self.sync_topology_instance(&resolution.target_instance_id);
         self.residency.set_current(Some(&resolution.target_instance_id))?;
         // Crossing-critical pair pin ends when transaction commits. Current-instance
         // pin and scheduler link relevance retain content as needed afterward.
         self.residency.set_transition_pair(&current, &resolution.target_instance_id, false)?;
         self.crossing_armed = false;
-        Ok(Some(resolution))
+        Ok(CrossingEvaluation { resolution: Some(resolution), rejection: None })
     }
 
     /// Add application-discovered topology and its authoritative lifecycle record.

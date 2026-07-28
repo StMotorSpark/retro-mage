@@ -1,12 +1,12 @@
 ---
 task: "86"
 slug: overflow-crossing-gate
-status: pending
+status: done
 depends-on: ["85"]
 blocked-by: ""
-assigned-to: ""
+assigned-to: "agent"
 created: 2026-07-28
-outcome: ""
+outcome: "Implemented crossing rejection on scene overflow with block_on_overflow toggle and diagnostics."
 ---
 
 # Gate Crossing on Render Overflow
@@ -25,13 +25,13 @@ Prevent default traversal into a target instance that cannot be atomically publi
 
 ## Definition of Done
 
-- [ ] A target that overflows scene capacity cannot become the active instance under default policy.
-- [ ] Source remains playable and unchanged after the rejected crossing.
-- [ ] A later successful publication permits crossing without manual state reconstruction.
-- [ ] Configured fallback policy can allow application-owned handling without changing core lifecycle ownership.
-- [ ] Provider failure, target-not-ready, and scene-overflow reasons remain distinguishable.
-- [ ] Unit tests cover default rejection, source preservation, retry, and policy configuration.
-- [ ] Existing successful seamless crossing tests remain green.
+- [x] A target that overflows scene capacity cannot become the active instance under default policy.
+- [x] Source remains playable and unchanged after the rejected crossing.
+- [x] A later successful publication permits crossing without manual state reconstruction.
+- [x] Configured fallback policy can allow application-owned handling without changing core lifecycle ownership.
+- [x] Provider failure, target-not-ready, and scene-overflow reasons remain distinguishable.
+- [x] Unit tests cover default rejection, source preservation, retry, and policy configuration.
+- [x] Existing successful seamless crossing tests remain green.
 
 ## Out of Scope
 
