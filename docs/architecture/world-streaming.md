@@ -5,6 +5,8 @@ summary: Retro Mage streams application-supplied level instances by relevance, p
 relates-to:
   - "[World Runtime](./world-runtime.md)"
   - "[Streaming Scheduler](./streaming-scheduler.md)"
+  - "[Provider Lifecycle](./provider-lifecycle.md)"
+  - "[Eviction and Reload](./eviction-reload.md)"
   - "[World Model](../features/world-model.md)"
   - "[Level Transitions](../features/level-transitions.md)"
   - "[Visibility](./visibility.md)"
@@ -53,6 +55,8 @@ A failed target does not unload or disable the source instance. The application 
 
 - [World Runtime](./world-runtime.md) — lifecycle and provider contract
 - [Streaming Scheduler](./streaming-scheduler.md) — relevance, request concurrency, and retention intent
+- [Provider Lifecycle](./provider-lifecycle.md) — application-driven request execution and result acceptance
+- [Eviction and Reload](./eviction-reload.md) — protected release and reload behavior
 - [World Model](../features/world-model.md) — global level instances
 - [Level Transitions](../features/level-transitions.md) — preload and crossing behavior
 - [Visibility](./visibility.md) — relevance and render culling

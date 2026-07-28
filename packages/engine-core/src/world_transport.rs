@@ -37,6 +37,7 @@ pub struct WorldTransport {
     crossing_pose: crate::world::Transform,
     block_on_overflow: bool,
     last_crossing_rejection: u32,
+    evictions: Vec<crate::residency::PersistenceHandoff>,
 }
 
 #[wasm_bindgen]
@@ -53,7 +54,7 @@ impl WorldTransport {
             light_x: vec![0.; light_capacity], light_y: vec![0.; light_capacity], light_z: vec![0.; light_capacity], light_r: vec![0.; light_capacity], light_g: vec![0.; light_capacity], light_b: vec![0.; light_capacity], light_intensity: vec![0.; light_capacity], light_active: vec![0.; light_capacity],
             instance_ids: Vec::with_capacity(instance_capacity), instance_states: vec![0; instance_capacity], instance_render: vec![0.; instance_capacity], instance_collision: vec![0.; instance_capacity], instance_simulation: vec![0.; instance_capacity],
             tiles: 0, actors: 0, lights: 0, instances: 0, overflow: false, crossing_pose: Transform::IDENTITY, scheduler: crate::streaming_scheduler::StreamingScheduler::new(policy),
-            frame: 0, overflow_diagnostics: vec![], skipped_instances: vec![], block_on_overflow: true, last_crossing_rejection: 0,
+            frame: 0, overflow_diagnostics: vec![], skipped_instances: vec![], block_on_overflow: true, last_crossing_rejection: 0, evictions: vec![],
         }
     }
 
@@ -117,6 +118,10 @@ impl WorldTransport {
         match self.runtime.begin_load(id, metadata) { Ok(request) => request.request_id, Err(_) => 0 }
     }
 
+    pub fn set_application_payload(&mut self, id: &str, payload: &str) -> bool {
+        self.runtime.set_application_payload(id, payload.as_bytes().to_vec()).is_ok()
+    }
+
     pub fn accept_definition(&mut self, request_id: u64, id: &str) -> bool {
         let Some(instance) = self.runtime.instance(id) else { return false; };
         let Some(definition) = self.definitions.get(&instance.definition_id).cloned() else { return false; };
@@ -132,7 +137,7 @@ impl WorldTransport {
     }
 
     pub fn cancel_load(&mut self, id: &str) -> bool {
-        self.runtime.cancel_load(id).map(|_| { self.sync(); true }).unwrap_or(false)
+        self.runtime.cancel_load(id, "Transport explicitly cancelled").map(|_| { self.sync(); true }).unwrap_or(false)
     }
 
     pub fn register_bidirectional_link(&mut self, id: &str, source_instance_id: &str, source_anchor_id: &str, target_instance_id: &str, target_anchor_id: &str) -> bool {
@@ -203,10 +208,23 @@ impl WorldTransport {
     }
 
     pub fn refresh(&mut self) { self.sync(); }
-    pub fn clear(&mut self) { self.tiles = 0; self.actors = 0; self.lights = 0; self.instances = 0; self.instance_ids.clear(); self.overflow = false; self.frame = 0; self.overflow_diagnostics.clear(); self.skipped_instances.clear(); }
+    pub fn clear(&mut self) { self.tiles = 0; self.actors = 0; self.lights = 0; self.instances = 0; self.instance_ids.clear(); self.overflow = false; self.frame = 0; self.overflow_diagnostics.clear(); self.skipped_instances.clear(); self.evictions.clear(); }
     pub fn overflowed(&self) -> bool { self.overflow }
     pub fn overflow_diagnostics_json(&self) -> String { format!("[{}]", self.overflow_diagnostics.join(",")) }
     pub fn skipped_instances_json(&self) -> String { format!("[{}]", self.skipped_instances.iter().map(|s| format!("\"{}\"", s)).collect::<Vec<_>>().join(",")) }
+    pub fn take_evictions_json(&mut self) -> String {
+        let mut out = String::new();
+        out.push('[');
+        let mut first = true;
+        for handoff in self.evictions.drain(..) {
+            if !first { out.push(','); }
+            first = false;
+            let payload = handoff.opaque_payload.map(|p| String::from_utf8_lossy(&p).into_owned()).unwrap_or_default();
+            out.push_str(&format!(r#"{{"instance_id":"{}","eviction_reason":"{}","payload":"{}"}}"#, handoff.instance.id, handoff.eviction_reason, payload));
+        }
+        out.push(']');
+        out
+    }
     pub fn tile_count(&self) -> usize { self.tiles }
     pub fn actor_count(&self) -> usize { self.actors }
     pub fn light_count(&self) -> usize { self.lights }
@@ -349,6 +367,7 @@ mod tests {
         assert_eq!(t.instance_state(0), 3);
         assert!(t.instance_render_resident(0));
         assert!(t.instance_collision_active(0));
+        assert!(t.set_instance_state("room-instance", 2, true, false, false));
         assert!(t.set_instance_state("room-instance", 4, true, false, false));
         assert!(t.set_instance_state("room-instance", 5, false, false, false));
         t.refresh();
@@ -444,7 +463,8 @@ impl WorldTransport {
             policy: &self.scheduler.policy,
         };
         let decisions = crate::streaming_scheduler::evaluate_intent(ctx);
-        self.scheduler.update(&mut self.runtime, &decisions);
+        let handoffs = self.scheduler.update(&mut self.runtime, &decisions);
+        for h in handoffs { self.evictions.push(h); }
         self.sync();
     }
 
@@ -465,4 +485,29 @@ impl WorldTransport {
     }
 
     pub fn scheduler_queue_depth(&self) -> usize { self.scheduler.queue.len() }
+
+    pub fn pending_requests_json(&self) -> String {
+        let mut out = String::new();
+        out.push('[');
+        let mut first = true;
+        for req in &self.scheduler.queue {
+            if !first { out.push(','); }
+            first = false;
+            let intent = self.scheduler.diagnostics.get(&req.instance_id).map(|d| format!("{:?}", d.intent)).unwrap_or_else(|| "Unneeded".into());
+            let reason = self.scheduler.diagnostics.get(&req.instance_id).and_then(|d| d.cancel_reason.as_deref()).unwrap_or("Queued");
+            out.push_str(&format!(r#"{{"instance_id":"{}","request_id":null,"priority":{},"intent":"{}","reason":"{}"}}"#, req.instance_id, req.priority, intent, reason));
+        }
+        for id in &self.scheduler.active_requests {
+            if !first { out.push(','); }
+            first = false;
+            let diag = self.scheduler.diagnostics.get(id);
+            let intent = diag.map(|d| format!("{:?}", d.intent)).unwrap_or_else(|| "Unneeded".into());
+            let reason = diag.and_then(|d| d.cancel_reason.as_deref()).unwrap_or("Active");
+            let req_id = diag.and_then(|d| d.request_id).map(|r| r.to_string()).unwrap_or_else(|| "null".into());
+            let priority = diag.map(|d| d.priority).unwrap_or(0);
+            out.push_str(&format!(r#"{{"instance_id":"{}","request_id":{},"priority":{},"intent":"{}","reason":"{}"}}"#, id, req_id, priority, intent, reason));
+        }
+        out.push(']');
+        out
+    }
 }

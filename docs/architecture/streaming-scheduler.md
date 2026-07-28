@@ -5,6 +5,8 @@ summary: The world runtime computes coarse level-instance residency intent from 
 relates-to:
   - "[World Runtime](./world-runtime.md)"
   - "[World Streaming](./world-streaming.md)"
+  - "[Provider Lifecycle](./provider-lifecycle.md)"
+  - "[Eviction and Reload](./eviction-reload.md)"
   - "[Level Transitions](../features/level-transitions.md)"
   - "[World Model](../features/world-model.md)"
   - "[Visibility](./visibility.md)"
@@ -183,6 +185,8 @@ The scheduler contract covers finite level instances. It does not define infinit
 
 - [World Runtime](./world-runtime.md) — authoritative lifecycle and provider ownership
 - [World Streaming](./world-streaming.md) — residency units, preload, and eviction behavior
+- [Provider Lifecycle](./provider-lifecycle.md) — request queue and terminal result handling
+- [Eviction and Reload](./eviction-reload.md) — protected release and reload behavior
 - [Level Transitions](../features/level-transitions.md) — crossing readiness and link semantics
 - [World Model](../features/world-model.md) — global instances and topology
 - [Visibility](./visibility.md) — renderer culling separate from residency

@@ -34,6 +34,7 @@ pub struct IntentDecision {
     pub intent: ResidencyIntent,
     pub priority: i32,
     pub reason: String,
+    pub distance: f32,
 }
 
 #[derive(Debug)]
@@ -52,10 +53,13 @@ pub fn evaluate_intent(ctx: PlannerContext) -> HashMap<String, IntentDecision> {
 
     // 1. Initialize all known instances with Unneeded
     for descriptor in ctx.topology.instances() {
+        let center = descriptor.instance.transform.translation;
+        let dist = distance(ctx.player_pose.translation, center);
         decisions.insert(descriptor.instance.id.clone(), IntentDecision {
             intent: ResidencyIntent::Unneeded,
             priority: *ctx.priorities.get(&descriptor.instance.id).unwrap_or(&0),
             reason: "Default unneeded".into(),
+            distance: dist,
         });
     }
 
@@ -69,11 +73,8 @@ pub fn evaluate_intent(ctx: PlannerContext) -> HashMap<String, IntentDecision> {
             intent = ResidencyIntent::Pinned;
             reason = "Explicit pin or current".into();
         } else {
-            // Simplified distance check: center of the bounds to player pose
-            // In a real implementation this would check bounds properly.
-            // Using translation for coarse planner relevance check.
-            let center = descriptor.instance.transform.translation;
-            let dist = distance(ctx.player_pose.translation, center);
+            // distance is already computed in step 1, but we can just use the precomputed one
+            let dist = decisions.get(id).map(|d| d.distance).unwrap_or(f32::MAX);
             let threshold = ctx.policy.relevance_distance;
             let state = ctx.residency_states.get(id).unwrap_or(&RuntimeState::Known);
             
@@ -155,6 +156,7 @@ pub struct SchedulerDiagnostic {
     pub cancel_reason: Option<String>,
     pub failure_reason: Option<String>,
     pub eviction_reason: Option<String>,
+    pub intent_timestamp: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -178,7 +180,8 @@ impl StreamingScheduler {
         Self { policy, queue: Vec::new(), active_requests: HashSet::new(), diagnostics: HashMap::new(), next_timestamp: 0 }
     }
 
-    pub fn update(&mut self, runtime: &mut WorldRuntime, decisions: &HashMap<String, IntentDecision>) {
+    pub fn update(&mut self, runtime: &mut WorldRuntime, decisions: &HashMap<String, IntentDecision>) -> Vec<crate::residency::PersistenceHandoff> {
+        let mut evictions_list = Vec::new();
         let mut to_cancel = Vec::new();
         for active_id in &self.active_requests {
             let decision = decisions.get(active_id);
@@ -188,7 +191,7 @@ impl StreamingScheduler {
             }
         }
         for id in to_cancel {
-            if let Ok(Some(_req)) = runtime.cancel_load(&id) {
+            if let Ok(Some(_req)) = runtime.cancel_load(&id, "Unneeded") {
                 self.active_requests.remove(&id);
                 if let Some(diag) = self.diagnostics.get_mut(&id) {
                     diag.cancel_reason = Some("Unneeded".into());
@@ -200,16 +203,29 @@ impl StreamingScheduler {
         for (id, decision) in decisions {
             if decision.intent == ResidencyIntent::Unneeded {
                 if matches!(runtime.state(id), Some(RuntimeState::Resident | RuntimeState::Active)) {
-                    to_evict.push(id.clone());
+                    let intent_age = self.diagnostics.get(id).map(|d| d.intent_timestamp).unwrap_or(0);
+                    to_evict.push((id.clone(), decision.priority, decision.distance, intent_age));
                 }
             }
         }
-        for id in to_evict {
+        
+        to_evict.sort_by(|a, b| {
+            a.1.cmp(&b.1)
+                .then_with(|| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal))
+                .then_with(|| a.3.cmp(&b.3))
+                .then_with(|| a.0.cmp(&b.0))
+        });
+
+        for (id, _, _, _) in to_evict {
+            if runtime.state(&id) == Some(RuntimeState::Active) {
+                let _ = runtime.deactivate(&id);
+            }
             if runtime.mark_evictable(&id).is_ok() {
-                if let Ok(_) = runtime.evict(&id) {
+                if let Ok(handoff) = runtime.evict(&id, "Unneeded".into()) {
                     if let Some(diag) = self.diagnostics.get_mut(&id) {
                         diag.eviction_reason = Some("Unneeded".into());
                     }
+                    evictions_list.push(handoff);
                 }
             }
         }
@@ -255,8 +271,12 @@ impl StreamingScheduler {
                 cancel_reason: None,
                 failure_reason: None,
                 eviction_reason: None,
+                intent_timestamp: self.next_timestamp,
             });
-            diag.intent = decision.intent;
+            if diag.intent != decision.intent {
+                diag.intent_timestamp = self.next_timestamp;
+                diag.intent = decision.intent;
+            }
             diag.priority = decision.priority;
         }
 
@@ -279,6 +299,8 @@ impl StreamingScheduler {
                 }
             }
         }
+        self.next_timestamp += 1;
+        evictions_list
     }
 
     pub fn handle_completion(&mut self, runtime: &mut WorldRuntime, result: crate::level_provider::LevelProviderResult) {
