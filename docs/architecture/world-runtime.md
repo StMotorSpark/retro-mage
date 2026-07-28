@@ -6,6 +6,7 @@ relates-to:
   - "[World Model](../features/world-model.md)"
   - "[Level Transitions](../features/level-transitions.md)"
   - "[World Streaming](./world-streaming.md)"
+  - "[Collision Bridge](./collision-bridge.md)"
   - "[Streaming Scheduler](./streaming-scheduler.md)"
   - "[WASM Bridge](./wasm-bridge.md)"
   - "[Repo Structure](./repo-structure.md)"
@@ -84,6 +85,7 @@ The engine owns transient instance state while an instance is resident. The appl
 - [World Model](../features/world-model.md) — definitions and instances
 - [Level Transitions](../features/level-transitions.md) — anchor and link semantics
 - [World Streaming](./world-streaming.md) — residency policies
+- [Collision Bridge](./collision-bridge.md) — runtime-owned collision and world tick integration
 - [Streaming Scheduler](./streaming-scheduler.md) — relevance, request scheduling, and retention intent
 - [WASM Bridge](./wasm-bridge.md) — simulation data crossing into rendering
 - [Repo Structure](./repo-structure.md) — package ownership boundaries

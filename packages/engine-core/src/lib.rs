@@ -230,9 +230,51 @@ impl EngineState {
             self.seam_injection_tiles.count = 0;
         }
 
+        self.seam_injection_tiles.count = 0;
         self.recompute_visibility();
     }
+}
 
+impl EngineState {
+    /// World-aware tick directly querying an external collision view.
+    /// Replaces `tick()` for normal global gameplay flow.
+    pub fn tick_world_aware(&mut self, dt: f64, global_collision: &global_collision::GlobalCollisionWorld) {
+        self.tick_count += dt;
+        let dt_f32 = dt as f32;
+
+        let (new_yaw, new_pitch) = collision::apply_look(
+            self.camera.yaw[0],
+            self.camera.pitch[0],
+            self.input.look_x,
+            self.input.look_y,
+            self.collision_config.look_sensitivity,
+            dt_f32,
+        );
+        self.camera.yaw[0] = new_yaw;
+        self.camera.pitch[0] = new_pitch;
+
+        let (dx, dz) = collision::compute_movement_delta(
+            self.input.move_x,
+            self.input.move_y,
+            self.camera.yaw[0],
+            self.collision_config.player_speed,
+            dt_f32,
+        );
+
+        let pose = world::Transform { translation: world::Vec3 { x: self.camera.x[0], y: self.camera.y[0], z: self.camera.z[0] }, rotation: world::Quaternion { x: 0.0, y: (self.camera.yaw[0] * 0.5).sin(), z: 0.0, w: (self.camera.yaw[0] * 0.5).cos() }, scale: 1.0 };
+        let moved = global_collision.resolve_movement(pose, dx, dz, self.collision_config.player_radius, self.collision_config.player_height);
+        
+        self.camera.x[0] = moved.translation.x;
+        self.camera.y[0] = moved.translation.y;
+        self.camera.z[0] = moved.translation.z;
+
+        self.seam_injection_tiles.count = 0;
+        self.recompute_visibility();
+    }
+}
+
+#[wasm_bindgen]
+impl EngineState {
     /// Current active driving world structure (0 = Indoor, 1 = Outdoor).
     pub fn active_world_structure(&self) -> u32 {
         match self.seam_manager.active_structure() {
@@ -1241,7 +1283,7 @@ impl EngineState {
 }
 
 impl EngineState {
-    /// Replace one global collision instance. Geometry remains inert until active.
+    /// Test adapter: Replace one global collision instance. Geometry remains inert until active.
     pub fn set_global_collision_instance(
         &mut self,
         instance: world::LevelInstance,
@@ -1255,7 +1297,7 @@ impl EngineState {
         self.global_collision_configured = true;
     }
 
-    /// Add one already-transformed solid from browser-owned global content.
+    /// Test adapter: Add one already-transformed solid from browser-owned global content.
     /// Open/floor tiles never enter this API unless caller marks them solid.
     pub fn add_global_collision_solid(
         &mut self,
@@ -1279,11 +1321,12 @@ impl EngineState {
         self.global_collision_configured = true;
     }
 
-    /// Toggle collision only after caller's runtime marks instance ready.
+    /// Test adapter: Toggle collision only after caller's runtime marks instance ready.
     pub fn set_global_collision_active(&mut self, instance_id: &str, active: bool) -> bool {
         self.global_collision.set_collision_active(instance_id, active)
     }
 
+    /// Test adapter: Remove an instance from global collision.
     pub fn clear_global_collision_instance(&mut self, instance_id: &str) {
         self.global_collision.remove_instance(instance_id);
         self.global_collision_configured = !self.global_collision.is_empty();
@@ -1333,38 +1376,6 @@ impl EngineState {
 
     pub fn world_topology(&self) -> &world_manifest::WorldTopology {
         &self.world_topology
-    }
-}
-
-/// Browser-facing collision activation bridge. Geometry is submitted in global
-/// coordinates, matching `WorldTransport` output; lifecycle state controls only
-/// whether submitted solids participate in movement.
-#[wasm_bindgen]
-impl EngineState {
-    pub fn submit_global_collision_solid(
-        &mut self,
-        instance_id: &str,
-        min_x: f32,
-        min_y: f32,
-        min_z: f32,
-        max_x: f32,
-        max_y: f32,
-        max_z: f32,
-        collision_active: bool,
-    ) {
-        self.add_global_collision_solid(instance_id, min_x, min_y, min_z, max_x, max_y, max_z, collision_active);
-    }
-
-    pub fn set_collision_instance_active(&mut self, instance_id: &str, active: bool) -> bool {
-        self.set_global_collision_active(instance_id, active)
-    }
-
-    pub fn remove_collision_instance(&mut self, instance_id: &str) {
-        self.clear_global_collision_instance(instance_id);
-    }
-
-    pub fn collision_instance_active(&self, instance_id: &str) -> bool {
-        self.global_collision_active(instance_id)
     }
 }
 

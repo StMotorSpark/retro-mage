@@ -7,6 +7,7 @@ relates-to:
   - "[Level Transitions](../features/level-transitions.md)"
   - "[World Runtime](../architecture/world-runtime.md)"
   - "[World Streaming](../architecture/world-streaming.md)"
+  - "[Collision Bridge](../architecture/collision-bridge.md)"
   - "[Rendering](../architecture/rendering.md)"
   - "[WASM Bridge](../architecture/wasm-bridge.md)"
   - "[Collision](../architecture/collision.md)"
@@ -28,8 +29,7 @@ This doc records unresolved implementation details and deliberately deferred cap
 - Infinite procedural regions are outside the initial finite-bounds runtime contract.
 - Memory budgets and platform-specific eviction heuristics require measurement against representative content.
 - Link overlap collision ownership needs a concrete policy implementation beyond explicit masks/ownership metadata.
-- Collision projection currently reaches `EngineState` through an explicit transport snapshot sync; automatic runtime-owned projection remains undefined.
-- Legacy indoor/outdoor runtime paths and compatibility APIs remain contained but are not removed; removal depends on migrating `examples/bench`, replacing the collision snapshot bridge, and proving no active global-runtime consumers remain.
+- Legacy indoor/outdoor runtime paths remain contained for standalone compatibility (e.g., `examples/bench`). Global-runtime consumers use world-aware integration via `WorldTransport`.
 
 ## Rendering and Bridge
 
@@ -78,6 +78,7 @@ These decisions are recorded in their authoritative design docs:
 - [World Runtime](../architecture/world-runtime.md) — lifecycle and provider boundaries
 - [Example Deployment](../architecture/example-deployment.md) — PWA and deployed demo behavior
 - [World Streaming](../architecture/world-streaming.md) — residency behavior
+- [Collision Bridge](../architecture/collision-bridge.md) — runtime-owned collision integration contract
 - [Streaming Scheduler](../architecture/streaming-scheduler.md) — scheduling contract and implementation boundary
 - [Rendering](../architecture/rendering.md) — renderer capabilities
 - [WASM Bridge](../architecture/wasm-bridge.md) — scene transport boundary

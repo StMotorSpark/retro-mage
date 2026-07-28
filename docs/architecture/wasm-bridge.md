@@ -6,6 +6,7 @@ relates-to:
   - "[Tech Stack](./tech-stack.md)"
   - "[World Model](../features/world-model.md)"
   - "[World Runtime](./world-runtime.md)"
+  - "[Collision Bridge](./collision-bridge.md)"
   - "[Rendering](./rendering.md)"
   - "[Visibility](./visibility.md)"
   - "[Input Event Schema](./input-schema.md)"
@@ -52,6 +53,7 @@ Each bridge schema has one documented owner and colocated tests. Changes update 
 - [Tech Stack](./tech-stack.md) — Rust/WASM and TypeScript boundary
 - [World Model](../features/world-model.md) — local definitions and global instances
 - [World Runtime](./world-runtime.md) — residency and activation
+- [Collision Bridge](./collision-bridge.md) — runtime-owned movement integration
 - [Rendering](./rendering.md) — global scene consumer
 - [Visibility](./visibility.md) — render relevance
 - [Input Event Schema](./input-schema.md) — reverse-direction input contract

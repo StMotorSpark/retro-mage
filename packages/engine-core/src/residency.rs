@@ -50,11 +50,12 @@ pub struct ResidencyStore {
     current: Option<String>,
     transition_pairs: HashSet<(String, String)>,
     explicit_pins: HashSet<String>,
+    collision_world: crate::global_collision::GlobalCollisionWorld,
 }
 
 impl ResidencyStore {
     pub fn new() -> Self {
-        Self { records: HashMap::new(), provider: LevelProviderCoordinator::new(), current: None, transition_pairs: HashSet::new(), explicit_pins: HashSet::new() }
+        Self { records: HashMap::new(), provider: LevelProviderCoordinator::new(), current: None, transition_pairs: HashSet::new(), explicit_pins: HashSet::new(), collision_world: crate::global_collision::GlobalCollisionWorld::new() }
     }
 
     pub fn register(&mut self, instance: LevelInstance) -> Result<(), ResidencyError> {
@@ -78,6 +79,13 @@ impl ResidencyStore {
         record.descriptor.render_resident = render;
         record.descriptor.collision_active = collision;
         record.descriptor.simulation_active = simulation;
+        if let Some(content) = record.global.as_ref() {
+            if collision {
+                self.collision_world.set_instance(crate::global_collision::CollisionInstance::from_content(id, content), true);
+            } else {
+                self.collision_world.set_collision_active(id, false);
+            }
+        }
         Ok(())
     }
     pub fn content(&self, id: &str) -> Option<&GlobalLevelContent> { self.records.get(id).and_then(|r| r.global.as_ref()) }
@@ -88,7 +96,11 @@ impl ResidencyStore {
         let record = self.records.get_mut(id).ok_or_else(|| ResidencyError::UnknownInstance(id.into()))?;
         record.descriptor.transform = transform;
         if let Some(definition) = record.definition.as_deref() {
-            record.global = Some(GlobalLevelContent::from_definition(definition, &transform).map_err(ResidencyError::InvalidDefinition)?);
+            let global = GlobalLevelContent::from_definition(definition, &transform).map_err(ResidencyError::InvalidDefinition)?;
+            record.global = Some(global.clone());
+            if record.descriptor.collision_active {
+                self.collision_world.set_instance(crate::global_collision::CollisionInstance::from_content(id, &global), true);
+            }
         }
         Ok(())
     }
@@ -107,19 +119,8 @@ impl ResidencyStore {
 
     /// Snapshot collision-active transformed geometry. Render residency alone
     /// never contributes solids.
-    pub fn collision_world(&self) -> crate::global_collision::GlobalCollisionWorld {
-        let mut world = crate::global_collision::GlobalCollisionWorld::new();
-        for record in self.records.values() {
-            if record.descriptor.collision_active {
-                if let Some(content) = record.global.as_ref() {
-                    world.set_instance(
-                        crate::global_collision::CollisionInstance::from_content(&record.descriptor.id, content),
-                        true,
-                    );
-                }
-            }
-        }
-        world
+    pub fn collision_world(&self) -> &crate::global_collision::GlobalCollisionWorld {
+        &self.collision_world
     }
 
     /// Activate target only after render/collision data and safe arrival pose
@@ -145,6 +146,7 @@ impl ResidencyStore {
         record.descriptor.simulation_active = false;
         record.render_ready = false;
         record.collision_ready = false;
+        self.collision_world.remove_instance(id);
         Ok(request)
     }
 
@@ -161,13 +163,14 @@ impl ResidencyStore {
     }
 
     pub fn mark_failed(&mut self, id: &str) -> Result<(), ResidencyError> {
-        let record = self.record_mut(id)?;
+        let record = self.records.get_mut(id).ok_or_else(|| ResidencyError::UnknownInstance(id.into()))?;
         record.descriptor.state = RuntimeState::Failed;
         record.descriptor.render_resident = false;
         record.descriptor.collision_active = false;
         record.descriptor.simulation_active = false;
         record.render_ready = false;
         record.collision_ready = false;
+        self.collision_world.remove_instance(id);
         Ok(())
     }
 
@@ -192,21 +195,27 @@ impl ResidencyStore {
                 let global = GlobalLevelContent::from_definition(definition, &record.descriptor.transform)
                     .map_err(ResidencyError::InvalidDefinition)?;
                 record.definition = Some(Arc::new(definition.clone()));
-                record.global = Some(global);
+                record.global = Some(global.clone());
                 record.render_ready = true;
                 record.collision_ready = true;
                 record.descriptor.render_resident = true;
                 record.descriptor.state = RuntimeState::Resident;
+                // Collision active flag is likely false here, but if true, we'd add it.
+                if record.descriptor.collision_active {
+                    self.collision_world.set_instance(crate::global_collision::CollisionInstance::from_content(&id, &global), true);
+                }
             }
             ProviderUpdate::Cancelled => {
                 record.descriptor.state = RuntimeState::Known;
                 record.descriptor.render_resident = false;
+                self.collision_world.remove_instance(&id);
             }
             ProviderUpdate::Failed(_) => {
                 record.descriptor.state = RuntimeState::Failed;
                 record.descriptor.render_resident = false;
                 record.descriptor.collision_active = false;
                 record.descriptor.simulation_active = false;
+                self.collision_world.remove_instance(&id);
             }
             ProviderUpdate::Pending | ProviderUpdate::Stale => {}
         }
@@ -227,31 +236,35 @@ impl ResidencyStore {
     }
 
     pub fn activate(&mut self, id: &str) -> Result<(), ResidencyError> {
-        let record = self.record_mut(id)?;
+        let record = self.records.get_mut(id).ok_or_else(|| ResidencyError::UnknownInstance(id.into()))?;
         if record.descriptor.state != RuntimeState::Resident || !record.render_ready || !record.collision_ready {
             return Err(ResidencyError::InvalidTransition { instance_id: id.into(), from: record.descriptor.state, to: RuntimeState::Active });
         }
         record.descriptor.state = RuntimeState::Active;
         record.descriptor.collision_active = true;
         record.descriptor.simulation_active = true;
+        if let Some(content) = record.global.as_ref() {
+            self.collision_world.set_instance(crate::global_collision::CollisionInstance::from_content(id, content), true);
+        }
         Ok(())
     }
 
     pub fn mark_evictable(&mut self, id: &str) -> Result<(), ResidencyError> {
         if self.is_pinned(id) { return Err(ResidencyError::Pinned(id.into())); }
-        let record = self.record_mut(id)?;
+        let record = self.records.get_mut(id).ok_or_else(|| ResidencyError::UnknownInstance(id.into()))?;
         if record.descriptor.state != RuntimeState::Active && record.descriptor.state != RuntimeState::Resident {
             return Err(ResidencyError::InvalidTransition { instance_id: id.into(), from: record.descriptor.state, to: RuntimeState::Evictable });
         }
         record.descriptor.state = RuntimeState::Evictable;
         record.descriptor.collision_active = false;
         record.descriptor.simulation_active = false;
+        self.collision_world.set_collision_active(id, false);
         Ok(())
     }
 
     pub fn evict(&mut self, id: &str) -> Result<PersistenceHandoff, ResidencyError> {
         if self.is_pinned(id) { return Err(ResidencyError::Pinned(id.into())); }
-        let record = self.record_mut(id)?;
+        let record = self.records.get_mut(id).ok_or_else(|| ResidencyError::UnknownInstance(id.into()))?;
         if record.descriptor.state != RuntimeState::Evictable {
             return Err(ResidencyError::NotEvictable(id.into()));
         }
@@ -264,6 +277,7 @@ impl ResidencyStore {
         record.global = None;
         record.render_ready = false;
         record.collision_ready = false;
+        self.collision_world.remove_instance(id);
         Ok(handoff)
     }
 
