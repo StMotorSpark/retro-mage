@@ -20,6 +20,7 @@ interface DemoDebugSnapshot {
   pins: number;
   overflowed?: boolean;
   overflowDiagnostics?: string;
+  cancelled?: boolean;
 }
 
 declare global {
@@ -41,6 +42,7 @@ async function main(): Promise<void> {
   const engineState = new EngineState();
   const searchParams = new URLSearchParams(window.location.search);
   const failOutdoor = searchParams.has('failOutdoor');
+  const slowOutdoor = searchParams.has('slowOutdoor');
   const overflowActors = searchParams.has('overflowActors');
   let assetsReady = false;
   let renderFrame = 0;
@@ -113,7 +115,7 @@ async function main(): Promise<void> {
         const definitionId = instanceId.replace('-instance', '') as DemoLevelId;
         const controller = new AbortController();
         pendingLoads.set(instanceId, controller);
-        void provider.resolveAsync(definitionId, { delayMs: definitionId === 'outdoor' ? 250 : 40, fail: definitionId === 'outdoor' && failOutdoor, signal: controller.signal }).then(() => {
+        void provider.resolveAsync(definitionId, { delayMs: definitionId === 'outdoor' ? (slowOutdoor ? 2000 : 250) : 40, fail: definitionId === 'outdoor' && failOutdoor, signal: controller.signal }).then(() => {
           if (!worldTransport.accept_definition(requestId, instanceId)) throw new Error(`Failed to accept ${instanceId}`);
           if (instanceId === 'dungeon-instance' && !worldTransport.set_instance_state(instanceId, 3, true, true, true)) throw new Error('Failed to activate source dungeon.');
           pendingLoads.delete(instanceId);

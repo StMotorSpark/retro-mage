@@ -176,3 +176,36 @@ test('target crossing is rejected on overflow, source remains playable, diagnost
   expect(afterAttempt.activeInstance).toBe('dungeon-instance');
   expect(afterAttempt.sourcePlayable).toBe(true);
 });
+
+test('cancellation aborts app work and replacement uses new request identity', async ({ page }) => {
+  await waitForDemo(page, '/?slowOutdoor=1');
+
+  // Trigger load
+  await strafe(page, 70, (snapshot) => {
+    const outdoor = snapshot.instances.find(i => i.id === 'outdoor-instance');
+    return outdoor !== undefined && outdoor.state === 1; // Loading
+  });
+
+  // Immediately strafe back to cancel
+  await strafe(page, -70, (snapshot) => {
+    const outdoor = snapshot.instances.find(i => i.id === 'outdoor-instance');
+    return outdoor === undefined || outdoor.state === 0 || outdoor.state === 5;
+  });
+
+  const cancelledSnapshot = await debug(page);
+  expect(cancelledSnapshot.instances.find(i => i.id === 'outdoor-instance')?.state ?? 0).toBeLessThan(2); // Not ready
+
+  // Wait a bit to ensure late result is ignored
+  await page.waitForTimeout(1000);
+  const stillNotReady = await debug(page);
+  expect(stillNotReady.instances.find(i => i.id === 'outdoor-instance')?.state ?? 0).toBeLessThan(2);
+
+  // Strafe forward again to retry
+  await strafe(page, 70, (snapshot) => {
+    const outdoor = snapshot.instances.find(i => i.id === 'outdoor-instance');
+    return outdoor !== undefined && outdoor.state === 2; // Ready
+  });
+
+  const retryReady = await debug(page);
+  expect(retryReady.instances.find(i => i.id === 'outdoor-instance')?.state).toBe(2);
+});

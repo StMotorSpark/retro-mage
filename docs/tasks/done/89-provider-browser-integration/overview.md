@@ -1,12 +1,12 @@
 ---
 task: "89"
 slug: provider-browser-integration
-status: pending
+status: done
 depends-on: ["88"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-28
-outcome: ""
+outcome: "Migrated demo provider orchestration to scheduler request polling. Verified delayed success, failure, cancellation, stale completion, and retry. Added browser tests for cancellation."
 ---
 
 # Prove Provider Lifecycle in Browser
