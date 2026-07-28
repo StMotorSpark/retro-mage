@@ -1,12 +1,12 @@
 ---
 task: "93"
 slug: persistence-restore-browser-proof
-status: in-flight
+status: parked
 depends-on: ["89", "91", "92"]
-blocked-by: ""
-assigned-to: "antigravity"
+blocked-by: "task:95"
+assigned-to: ""
 created: 2026-07-28
-outcome: ""
+outcome: "Superseded by tasks 94–97 after review found the engine restore lifecycle and browser bridge were not implemented."
 ---
 
 # Prove Persistence Restore in Browser
@@ -64,4 +64,8 @@ Extend the demo/browser proof to exercise application-owned state handoff, reloa
 - Related: task:91 — completed eviction/reload browser proof and fixtures.
 - Related: task:92 — persistence/restore core prerequisite.
 - Key files: `examples/demo/src/main.ts`, `examples/demo/src/demo-world.ts`, `examples/demo/tests/browser-seamless.spec.ts`, `packages/render/src/world-state/transport.ts`, `packages/render/src/world-state/types.ts`.
+
+## Parking Notes
+
+This task is superseded by tasks 94–97. The earlier attempt exposed handoff acknowledgment and added weak browser stubs, but engine restore APIs, bridge exports, and complete lifecycle assertions were missing. Task 95 supplies the required browser boundary; task 96 owns the replacement proof; task 97 owns cleanup and known-gap reconciliation.
 
