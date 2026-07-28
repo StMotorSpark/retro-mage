@@ -34,7 +34,11 @@ describe('GlobalSceneSubmission', () => {
   it('rejects whole instance on overflow and keeps previous submission intact', () => {
     const scene = new GlobalSceneSubmission({ tiles: 1 });
     scene.submit({ id: 'source', tiles: [{ x: 0, y: 0, z: 0 }] });
-    expect(() => scene.submit({ id: 'target', tiles: [{ x: 1, y: 0, z: 0 }] })).toThrow(SceneCapacityError);
+    scene.submit({ id: 'target', tiles: [{ x: 1, y: 0, z: 0 }] });
+    const view = scene.view();
+    expect(view.overflow.overflowed).toBe(true);
+    expect(view.overflow.diagnostics[0]).toMatchObject({ category: 'tiles', requested: 2, capacity: 1, instance_id: 'target' });
+    expect(view.overflow.skippedInstances).toContain('target');
     expect(scene.counts).toEqual({ tiles: 1, actors: 0, lights: 0, instances: 1 });
     expect(scene.view().instanceIds).toEqual(['source']);
   });
@@ -51,7 +55,11 @@ describe('GlobalSceneSubmission', () => {
   it('rejects whole instance on instance capacity overflow', () => {
     const scene = new GlobalSceneSubmission({ instances: 1 });
     scene.submit({ id: 'source' });
-    expect(() => scene.submit({ id: 'target' })).toThrow(SceneCapacityError);
+    scene.submit({ id: 'target' });
+    const view = scene.view();
+    expect(view.overflow.overflowed).toBe(true);
+    expect(view.overflow.diagnostics[0]).toMatchObject({ category: 'instances', requested: 2, capacity: 1, instance_id: 'target' });
+    expect(view.overflow.skippedInstances).toContain('target');
     expect(scene.counts).toEqual({ tiles: 0, actors: 0, lights: 0, instances: 1 });
     expect(scene.view().instanceIds).toEqual(['source']);
   });

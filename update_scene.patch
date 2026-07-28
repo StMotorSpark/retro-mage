@@ -1,0 +1,84 @@
+--- packages/render/src/world-state/scene.ts
++++ packages/render/src/world-state/scene.ts
+@@ -58,6 +58,21 @@
+   instances: number;
+ }
+ 
++export interface GlobalSceneOverflowDiagnostic {
++  frame: number;
++  category: keyof GlobalSceneCapacity;
++  requested: number;
++  capacity: number;
++  instance_id: string;
++}
++
++export interface GlobalSceneOverflowReport {
++  overflowed: boolean;
++  diagnostics: readonly GlobalSceneOverflowDiagnostic[];
++  skippedInstances: readonly string[];
++}
++
+ export type GlobalSceneCounts = GlobalSceneCapacity;
+ 
+ export class SceneCapacityError extends Error {
+@@ -79,6 +94,7 @@
+   readonly lights: LightsView;
+   readonly instanceIds: readonly string[];
+   readonly counts: GlobalSceneCounts;
++  readonly overflow: GlobalSceneOverflowReport;
+ }
+ 
+ const DEFAULT_CAPACITY: GlobalSceneCapacity = { tiles: 4096, actors: 256, lights: 128, instances: 64 };
+@@ -96,6 +112,9 @@
+   private tileCount = 0;
+   private actorCount = 0;
+   private lightCount = 0;
++  private overflowed = false;
++  private diagnostics: GlobalSceneOverflowDiagnostic[] = [];
++  private skippedInstances: string[] = [];
++  private frame = 0;
+ 
+   constructor(capacity: Partial<GlobalSceneCapacity> = {}) {
+     this.capacity = {
+@@ -128,19 +147,26 @@
+   }
+ 
+   reset(): void {
++    this.frame++;
+     this.tileCount = 0; this.actorCount = 0; this.lightCount = 0; this.ids = [];
+     this.tileData.count = 0; this.actorData.count = 0; this.lightData.count = 0;
++    this.overflowed = false;
++    this.diagnostics = [];
++    this.skippedInstances = [];
+   }
+ 
+   submit(instance: GlobalSceneInstance): void {
+     if (!instance.id.trim()) throw new Error('Global scene instance id must not be empty');
+     const tiles = instance.tiles ?? [], actors = instance.actors ?? [], lights = instance.lights ?? [];
+     const next = { tiles: this.tileCount + tiles.length, actors: this.actorCount + actors.length, lights: this.lightCount + lights.length, instances: this.ids.length + 1 };
+-    for (const kind of ['tiles', 'actors', 'lights', 'instances'] as const) {
++    for (const kind of ['instances', 'tiles', 'actors', 'lights'] as const) {
+       if (next[kind] > this.capacity[kind]) {
+-        throw new SceneCapacityError(kind, next[kind], this.capacity[kind]);
++        this.overflowed = true;
++        this.diagnostics.push({ frame: this.frame, category: kind, requested: next[kind], capacity: this.capacity[kind], instance_id: instance.id });
++        this.skippedInstances.push(instance.id);
++        return;
+       }
+     }
+     let i = this.tileCount;
+     for (const tile of tiles) {
+@@ -162,7 +188,14 @@
+   }
+ 
+   view(): GlobalSceneView {
+-    return { tiles: this.tileData, actors: this.actorData, lights: this.lightData, instanceIds: this.ids, counts: this.counts };
++    return {
++      tiles: this.tileData, actors: this.actorData, lights: this.lightData,
++      instanceIds: this.ids, counts: this.counts,
++      overflow: {
++        overflowed: this.overflowed, diagnostics: this.diagnostics, skippedInstances: this.skippedInstances
++      }
++    };
+   }
+ }

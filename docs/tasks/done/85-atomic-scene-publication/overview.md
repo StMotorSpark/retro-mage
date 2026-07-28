@@ -1,12 +1,12 @@
 ---
 task: "85"
 slug: atomic-scene-publication
-status: pending
+status: done
 depends-on: ["84"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-28
-outcome: ""
+outcome: "Implemented atomic scene submission in Rust WorldTransport and TypeScript GlobalSceneSubmission. Added structured per-frame overflow diagnostics and skipped instances list. Verified counts remain consistent and subsequent valid instances continue rendering when an overflow occurs."
 ---
 
 # Implement Atomic Scene Publication
