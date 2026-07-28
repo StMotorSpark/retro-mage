@@ -158,11 +158,6 @@ impl WorldTransport {
     pub fn crossing_pose_y(&self) -> f32 { self.crossing_pose.translation.y }
     pub fn crossing_pose_z(&self) -> f32 { self.crossing_pose.translation.z }
 
-    /// Install collision projection from same authoritative runtime content used
-    /// by `sync` render export. Re-run after lifecycle/crossing changes.
-    pub fn sync_collision(&mut self, engine: &mut crate::EngineState) {
-        engine.set_global_collision_world(self.runtime.collision_world());
-    }
 
     /// Drives one world-aware frame: movement against runtime collision,
     /// directional crossing, streaming relevance, and render publication.
@@ -211,6 +206,12 @@ macro_rules! ptr_api { ($($name:ident: $field:ident),* $(,)?) => {
 ptr_api!(tiles_x_ptr: tile_x, tiles_y_ptr: tile_y, tiles_z_ptr: tile_z, tiles_tile_id_ptr: tile_id, tiles_material_id_ptr: tile_material, tiles_variant_ptr: tile_variant, tiles_orientation_ptr: tile_orientation, tiles_solid_ptr: tile_solid, tiles_north_ptr: tile_north, tiles_east_ptr: tile_east, tiles_south_ptr: tile_south, tiles_west_ptr: tile_west, tiles_opening_ptr: tile_opening, actors_x_ptr: actor_x, actors_y_ptr: actor_y, actors_z_ptr: actor_z, actors_facing_ptr: actor_facing, actors_sprite_id_ptr: actor_sprite, actors_active_ptr: actor_active, lights_x_ptr: light_x, lights_y_ptr: light_y, lights_z_ptr: light_z, lights_r_ptr: light_r, lights_g_ptr: light_g, lights_b_ptr: light_b, lights_intensity_ptr: light_intensity, lights_active_ptr: light_active);
 
 impl WorldTransport {
+    /// Install collision projection from same authoritative runtime content used
+    /// by `sync` render export. Re-run after lifecycle/crossing changes.
+    fn sync_collision(&mut self, engine: &mut crate::EngineState) {
+        engine.set_global_collision_world(self.runtime.collision_world());
+    }
+
     fn sync(&mut self) {
         self.tiles = 0; self.actors = 0; self.lights = 0; self.instances = 0; self.instance_ids.clear();
         let entries: Vec<_> = self.runtime.resident_global_content().map(|(id, content)| (id.to_owned(), content.clone())).collect();

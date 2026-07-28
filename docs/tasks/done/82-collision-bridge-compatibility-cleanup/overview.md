@@ -1,12 +1,12 @@
 ---
 task: "82"
 slug: collision-bridge-compatibility-cleanup
-status: pending
+status: done
 depends-on: ["81"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-28
-outcome: ""
+outcome: "Removed obsolete JS bridge APIs for explicit collision synchronization since world-aware integration owns the lifecycle. Kept rust-side APIs as explicitly documented test adapters. Updated known gaps doc."
 ---
 
 # Complete Collision Bridge Compatibility Cleanup
