@@ -157,6 +157,10 @@ impl WorldTransport {
         self.runtime.set_current(Some(id)).is_ok()
     }
 
+    pub fn acknowledge_handoff(&mut self, id: &str, success: bool, failure_reason: Option<String>) -> bool {
+        self.runtime.acknowledge_handoff(id, success, failure_reason).is_ok()
+    }
+
     /// Engine-owned anchor-volume crossing. Returns true only after target
     /// residency/readiness gate and activation succeed.
     pub fn try_crossing(&mut self, x: f32, y: f32, z: f32, movement_x: f32, movement_z: f32) -> bool {

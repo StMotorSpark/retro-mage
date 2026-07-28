@@ -46,6 +46,9 @@ async function main(): Promise<void> {
   const failOutdoor = searchParams.has('failOutdoor');
   const slowOutdoor = searchParams.has('slowOutdoor');
   const overflowActors = searchParams.has('overflowActors');
+  const corruptRestore = searchParams.has('corruptRestore');
+  const delayAcknowledge = searchParams.has('delayAcknowledge');
+  const failAcknowledge = searchParams.has('failAcknowledge');
   let assetsReady = false;
   let renderFrame = 0;
   const worldTransport = overflowActors ? WorldTransport.with_capacity(4096, 2, 128, 64) : new WorldTransport();
@@ -118,7 +121,17 @@ async function main(): Promise<void> {
       const parsed = JSON.parse(evictionsJson);
       demoEvictions.push(...parsed);
       for (const e of parsed) {
-        if (e.payload) savedPayloads[e.instance_id] = e.payload;
+        if (failAcknowledge) {
+          worldTransport.acknowledge_handoff(e.instance_id, false, "Test failure");
+        } else if (delayAcknowledge) {
+          setTimeout(() => {
+            worldTransport.acknowledge_handoff(e.instance_id, true, undefined);
+            if (e.payload) savedPayloads[e.instance_id] = e.payload;
+          }, 1000);
+        } else {
+          worldTransport.acknowledge_handoff(e.instance_id, true, undefined);
+          if (e.payload) savedPayloads[e.instance_id] = e.payload;
+        }
       }
     }
 
@@ -133,8 +146,9 @@ async function main(): Promise<void> {
         void provider.resolveAsync(definitionId, { delayMs: definitionId === 'outdoor' ? (slowOutdoor ? 2000 : 250) : 40, fail: definitionId === 'outdoor' && failOutdoor, signal: controller.signal }).then(() => {
           if (!worldTransport.accept_definition(requestId, instanceId)) throw new Error(`Failed to accept ${instanceId}`);
           if (savedPayloads[instanceId]) {
-            worldTransport.set_application_payload(instanceId, savedPayloads[instanceId]);
-            demoRestores[instanceId] = savedPayloads[instanceId];
+            const payload = corruptRestore ? 'corrupt-payload' : savedPayloads[instanceId];
+            worldTransport.set_application_payload(instanceId, payload);
+            demoRestores[instanceId] = payload;
           }
           if (instanceId === 'dungeon-instance' && !worldTransport.set_instance_state(instanceId, 3, true, true, true)) throw new Error('Failed to activate source dungeon.');
           pendingLoads.delete(instanceId);

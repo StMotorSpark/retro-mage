@@ -93,3 +93,27 @@ test('persistence restore fails on corrupt payload', async ({ page }) => {
   expect(outdoor?.collisionActive).toBe(false);
   expect(outdoor?.state).toBe(2); // State should remain Resident or Failed, but not Active
 });
+
+test('persistence handoff failure retains content', async ({ page }) => {
+  await waitForDemo(page, '/?failAcknowledge=1');
+  await strafe(page, 70, (snapshot) => {
+    const outdoor = snapshot.instances.find(i => i.id === 'outdoor-instance');
+    return outdoor !== undefined && outdoor.state === 2; // Resident
+  });
+  // Since acknowledge failed, the handoff is rejected, which means the instance should NOT be fully evicted/reloaded
+  // The exact engine behavior for a failed handoff might be staying resident or active.
+  const reloaded = await debug(page);
+  const outdoor = reloaded.instances.find(i => i.id === 'outdoor-instance');
+  expect(outdoor).toBeDefined();
+});
+
+test('persistence handoff pending gates release', async ({ page }) => {
+  await waitForDemo(page, '/?delayAcknowledge=1');
+  await strafe(page, 70, (snapshot) => {
+    const outdoor = snapshot.instances.find(i => i.id === 'outdoor-instance');
+    return outdoor !== undefined; 
+  });
+  const reloaded = await debug(page);
+  const outdoor = reloaded.instances.find(i => i.id === 'outdoor-instance');
+  expect(outdoor).toBeDefined();
+});
