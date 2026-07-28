@@ -18,6 +18,8 @@ interface DemoDebugSnapshot {
   queueDepth: number;
   activeLoads: number;
   pins: number;
+  overflowed?: boolean;
+  overflowDiagnostics?: string;
 }
 
 declare global {
@@ -37,10 +39,12 @@ async function main(): Promise<void> {
 
   const wasmOutput = await init();
   const engineState = new EngineState();
-  const failOutdoor = new URLSearchParams(window.location.search).has('failOutdoor');
+  const searchParams = new URLSearchParams(window.location.search);
+  const failOutdoor = searchParams.has('failOutdoor');
+  const overflowActors = searchParams.has('overflowActors');
   let assetsReady = false;
   let renderFrame = 0;
-  const worldTransport = new WorldTransport();
+  const worldTransport = overflowActors ? WorldTransport.with_capacity(4096, 2, 128, 64) : new WorldTransport();
   const provider = createDemoLevelProvider();
 
   // Application owns provider + manifest. Definitions/topology register first;
@@ -164,6 +168,8 @@ async function main(): Promise<void> {
       queueDepth: worldTransport.scheduler_queue_depth(),
       activeLoads: activeCount,
       pins: instances.filter(i => worldTransport.scheduler_diagnostic_intent(i.id) === 3).length,
+      overflowed: worldTransport.overflowed(),
+      overflowDiagnostics: worldTransport.overflow_diagnostics_json(),
     };
     requestAnimationFrame(frame);
   };

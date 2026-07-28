@@ -1,12 +1,12 @@
 ---
 task: "87"
 slug: scene-overflow-browser-proof
-status: pending
+status: done
 depends-on: ["86"]
 blocked-by: ""
-assigned-to: ""
+assigned-to: "Antigravity"
 created: 2026-07-28
-outcome: ""
+outcome: "Implemented browser tests proving scene capacity overflow is detected, rejected, and appropriately diagnosed without breaking continuous gameplay."
 ---
 
 # Prove Scene Overflow in Browser
@@ -25,13 +25,13 @@ Add deterministic browser coverage and diagnostics for configured scene overflow
 
 ## Definition of Done
 
-- [ ] Playwright deterministically triggers tile, actor, or light capacity overflow.
-- [ ] Browser test observes structured diagnostics without relying only on console text or pixels.
-- [ ] Accepted scene content remains rendered after overflow.
-- [ ] Default crossing rejection is observed from browser input/API behavior.
-- [ ] Source movement/collision continues after target rejection.
-- [ ] Normal seamless demo and PWA regression tests pass with no overflow.
-- [ ] Test fixture does not depend on timing races or network availability.
+- [x] Playwright deterministically triggers tile, actor, or light capacity overflow.
+- [x] Browser test observes structured diagnostics without relying only on console text or pixels.
+- [x] Accepted scene content remains rendered after overflow.
+- [x] Default crossing rejection is observed from browser input/API behavior.
+- [x] Source movement/collision continues after target rejection.
+- [x] Normal seamless demo and PWA regression tests pass with no overflow.
+- [x] Test fixture does not depend on timing races or network availability.
 
 ## Out of Scope
 
