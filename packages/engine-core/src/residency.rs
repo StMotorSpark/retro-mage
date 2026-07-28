@@ -151,6 +151,7 @@ impl ResidencyStore {
         record.opaque_payload = None;
         record.render_ready = false;
         record.collision_ready = false;
+        record.descriptor.restore_status = crate::world::RestoreStatus::None;
         self.collision_world.remove_instance(id);
         Ok(request)
     }
@@ -242,12 +243,18 @@ impl ResidencyStore {
         if !matches!(r.descriptor.state, RuntimeState::Resident | RuntimeState::Active) || !r.render_ready || !r.collision_ready || !safe_arrival_pose {
             return Err(crate::world_runtime::CrossingRejection::NotReady);
         }
+        if !matches!(r.descriptor.restore_status, crate::world::RestoreStatus::Restored | crate::world::RestoreStatus::None) {
+            return Err(crate::world_runtime::CrossingRejection::NotReady);
+        }
         Ok(())
     }
 
     pub fn activate(&mut self, id: &str) -> Result<(), ResidencyError> {
         let record = self.records.get_mut(id).ok_or_else(|| ResidencyError::UnknownInstance(id.into()))?;
         if record.descriptor.state != RuntimeState::Resident || !record.render_ready || !record.collision_ready {
+            return Err(ResidencyError::InvalidTransition { instance_id: id.into(), from: record.descriptor.state, to: RuntimeState::Active });
+        }
+        if !matches!(record.descriptor.restore_status, crate::world::RestoreStatus::Restored | crate::world::RestoreStatus::None) {
             return Err(ResidencyError::InvalidTransition { instance_id: id.into(), from: record.descriptor.state, to: RuntimeState::Active });
         }
         record.descriptor.state = RuntimeState::Active;
@@ -335,6 +342,30 @@ impl ResidencyStore {
     pub fn set_application_payload(&mut self, id: &str, payload: Vec<u8>) -> Result<(), ResidencyError> {
         let record = self.records.get_mut(id).ok_or_else(|| ResidencyError::UnknownInstance(id.into()))?;
         record.opaque_payload = Some(payload);
+        Ok(())
+    }
+
+    pub fn begin_restore(&mut self, id: &str) -> Result<(), ResidencyError> {
+        let record = self.records.get_mut(id).ok_or_else(|| ResidencyError::UnknownInstance(id.into()))?;
+        if record.descriptor.state != RuntimeState::Resident {
+            return Err(ResidencyError::InvalidTransition { instance_id: id.into(), from: record.descriptor.state, to: record.descriptor.state });
+        }
+        record.descriptor.restore_status = crate::world::RestoreStatus::Pending;
+        record.descriptor.restore_attempts += 1;
+        Ok(())
+    }
+
+    pub fn complete_restore(&mut self, id: &str, success: bool, version: String, failure_reason: Option<String>) -> Result<(), ResidencyError> {
+        let record = self.records.get_mut(id).ok_or_else(|| ResidencyError::UnknownInstance(id.into()))?;
+        if record.descriptor.restore_status != crate::world::RestoreStatus::Pending {
+            return Err(ResidencyError::InvalidTransition { instance_id: id.into(), from: record.descriptor.state, to: record.descriptor.state });
+        }
+        record.descriptor.state_version = version;
+        if success {
+            record.descriptor.restore_status = crate::world::RestoreStatus::Restored;
+        } else {
+            record.descriptor.restore_status = crate::world::RestoreStatus::Failed(failure_reason.unwrap_or_default());
+        }
         Ok(())
     }
 

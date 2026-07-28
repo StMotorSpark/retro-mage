@@ -238,6 +238,16 @@ impl WorldRuntime {
         self.residency.set_application_payload(id, payload)?;
         Ok(())
     }
+    pub fn begin_restore(&mut self, id: &str) -> Result<(), WorldRuntimeError> {
+        self.residency.begin_restore(id)?;
+        self.sync_topology_instance(id);
+        Ok(())
+    }
+    pub fn complete_restore(&mut self, id: &str, success: bool, version: String, failure_reason: Option<String>) -> Result<(), WorldRuntimeError> {
+        self.residency.complete_restore(id, success, version, failure_reason)?;
+        self.sync_topology_instance(id);
+        Ok(())
+    }
     pub fn set_current(&mut self, id: Option<&str>) -> Result<(), WorldRuntimeError> { Ok(self.residency.set_current(id)?) }
     pub fn pin(&mut self, id: &str, pinned: bool) -> Result<(), WorldRuntimeError> { Ok(self.residency.pin(id, pinned)?) }
     pub fn set_transition_pair(&mut self, a: &str, b: &str, pinned: bool) -> Result<(), WorldRuntimeError> { Ok(self.residency.set_transition_pair(a, b, pinned)?) }
