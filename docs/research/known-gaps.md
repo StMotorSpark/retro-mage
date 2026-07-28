@@ -33,7 +33,6 @@ This doc records unresolved implementation details and deliberately deferred cap
 
 ## Rendering and Bridge
 
-- The scene capacity contract has defined application-configured buffers, atomic instance submission, and structured overflow diagnostics; its Rust/WASM implementation and browser proof remain incomplete.
 - WebGPU is an optional backend after the WebGL2 scene/material contract proves stable and measured workload justifies it.
 - Advanced portal or room occlusion is an optimization layered over frustum, distance, residency, and depth testing.
 - Procedural clouds and richer atmospheric weather are separate sky-rendering work.
