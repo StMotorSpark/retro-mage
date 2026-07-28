@@ -340,6 +340,10 @@ mod tests {
                         render_resident: false,
                         collision_active: false,
                         simulation_active: false,
+                        restore_status: crate::world::RestoreStatus::None,
+                        state_version: String::new(),
+                        restore_attempts: 0,
+                        handoff_status: crate::world::HandoffStatus::None,
                     }
                 },
                 InstanceDescriptor {
@@ -353,6 +357,10 @@ mod tests {
                         render_resident: false,
                         collision_active: false,
                         simulation_active: false,
+                        restore_status: crate::world::RestoreStatus::None,
+                        state_version: String::new(),
+                        restore_attempts: 0,
+                        handoff_status: crate::world::HandoffStatus::None,
                     }
                 },
                 InstanceDescriptor {
@@ -366,6 +374,10 @@ mod tests {
                         render_resident: false,
                         collision_active: false,
                         simulation_active: false,
+                        restore_status: crate::world::RestoreStatus::None,
+                        state_version: String::new(),
+                        restore_attempts: 0,
+                        handoff_status: crate::world::HandoffStatus::None,
                     }
                 },
                 InstanceDescriptor {
@@ -379,6 +391,10 @@ mod tests {
                         render_resident: false,
                         collision_active: false,
                         simulation_active: false,
+                        restore_status: crate::world::RestoreStatus::None,
+                        state_version: String::new(),
+                        restore_attempts: 0,
+                        handoff_status: crate::world::HandoffStatus::None,
                     }
                 }
             ],

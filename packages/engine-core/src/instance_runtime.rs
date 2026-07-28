@@ -120,6 +120,10 @@ impl LevelInstanceRuntime {
             render_resident: true,
             collision_active: false,
             simulation_active: false,
+            restore_status: crate::world::RestoreStatus::None,
+            state_version: String::new(),
+            restore_attempts: 0,
+            handoff_status: crate::world::HandoffStatus::None,
         };
         self.instances.insert(
             id.clone(),

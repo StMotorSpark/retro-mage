@@ -350,7 +350,7 @@ mod tests {
     use crate::level_provider::FixtureProvider;
     use crate::world::{Bounds, Transform, Vec3, PersistencePolicy};
 
-    fn instance(id: &str) -> LevelInstance { LevelInstance { id: id.into(), definition_id: "room".into(), definition_version: "1".into(), transform: Transform::IDENTITY, state: RuntimeState::Known, persistence: PersistencePolicy::Persistent, render_resident: false, collision_active: false, simulation_active: false } }
+    fn instance(id: &str) -> LevelInstance { LevelInstance { id: id.into(), definition_id: "room".into(), definition_version: "1".into(), transform: Transform::IDENTITY, state: RuntimeState::Known, persistence: PersistencePolicy::Persistent, render_resident: false, collision_active: false, simulation_active: false, restore_status: crate::world::RestoreStatus::None, state_version: String::new(), restore_attempts: 0, handoff_status: crate::world::HandoffStatus::None } }
     fn definition() -> crate::world::LevelDefinition { crate::world::LevelDefinition { id: "room".into(), version: "1".into(), bounds: Bounds { min: Vec3::ZERO, max: Vec3 { x: 1.0, y: 1.0, z: 1.0 } }, tiles: vec![], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], metadata: Default::default() } }
     fn metadata() -> LevelProviderMetadata { LevelProviderMetadata::default() }
 

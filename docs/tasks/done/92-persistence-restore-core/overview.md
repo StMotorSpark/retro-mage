@@ -1,12 +1,12 @@
 ---
 task: "92"
 slug: persistence-restore-core
-status: pending
+status: done
 depends-on: ["90"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-28
-outcome: ""
+outcome: "Fixed instance initialization for restore and handoff fields. All rust tests pass. Core persistence restore lifecycle implemented."
 ---
 
 # Implement Persistence Restore Core
