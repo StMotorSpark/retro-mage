@@ -4,6 +4,7 @@ tags: [architecture, streaming, world, levels, memory]
 summary: Retro Mage streams application-supplied level instances by relevance, preloads linked targets before visual reveal, and evicts unneeded content without interrupting global-world traversal.
 relates-to:
   - "[World Runtime](./world-runtime.md)"
+  - "[Streaming Scheduler](./streaming-scheduler.md)"
   - "[World Model](../features/world-model.md)"
   - "[Level Transitions](../features/level-transitions.md)"
   - "[Visibility](./visibility.md)"
@@ -13,7 +14,7 @@ relates-to:
 
 # World Streaming
 
-Streaming manages residency of transformed level instances. It does not create a second coordinate system, define gameplay semantics, or implement a special indoor/outdoor seam path.
+Streaming manages residency of transformed level instances through scheduler intent and runtime lifecycle state. It does not create a second coordinate system, define gameplay semantics, or implement a special indoor/outdoor seam path.
 
 ## Streaming Units
 
@@ -23,16 +24,16 @@ Every initial streaming unit has finite local bounds. The engine transforms thos
 
 ## Relevance and Preload
 
-The engine evaluates residency from:
+The scheduler evaluates coarse residency intent from:
 
-- current player location
+- current active instance and global player location
 - transformed instance bounds
-- visible/relevant distance
-- active transition links
-- application priority
-- memory pressure
+- relevant distance and retention hysteresis
+- active transition links and link preload policy
+- application priority and explicit pins
+- lifecycle state
 
-A transition's preload policy can request content earlier than ordinary distance relevance. The target is resident before crossing is legal and before visible target geometry is required. If target content cannot load in time, the source remains visually closed or otherwise application-controlled rather than exposing a missing scene.
+A transition's preload policy can request content earlier than ordinary distance relevance. The target is resident before crossing is legal and before visible target geometry is required when possible. If target content cannot load in time, the source remains visually closed or otherwise application-controlled rather than exposing a missing scene. Renderer visibility remains a fine-grained draw concern rather than a scheduler dependency.
 
 ## Request Handling
 
@@ -51,6 +52,7 @@ A failed target does not unload or disable the source instance. The application 
 ## Related Docs
 
 - [World Runtime](./world-runtime.md) — lifecycle and provider contract
+- [Streaming Scheduler](./streaming-scheduler.md) — relevance, request concurrency, and retention intent
 - [World Model](../features/world-model.md) — global level instances
 - [Level Transitions](../features/level-transitions.md) — preload and crossing behavior
 - [Visibility](./visibility.md) — relevance and render culling

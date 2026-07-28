@@ -19,10 +19,12 @@ pub mod world;
 pub mod world_manifest;
 pub mod world_runtime;
 pub mod world_transport;
+pub mod streaming_scheduler;
 
 pub use collision::CollisionConfig;
 pub use global_collision::{CollisionInstance, GlobalCollisionWorld, SolidAabb};
 pub use streaming_config::StreamingConfig;
+pub use streaming_scheduler::{SchedulerPolicy, ResidencyIntent, evaluate_intent, PlannerContext};
 pub use world_runtime::WorldRuntime;
 
 use std::collections::HashMap;
