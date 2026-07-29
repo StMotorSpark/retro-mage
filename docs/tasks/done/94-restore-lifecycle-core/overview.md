@@ -1,12 +1,12 @@
 ---
 task: "94"
 slug: restore-lifecycle-core
-status: done
+status: in-flight
 depends-on: ["92"]
 blocked-by: ""
-assigned-to: ""
+assigned-to: "antigravity"
 created: 2026-07-28
-outcome: "Implemented engine-owned application-state restore state machine in engine-core. Added explicit restore retry operations with attempt tracking. Verified idempotency, rejection of stale/cancelled completion, and activation gating in Rust tests. DoD verified."
+outcome: ""
 ---
 
 # Implement Restore Lifecycle Core
