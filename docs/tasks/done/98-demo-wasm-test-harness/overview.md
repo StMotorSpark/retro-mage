@@ -1,12 +1,12 @@
 ---
 task: "98"
 slug: demo-wasm-test-harness
-status: pending
+status: done
 depends-on: ["95"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-29
-outcome: ""
+outcome: "Added deterministic engine-core/render/demo build chain, fresh Vite persistence Playwright config, restore-export preflight, and bounded serial proof command. Verified engine-core tests, render tests, demo typecheck/build, and persistence preflight pass without generated artifact changes."
 ---
 
 # Stabilize Demo WASM Test Harness

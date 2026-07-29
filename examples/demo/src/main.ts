@@ -29,6 +29,7 @@ declare global {
   interface Window {
     __debugPos?: { x: number; y: number; z: number };
     __retroMageDebug?: DemoDebugSnapshot;
+    __retroMageWorldTransport?: any;
   }
 }
 
@@ -52,6 +53,7 @@ async function main(): Promise<void> {
   let assetsReady = false;
   let renderFrame = 0;
   const worldTransport = overflowActors ? WorldTransport.with_capacity(4096, 2, 128, 64) : new WorldTransport();
+  window.__retroMageWorldTransport = worldTransport;
   const provider = createDemoLevelProvider();
 
   // Application owns provider + manifest. Definitions/topology register first;
@@ -63,7 +65,7 @@ async function main(): Promise<void> {
 
   const pendingLoads = new Map<string, AbortController>();
   const savedPayloads: Record<string, string> = { 'outdoor-instance': 'initial-app-state-123' };
-  worldTransport.set_application_payload('outdoor-instance', savedPayloads['outdoor-instance']);
+  worldTransport.set_application_payload('outdoor-instance', savedPayloads['outdoor-instance']!);
   const demoEvictions: Array<{ instance_id: string; eviction_reason: string; payload: string }> = [];
   const demoRestores: Record<string, string> = {};
 

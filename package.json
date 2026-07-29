@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "test": "pnpm -r run test",
     "test:demo:e2e": "playwright test -c playwright.config.ts",
+    "test:demo:persistence:proof": "rm -rf examples/demo/node_modules/.vite && pnpm --filter engine-core build && pnpm --filter render build && pnpm --filter demo build && playwright test -c playwright.persistence.config.ts",
     "typecheck": "pnpm -r run typecheck",
     "format": "prettier --write ."
   },
