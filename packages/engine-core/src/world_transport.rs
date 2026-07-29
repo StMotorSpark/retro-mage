@@ -124,12 +124,12 @@ impl WorldTransport {
         self.runtime.set_application_payload(id, payload.as_bytes().to_vec()).is_ok()
     }
 
-    pub fn begin_restore(&mut self, id: &str) -> bool {
-        self.runtime.begin_restore(id).is_ok()
+    pub fn begin_restore(&mut self, id: &str) -> u32 {
+        self.runtime.begin_restore(id).unwrap_or(0)
     }
 
-    pub fn complete_restore(&mut self, id: &str, success: bool, version: &str, failure_reason: Option<String>) -> bool {
-        let result = self.runtime.complete_restore(id, success, version.to_string(), failure_reason).is_ok();
+    pub fn complete_restore(&mut self, id: &str, attempt: u32, success: bool, version: &str, failure_reason: Option<String>) -> bool {
+        let result = self.runtime.complete_restore(id, attempt, success, version.to_string(), failure_reason).is_ok();
         if result { self.sync(); }
         result
     }

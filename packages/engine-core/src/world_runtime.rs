@@ -238,13 +238,13 @@ impl WorldRuntime {
         self.residency.set_application_payload(id, payload)?;
         Ok(())
     }
-    pub fn begin_restore(&mut self, id: &str) -> Result<(), WorldRuntimeError> {
-        self.residency.begin_restore(id)?;
+    pub fn begin_restore(&mut self, id: &str) -> Result<u32, WorldRuntimeError> {
+        let attempt = self.residency.begin_restore(id)?;
         self.sync_topology_instance(id);
-        Ok(())
+        Ok(attempt)
     }
-    pub fn complete_restore(&mut self, id: &str, success: bool, version: String, failure_reason: Option<String>) -> Result<(), WorldRuntimeError> {
-        self.residency.complete_restore(id, success, version, failure_reason)?;
+    pub fn complete_restore(&mut self, id: &str, attempt: u32, success: bool, version: String, failure_reason: Option<String>) -> Result<(), WorldRuntimeError> {
+        self.residency.complete_restore(id, attempt, success, version, failure_reason)?;
         self.sync_topology_instance(id);
         Ok(())
     }

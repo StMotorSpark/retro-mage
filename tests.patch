@@ -1,0 +1,43 @@
+--- packages/engine-core/src/residency.rs
++++ packages/engine-core/src/residency.rs
+@@ -475,3 +475,41 @@
+     }
++
++    #[test]
++    fn restore_success_failure_retry_idempotency_stale() {
++        let mut manager = ResidencyManager::new();
++        manager.register(instance("r")).unwrap();
++        let mut provider = FixtureProvider::ready(definition());
++        manager.resolve(&mut provider, "r", metadata()).unwrap();
++        
++        // Activation fails if restore is pending
++        let attempt1 = manager.begin_restore("r").unwrap();
++        assert_eq!(attempt1, 1);
++        assert!(manager.activate("r").is_err());
++        
++        // Failure
++        manager.complete_restore("r", attempt1, false, "".into(), Some("timeout".into())).unwrap();
++        assert!(matches!(manager.instance("r").unwrap().restore_status, crate::world::RestoreStatus::Failed(_)));
++        assert!(manager.activate("r").is_err());
++        
++        // Retry
++        let attempt2 = manager.begin_restore("r").unwrap();
++        assert_eq!(attempt2, 2);
++        
++        // Stale completion is ignored
++        manager.complete_restore("r", attempt1, true, "v1".into(), None).unwrap();
++        assert_eq!(manager.instance("r").unwrap().restore_status, crate::world::RestoreStatus::Pending);
++        
++        // Success
++        manager.complete_restore("r", attempt2, true, "v2".into(), None).unwrap();
++        assert_eq!(manager.instance("r").unwrap().restore_status, crate::world::RestoreStatus::Restored);
++        assert_eq!(manager.instance("r").unwrap().state_version, "v2");
++        
++        // Activation now works
++        manager.activate("r").unwrap();
++        
++        // Idempotency: Duplicate completion with same version succeeds
++        manager.complete_restore("r", attempt2, true, "v2".into(), None).unwrap();
++        assert_eq!(manager.instance("r").unwrap().restore_status, crate::world::RestoreStatus::Restored);
++    }
+ }
