@@ -42,6 +42,7 @@ export interface WorldTransportEngine {
   instance_restore_attempts(index: number): number;
   instance_state_version(index: number): string;
   instance_restore_failure_reason(index: number): string;
+  instance_handoff_status(index: number): number;
   begin_restore?(id: string): number;
   complete_restore?(id: string, attempt: number, success: boolean, version: string, failure_reason?: string): boolean;
   ambient_light?: () => number;
@@ -78,6 +79,7 @@ export interface WorldTransportInstance {
   readonly restore_attempts: number;
   readonly state_version: string;
   readonly restore_failure_reason: string;
+  readonly handoff_status: number;
 }
 
 const f32 = (
@@ -170,6 +172,7 @@ export class WorldTransportReader {
       restore_attempts: this.engine.instance_restore_attempts(i),
       state_version: this.engine.instance_state_version(i),
       restore_failure_reason: this.engine.instance_restore_failure_reason(i),
+      handoff_status: this.engine.instance_handoff_status(i),
     }));
     const scene: GlobalSceneView = {
       tiles,

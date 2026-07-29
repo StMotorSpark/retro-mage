@@ -12,7 +12,7 @@ interface DemoDebugSnapshot {
   pose: { x: number; y: number; z: number };
   activeInstance: 'dungeon-instance' | 'outdoor-instance';
   targetVisible: boolean;
-  instances: Array<{ id: string; state: number; renderResident: boolean; collisionActive: boolean; restoreStatus: number; restoreAttempts: number; stateVersion: string; restoreFailureReason: string; }>;
+  instances: Array<{ id: string; state: number; renderResident: boolean; collisionActive: boolean; restoreStatus: number; restoreAttempts: number; stateVersion: string; restoreFailureReason: string; handoffStatus: number }>;
   sourcePlayable: boolean;
   debugMovement?: { x: number; z: number; yaw: number };
   queueDepth: number;
@@ -48,6 +48,7 @@ async function main(): Promise<void> {
   const slowOutdoor = searchParams.has('slowOutdoor');
   const overflowActors = searchParams.has('overflowActors');
   const corruptRestore = searchParams.has('corruptRestore');
+  const delayRestore = searchParams.has('delayRestore');
   const delayAcknowledge = searchParams.has('delayAcknowledge');
   const failAcknowledge = searchParams.has('failAcknowledge');
   let assetsReady = false;
@@ -65,6 +66,8 @@ async function main(): Promise<void> {
 
   const pendingLoads = new Map<string, AbortController>();
   const savedPayloads: Record<string, string> = { 'outdoor-instance': 'initial-app-state-123' };
+  const initialOutdoorPayload = savedPayloads['outdoor-instance'];
+  if (!initialOutdoorPayload || !worldTransport.set_application_payload('outdoor-instance', initialOutdoorPayload)) throw new Error('Failed to seed outdoor persistence state.');
   const attempt = worldTransport.begin_restore('outdoor-instance');
   if (attempt > 0) {
     worldTransport.complete_restore('outdoor-instance', attempt, true, '1.0', undefined);
@@ -132,7 +135,7 @@ async function main(): Promise<void> {
           setTimeout(() => {
             worldTransport.acknowledge_handoff(e.instance_id, true, undefined);
             if (e.payload) savedPayloads[e.instance_id] = e.payload;
-          }, 1000);
+          }, 3000);
         } else {
           worldTransport.acknowledge_handoff(e.instance_id, true, undefined);
           if (e.payload) savedPayloads[e.instance_id] = e.payload;
@@ -150,16 +153,20 @@ async function main(): Promise<void> {
         pendingLoads.set(instanceId, controller);
         void provider.resolveAsync(definitionId, { delayMs: definitionId === 'outdoor' ? (slowOutdoor ? 2000 : 250) : 40, fail: definitionId === 'outdoor' && failOutdoor, signal: controller.signal }).then(() => {
           if (!worldTransport.accept_definition(requestId, instanceId)) throw new Error(`Failed to accept ${instanceId}`);
+          if (savedPayloads[instanceId] && !worldTransport.set_application_payload(instanceId, savedPayloads[instanceId])) throw new Error(`Failed to restore persistence handle for ${instanceId}`);
           if (savedPayloads[instanceId]) {
             const payload = corruptRestore ? 'corrupt-payload' : savedPayloads[instanceId];
             const attempt = worldTransport.begin_restore(instanceId);
             if (attempt > 0) {
               const success = payload !== 'corrupt-payload';
-              worldTransport.complete_restore(instanceId, attempt, success, '1.0', success ? undefined : 'Corrupt payload');
-              demoRestores[instanceId] = payload;
+              const complete = () => {
+                worldTransport.complete_restore(instanceId, attempt, success, '1.0', success ? undefined : 'Corrupt payload');
+                demoRestores[instanceId] = payload;
+              };
+              if (delayRestore && success) setTimeout(complete, 1500); else complete();
             }
           }
-          if (instanceId === 'dungeon-instance' && !worldTransport.set_instance_state(instanceId, 3, true, true, true)) throw new Error('Failed to activate source dungeon.');
+          if (instanceId === 'dungeon-instance' && !worldTransport.activate_instance(instanceId)) throw new Error('Failed to activate source dungeon.');
           pendingLoads.delete(instanceId);
         }).catch((error: unknown) => {
           pendingLoads.delete(instanceId);
@@ -200,6 +207,7 @@ async function main(): Promise<void> {
       restoreAttempts: instance.restore_attempts,
       stateVersion: instance.state_version,
       restoreFailureReason: instance.restore_failure_reason,
+      handoffStatus: instance.handoff_status,
     }));
     window.__debugPos = pose;
     window.__retroMageDebug = {

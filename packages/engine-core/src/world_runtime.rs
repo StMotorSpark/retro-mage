@@ -118,6 +118,10 @@ impl WorldRuntime {
         }
         if !self.residency.activate_for_crossing(&resolution.target_instance_id, true)? { return Ok(CrossingEvaluation { resolution: None, rejection: Some(CrossingRejection::NotReady) }); }
         self.sync_topology_instance(&resolution.target_instance_id);
+        // Crossing transfers gameplay ownership to target. Source remains resident
+        // for visibility/retention, but must stop simulation and collision so the
+        // scheduler can later evaluate it for eviction and persistence handoff.
+        self.residency.deactivate(&current)?;
         self.residency.set_current(Some(&resolution.target_instance_id))?;
         // Crossing-critical pair pin ends when transaction commits. Current-instance
         // pin and scheduler link relevance retain content as needed afterward.

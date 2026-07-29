@@ -30,7 +30,7 @@ pub struct WorldTransport {
     actor_x: Vec<f32>, actor_y: Vec<f32>, actor_z: Vec<f32>, actor_facing: Vec<f32>, actor_sprite: Vec<f32>, actor_active: Vec<f32>,
     light_x: Vec<f32>, light_y: Vec<f32>, light_z: Vec<f32>, light_r: Vec<f32>, light_g: Vec<f32>, light_b: Vec<f32>, light_intensity: Vec<f32>, light_active: Vec<f32>,
     instance_ids: Vec<String>, instance_states: Vec<u32>, instance_render: Vec<f32>, instance_collision: Vec<f32>, instance_simulation: Vec<f32>,
-    instance_restore_status: Vec<u32>, instance_restore_attempts: Vec<u32>, instance_versions: Vec<String>, instance_failures: Vec<String>,
+    instance_restore_status: Vec<u32>, instance_restore_attempts: Vec<u32>, instance_versions: Vec<String>, instance_failures: Vec<String>, instance_handoff_status: Vec<u32>,
     tiles: usize, actors: usize, lights: usize, instances: usize, overflow: bool,
     frame: u64,
     overflow_diagnostics: Vec<String>,
@@ -54,7 +54,7 @@ impl WorldTransport {
             actor_x: vec![0.; actor_capacity], actor_y: vec![0.; actor_capacity], actor_z: vec![0.; actor_capacity], actor_facing: vec![0.; actor_capacity], actor_sprite: vec![0.; actor_capacity], actor_active: vec![0.; actor_capacity],
             light_x: vec![0.; light_capacity], light_y: vec![0.; light_capacity], light_z: vec![0.; light_capacity], light_r: vec![0.; light_capacity], light_g: vec![0.; light_capacity], light_b: vec![0.; light_capacity], light_intensity: vec![0.; light_capacity], light_active: vec![0.; light_capacity],
             instance_ids: Vec::with_capacity(instance_capacity), instance_states: vec![0; instance_capacity], instance_render: vec![0.; instance_capacity], instance_collision: vec![0.; instance_capacity], instance_simulation: vec![0.; instance_capacity],
-            instance_restore_status: vec![0; instance_capacity], instance_restore_attempts: vec![0; instance_capacity], instance_versions: Vec::with_capacity(instance_capacity), instance_failures: Vec::with_capacity(instance_capacity),
+            instance_restore_status: vec![0; instance_capacity], instance_restore_attempts: vec![0; instance_capacity], instance_versions: Vec::with_capacity(instance_capacity), instance_failures: Vec::with_capacity(instance_capacity), instance_handoff_status: vec![0; instance_capacity],
             tiles: 0, actors: 0, lights: 0, instances: 0, overflow: false, crossing_pose: Transform::IDENTITY, scheduler: crate::streaming_scheduler::StreamingScheduler::new(policy),
             frame: 0, overflow_diagnostics: vec![], skipped_instances: vec![], block_on_overflow: true, last_crossing_rejection: 0, evictions: vec![],
         }
@@ -159,6 +159,11 @@ impl WorldTransport {
     pub fn topology_instance_count(&self) -> usize { self.runtime.topology().instances().count() }
     pub fn topology_has_link(&self, id: &str) -> bool { self.runtime.topology().link(id).is_some() }
 
+    pub fn activate_instance(&mut self, id: &str) -> bool {
+        if self.runtime.activate(id).is_err() { return false; }
+        self.sync(); true
+    }
+
     pub fn set_instance_state(&mut self, id: &str, state: u32, render_resident: bool, collision_active: bool, simulation_active: bool) -> bool {
         let state = match state { 2 => RuntimeState::Resident, 3 => RuntimeState::Active, 4 => RuntimeState::Evictable, 5 => RuntimeState::Evicted, 6 => RuntimeState::Failed, _ => RuntimeState::Known };
         if self.runtime.set_transport_state(id, state, render_resident, collision_active, simulation_active).is_err() { return false; }
@@ -260,6 +265,7 @@ impl WorldTransport {
     pub fn instance_restore_attempts(&self, index: usize) -> u32 { self.instance_restore_attempts.get(index).copied().unwrap_or(0) }
     pub fn instance_state_version(&self, index: usize) -> String { self.instance_versions.get(index).cloned().unwrap_or_default() }
     pub fn instance_restore_failure_reason(&self, index: usize) -> String { self.instance_failures.get(index).cloned().unwrap_or_default() }
+    pub fn instance_handoff_status(&self, index: usize) -> u32 { self.instance_handoff_status.get(index).copied().unwrap_or(0) }
 }
 
 macro_rules! ptr_api { ($($name:ident: $field:ident),* $(,)?) => {
@@ -318,6 +324,7 @@ impl WorldTransport {
             self.instance_restore_attempts[self.instances] = instance.restore_attempts;
             self.instance_versions.push(instance.state_version.clone());
             self.instance_failures.push(match &instance.restore_status { crate::world::RestoreStatus::Failed(r) => r.clone(), _ => String::new() });
+            self.instance_handoff_status[self.instances] = match instance.handoff_status { crate::world::HandoffStatus::None => 0, crate::world::HandoffStatus::Pending => 1, crate::world::HandoffStatus::Acknowledged => 2, crate::world::HandoffStatus::Failed(_) => 3 };
             self.instances += 1;
             if let Some(content) = content_opt {
                 for tile in &content.tiles { let i = self.tiles; self.tile_x[i]=tile.position.x; self.tile_y[i]=tile.position.y; self.tile_z[i]=tile.position.z; self.tile_id[i]=tile.tile_id as f32; self.tile_material[i]=tile.material_id as f32; self.tile_variant[i]=tile.variant as f32; self.tile_orientation[i]=tile.orientation as f32; self.tile_solid[i]=tile.solid as u8 as f32; self.tile_north[i]=tile.openings.north as u8 as f32; self.tile_east[i]=tile.openings.east as u8 as f32; self.tile_south[i]=tile.openings.south as u8 as f32; self.tile_west[i]=tile.openings.west as u8 as f32; self.tile_opening[i]=tile.openings.vertical as u8 as f32; self.tiles+=1; }

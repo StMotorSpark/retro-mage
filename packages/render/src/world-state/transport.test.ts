@@ -45,6 +45,7 @@ describe('WorldTransportReader', () => {
       instance_restore_attempts: (i) => i === 0 ? 0 : 2,
       instance_state_version: (i) => i === 0 ? '' : 'v2',
       instance_restore_failure_reason: (i) => i === 0 ? '' : 'corrupt',
+      instance_handoff_status: (i) => i === 0 ? 0 : 2,
     };
 
     const reader = new WorldTransportReader(engine, memory);
