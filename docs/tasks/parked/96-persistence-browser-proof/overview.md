@@ -3,10 +3,10 @@ task: "96"
 slug: persistence-browser-proof
 status: parked
 depends-on: ["89", "91", "95", "98"]
-blocked-by: "task:98"
-assigned-to: ""
+blocked-by: ""
+assigned-to: "agent"
 created: 2026-07-28
-outcome: "Partial browser hooks were rejected during orchestration review; focused Playwright execution timed out while validating rebuilt WASM bindings. No incomplete proof or generated artifacts retained."
+outcome: "Implemented basic harness but blocked on restore collision activation not enabling after successful restore. Parked for investigation."
 ---
 
 # Prove Persistence Restore in Browser
@@ -62,6 +62,3 @@ Build deterministic demo and Playwright coverage for the complete application-st
 - Related: task:95 — restore bridge.
 - Key files: `examples/demo/src/main.ts`, `examples/demo/tests/`, `packages/render/src/world-state/transport.ts`.
 
-## Parking Notes
-
-Antigravity added partial restore URL hooks and browser tests, but bounded Playwright verification did not complete while the demo was rebuilding/consuming engine-core WASM bindings. Review found no accepted evidence for exact lifecycle states, stale/cancelled safety, or full activation ordering. Partial source changes and generated artifacts were removed. Task 98 diagnoses and stabilizes the demo WASM/Vite build path. Once task 98 is done, move this task to pending and resume focused persistence proof with exact lifecycle assertions and artifact cleanup.
