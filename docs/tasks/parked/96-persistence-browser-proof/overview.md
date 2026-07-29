@@ -1,12 +1,12 @@
 ---
 task: "96"
 slug: persistence-browser-proof
-status: pending
+status: parked
 depends-on: ["89", "91", "95"]
-blocked-by: ""
+blocked-by: "human: browser proof needs bounded WASM/Vite binding diagnosis"
 assigned-to: ""
 created: 2026-07-28
-outcome: ""
+outcome: "Partial browser hooks were rejected during orchestration review; focused Playwright execution timed out while validating rebuilt WASM bindings. No incomplete proof or generated artifacts retained."
 ---
 
 # Prove Persistence Restore in Browser
@@ -61,3 +61,7 @@ Build deterministic demo and Playwright coverage for the complete application-st
 - Related: task:94 — restore core.
 - Related: task:95 — restore bridge.
 - Key files: `examples/demo/src/main.ts`, `examples/demo/tests/`, `packages/render/src/world-state/transport.ts`.
+
+## Parking Notes
+
+Antigravity added partial restore URL hooks and browser tests, but bounded Playwright verification did not complete while the demo was rebuilding/consuming engine-core WASM bindings. Review found no accepted evidence for exact lifecycle states, stale/cancelled safety, or full activation ordering. Partial source changes and generated artifacts were removed. Unblock by diagnosing the demo WASM/Vite build path, then resume with focused persistence proof and artifact cleanup.
