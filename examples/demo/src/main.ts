@@ -12,7 +12,7 @@ interface DemoDebugSnapshot {
   pose: { x: number; y: number; z: number };
   activeInstance: 'dungeon-instance' | 'outdoor-instance';
   targetVisible: boolean;
-  instances: Array<{ id: string; state: number; renderResident: boolean; collisionActive: boolean }>;
+  instances: Array<{ id: string; state: number; renderResident: boolean; collisionActive: boolean; restoreStatus: number; restoreAttempts: number; stateVersion: string; restoreFailureReason: string; }>;
   sourcePlayable: boolean;
   debugMovement?: { x: number; z: number; yaw: number };
   queueDepth: number;
@@ -65,7 +65,10 @@ async function main(): Promise<void> {
 
   const pendingLoads = new Map<string, AbortController>();
   const savedPayloads: Record<string, string> = { 'outdoor-instance': 'initial-app-state-123' };
-  worldTransport.set_application_payload('outdoor-instance', savedPayloads['outdoor-instance']!);
+  const attempt = worldTransport.begin_restore('outdoor-instance');
+  if (attempt > 0) {
+    worldTransport.complete_restore('outdoor-instance', attempt, true, '1.0', undefined);
+  }
   const demoEvictions: Array<{ instance_id: string; eviction_reason: string; payload: string }> = [];
   const demoRestores: Record<string, string> = {};
 
@@ -149,8 +152,12 @@ async function main(): Promise<void> {
           if (!worldTransport.accept_definition(requestId, instanceId)) throw new Error(`Failed to accept ${instanceId}`);
           if (savedPayloads[instanceId]) {
             const payload = corruptRestore ? 'corrupt-payload' : savedPayloads[instanceId];
-            worldTransport.set_application_payload(instanceId, payload);
-            demoRestores[instanceId] = payload;
+            const attempt = worldTransport.begin_restore(instanceId);
+            if (attempt > 0) {
+              const success = payload !== 'corrupt-payload';
+              worldTransport.complete_restore(instanceId, attempt, success, '1.0', success ? undefined : 'Corrupt payload');
+              demoRestores[instanceId] = payload;
+            }
           }
           if (instanceId === 'dungeon-instance' && !worldTransport.set_instance_state(instanceId, 3, true, true, true)) throw new Error('Failed to activate source dungeon.');
           pendingLoads.delete(instanceId);
@@ -189,6 +196,10 @@ async function main(): Promise<void> {
       state: instance.state,
       renderResident: instance.render_resident,
       collisionActive: instance.collision_active,
+      restoreStatus: instance.restore_status,
+      restoreAttempts: instance.restore_attempts,
+      stateVersion: instance.state_version,
+      restoreFailureReason: instance.restore_failure_reason,
     }));
     window.__debugPos = pose;
     window.__retroMageDebug = {
