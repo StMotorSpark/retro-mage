@@ -1,12 +1,12 @@
 ---
 task: "95"
 slug: restore-bridge
-status: pending
+status: done
 depends-on: ["94"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-28
-outcome: ""
+outcome: "Exported restore operations and diagnostics through WorldTransport. Added TS interfaces and reader mapping. Adapter tests prove mapping without leaking payload."
 ---
 
 # Expose Restore Through WASM and TypeScript

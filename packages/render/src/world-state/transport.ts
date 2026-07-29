@@ -38,6 +38,12 @@ export interface WorldTransportEngine {
   instance_render_resident(index: number): boolean;
   instance_collision_active(index: number): boolean;
   instance_simulation_active(index: number): boolean;
+  instance_restore_status(index: number): number;
+  instance_restore_attempts(index: number): number;
+  instance_state_version(index: number): string;
+  instance_restore_failure_reason(index: number): string;
+  begin_restore?(id: string): number;
+  complete_restore?(id: string, attempt: number, success: boolean, version: string, failure_reason?: string): boolean;
   ambient_light?: () => number;
   overflowed?: () => boolean;
   overflow_diagnostics_json?: () => string;
@@ -68,6 +74,10 @@ export interface WorldTransportInstance {
   readonly render_resident: boolean;
   readonly collision_active: boolean;
   readonly simulation_active: boolean;
+  readonly restore_status: number;
+  readonly restore_attempts: number;
+  readonly state_version: string;
+  readonly restore_failure_reason: string;
 }
 
 const f32 = (
@@ -156,6 +166,10 @@ export class WorldTransportReader {
       render_resident: this.engine.instance_render_resident(i),
       collision_active: this.engine.instance_collision_active(i),
       simulation_active: this.engine.instance_simulation_active(i),
+      restore_status: this.engine.instance_restore_status(i),
+      restore_attempts: this.engine.instance_restore_attempts(i),
+      state_version: this.engine.instance_state_version(i),
+      restore_failure_reason: this.engine.instance_restore_failure_reason(i),
     }));
     const scene: GlobalSceneView = {
       tiles,
