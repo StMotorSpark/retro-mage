@@ -1,12 +1,12 @@
 ---
 task: "94"
 slug: restore-lifecycle-core
-status: in-flight
+status: done
 depends-on: ["92"]
 blocked-by: ""
-assigned-to: "antigravity"
+assigned-to: ""
 created: 2026-07-28
-outcome: ""
+outcome: "Implemented engine-owned restore state machine with explicit retry/attempt identity, activation gating, stale completion rejection, and diagnostics. Cargo engine-core tests pass; generated artifacts removed during review."
 ---
 
 # Implement Restore Lifecycle Core
