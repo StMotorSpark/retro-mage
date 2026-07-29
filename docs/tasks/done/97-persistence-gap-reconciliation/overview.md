@@ -6,7 +6,7 @@ depends-on: ["96"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-28
-outcome: "Reviewed tasks 92-96 and verified implementation logic and browser proofs for persistence lifecycle. Cleaned generated artifacts (test-results). Updated known-gaps to reflect completion of persistence end-to-end proof. Core, package, and serial browser regression checks pass."
+outcome: "Reviewed tasks 92-96 and verified implementation logic/browser proofs. Removed tracked and generated test artifacts; updated known-gaps to retain application-owned save-format/storage/migration limits while closing end-to-end proof gap. Evidence: `pnpm test` passed (engine-core 114 unit + 5 integration, input 6, render 33, vite-plugin-ktx2 2); `pnpm test:demo:persistence:proof` passed (6 Playwright tests, 1 worker); `git diff --check` and docs link scan passed. Final branch clean and pushed."
 ---
 
 # Reconcile Persistence Gap and Regression State
