@@ -1,9 +1,9 @@
 ---
 task: "96"
 slug: persistence-browser-proof
-status: parked
+status: pending
 depends-on: ["89", "91", "95", "98"]
-blocked-by: "human: restore success does not activate collision in browser proof"
+blocked-by: ""
 assigned-to: ""
 created: 2026-07-28
 outcome: "Harness is stable and restore APIs are present, but browser proof still lacks verified target collision activation after successful restore. Partial attempt was rejected; generated artifacts removed."
