@@ -27,7 +27,7 @@ This doc records unresolved implementation details and deliberately deferred cap
 
 - The application-owned level file format and authoring tool are undecided; the engine consumes resolved definitions and does not prescribe either.
 - Runtime topology mutation is supported by contract but lacks an implementation slice for creating and linking instances during play.
-- Detailed persistence serialization is application-owned; the eviction handoff and reload state-restoration boundary need an end-to-end proof.
+- Detailed persistence serialization remains application-owned; production save formats, storage, encryption, and migration algorithms lack implementations.
 - Infinite procedural regions are outside the initial finite-bounds runtime contract.
 - Memory budgets and platform-specific eviction heuristics require measurement against representative content.
 - Link overlap collision ownership needs a concrete policy implementation beyond explicit masks/ownership metadata.

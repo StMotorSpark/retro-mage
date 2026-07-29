@@ -4,7 +4,7 @@ slug: persistence-restore-core
 status: done
 depends-on: ["90"]
 blocked-by: ""
-assigned-to: "antigravity"
+assigned-to: ""
 created: 2026-07-28
 outcome: "Implemented acknowledge_handoff boundary, added HandoffStatus tracking, ensured Persistent policies delay content release until handoff acknowledged, and added tests covering pinning/eviction content retention."
 ---
