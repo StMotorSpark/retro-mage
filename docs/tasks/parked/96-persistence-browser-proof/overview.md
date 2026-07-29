@@ -3,10 +3,10 @@ task: "96"
 slug: persistence-browser-proof
 status: parked
 depends-on: ["89", "91", "95", "98"]
-blocked-by: ""
-assigned-to: "agent"
+blocked-by: "human: restore success does not activate collision in browser proof"
+assigned-to: ""
 created: 2026-07-28
-outcome: "Implemented basic harness but blocked on restore collision activation not enabling after successful restore. Parked for investigation."
+outcome: "Harness is stable and restore APIs are present, but browser proof still lacks verified target collision activation after successful restore. Partial attempt was rejected; generated artifacts removed."
 ---
 
 # Prove Persistence Restore in Browser
@@ -61,4 +61,8 @@ Build deterministic demo and Playwright coverage for the complete application-st
 - Related: task:94 — restore core.
 - Related: task:95 — restore bridge.
 - Key files: `examples/demo/src/main.ts`, `examples/demo/tests/`, `packages/render/src/world-state/transport.ts`.
+
+## Parking Notes
+
+Task 98 fixed stale WASM/Vite binding execution. Focused proof reached restore states but successful restore did not produce verified target collision activation. Direct lifecycle mutation was not accepted as proof. Diagnose production crossing/activation path or test sequencing, then resume with movement-driven assertions and no generated artifacts.
 
