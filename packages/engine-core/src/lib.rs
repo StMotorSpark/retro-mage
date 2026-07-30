@@ -167,8 +167,8 @@ impl EngineState {
         );
         let (new_px, new_py, new_pz, new_vy) = if self.global_collision_configured {
             let pose = world::Transform { translation: world::Vec3 { x: self.camera.x[0], y: self.camera.y[0], z: self.camera.z[0] }, rotation: world::Quaternion { x: 0.0, y: (self.camera.yaw[0] * 0.5).sin(), z: 0.0, w: (self.camera.yaw[0] * 0.5).cos() }, scale: 1.0 };
-            let moved = self.global_collision.resolve_movement(pose, dx, dz, self.collision_config.player_radius, self.collision_config.player_height);
-            (moved.translation.x, moved.translation.y, moved.translation.z, self.player_velocity_y)
+            let (moved, moved_vy) = self.global_collision.resolve_movement(pose, dx, dz, self.player_velocity_y, &self.collision_config, dt_f32);
+            (moved.translation.x, moved.translation.y, moved.translation.z, moved_vy)
         } else {
             collision::resolve_movement(
                 self.camera.x[0], self.camera.y[0], self.camera.z[0], dx, self.player_velocity_y, dz,
@@ -262,11 +262,12 @@ impl EngineState {
         );
 
         let pose = world::Transform { translation: world::Vec3 { x: self.camera.x[0], y: self.camera.y[0], z: self.camera.z[0] }, rotation: world::Quaternion { x: 0.0, y: (self.camera.yaw[0] * 0.5).sin(), z: 0.0, w: (self.camera.yaw[0] * 0.5).cos() }, scale: 1.0 };
-        let moved = global_collision.resolve_movement(pose, dx, dz, self.collision_config.player_radius, self.collision_config.player_height);
+        let (moved, new_vy) = global_collision.resolve_movement(pose, dx, dz, self.player_velocity_y, &self.collision_config, dt_f32);
         
         self.camera.x[0] = moved.translation.x;
         self.camera.y[0] = moved.translation.y;
         self.camera.z[0] = moved.translation.z;
+        self.player_velocity_y = new_vy;
 
         self.seam_injection_tiles.count = 0;
         self.recompute_visibility();
@@ -602,6 +603,11 @@ impl EngineState {
         self.tick_count
     }
 
+    /// True if the player is supported by a valid surface.
+    pub fn is_grounded(&self) -> bool {
+        self.player_velocity_y == 0.0
+    }
+
     /// Global ambient light scalar for the loaded space (0.0 = dark, 1.0 = full daylight).
     pub fn ambient_light(&self) -> f32 {
         self.ambient_light
@@ -703,6 +709,54 @@ impl EngineState {
     /// Set camera look sensitivity in radians per second per unit of look input.
     pub fn set_look_sensitivity(&mut self, sensitivity: f32) {
         self.collision_config.look_sensitivity = sensitivity;
+    }
+
+    pub fn collision_gravity(&self) -> f32 {
+        self.collision_config.gravity
+    }
+
+    pub fn set_collision_gravity(&mut self, g: f32) {
+        self.collision_config.gravity = g;
+    }
+
+    pub fn collision_max_fall_speed(&self) -> f32 {
+        self.collision_config.max_fall_speed
+    }
+
+    pub fn set_collision_max_fall_speed(&mut self, v: f32) {
+        self.collision_config.max_fall_speed = v;
+    }
+
+    pub fn collision_max_walkable_slope(&self) -> f32 {
+        self.collision_config.max_walkable_slope
+    }
+
+    pub fn set_collision_max_walkable_slope(&mut self, v: f32) {
+        self.collision_config.max_walkable_slope = v;
+    }
+
+    pub fn collision_support_snap_distance(&self) -> f32 {
+        self.collision_config.support_snap_distance
+    }
+
+    pub fn set_collision_support_snap_distance(&mut self, v: f32) {
+        self.collision_config.support_snap_distance = v;
+    }
+
+    pub fn collision_max_vertical_substeps(&self) -> u32 {
+        self.collision_config.max_vertical_substeps
+    }
+
+    pub fn set_collision_max_vertical_substeps(&mut self, v: u32) {
+        self.collision_config.max_vertical_substeps = v;
+    }
+
+    pub fn collision_player_height(&self) -> f32 {
+        self.collision_config.player_height
+    }
+
+    pub fn set_collision_player_height(&mut self, v: f32) {
+        self.collision_config.player_height = v;
     }
 
     // ==========================================

@@ -63,7 +63,7 @@ impl WorldTransport {
     /// Start definition registration. Bounds are local-space.
     pub fn begin_definition(&mut self, id: &str, version: &str, min_x: f32, min_y: f32, min_z: f32, max_x: f32, max_y: f32, max_z: f32) -> bool {
         if id.trim().is_empty() || version.trim().is_empty() { return false; }
-        self.builders.insert(id.into(), DefinitionBuilder { definition: LevelDefinition { id: id.into(), version: version.into(), bounds: Bounds { min: Vec3 { x: min_x, y: min_y, z: min_z }, max: Vec3 { x: max_x, y: max_y, z: max_z } }, tiles: vec![], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], metadata: Default::default() } }); true
+        self.builders.insert(id.into(), DefinitionBuilder { definition: LevelDefinition { id: id.into(), version: version.into(), bounds: Bounds { min: Vec3 { x: min_x, y: min_y, z: min_z }, max: Vec3 { x: max_x, y: max_y, z: max_z } }, tiles: vec![], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], surfaces: vec![], metadata: Default::default() } }); true
     }
 
     pub fn definition_tile(&mut self, definition_id: &str, x: f32, y: f32, z: f32, tile_id: u32, material_id: u32, variant: u16, orientation: u8, solid: bool, north: bool, east: bool, south: bool, west: bool, vertical: bool) -> bool {
@@ -79,6 +79,18 @@ impl WorldTransport {
     pub fn definition_light(&mut self, definition_id: &str, x: f32, y: f32, z: f32, r: f32, g: f32, b: f32, intensity: f32, active: bool) -> bool {
         let Some(builder) = self.builders.get_mut(definition_id) else { return false; };
         builder.definition.lights.push(LevelLight { position: Vec3 { x, y, z }, color: [r, g, b], intensity, active }); true
+    }
+
+    pub fn definition_surface(&mut self, definition_id: &str, min_x: f32, min_y: f32, min_z: f32, max_x: f32, max_y: f32, max_z: f32, h_x: f32, h_y: f32, h_c: f32, nx: f32, ny: f32, nz: f32, walkable: bool) -> bool {
+        let Some(builder) = self.builders.get_mut(definition_id) else { return false; };
+        builder.definition.surfaces.push(crate::world::SupportSurface {
+            bounds: Bounds { min: Vec3 { x: min_x, y: min_y, z: min_z }, max: Vec3 { x: max_x, y: max_y, z: max_z } },
+            height_function: [h_x, h_y, h_c],
+            normal: Vec3 { x: nx, y: ny, z: nz },
+            walkable,
+            metadata: HashMap::new(),
+        });
+        true
     }
 
     pub fn definition_anchor(&mut self, definition_id: &str, anchor_id: &str, x: f32, y: f32, z: f32, min_x: f32, min_y: f32, min_z: f32, max_x: f32, max_y: f32, max_z: f32, direction: u32) -> bool {
@@ -437,6 +449,9 @@ mod tests {
 
         let mut engine = crate::EngineState::new();
         engine.global_collision_configured = true;
+        let mut config = engine.collision_config();
+        config.gravity = 0.0;
+        engine.set_collision_config(config);
         engine.set_player_speed(10.0);
         engine.camera.x[0] = 0.0;
         engine.camera.y[0] = 0.0;

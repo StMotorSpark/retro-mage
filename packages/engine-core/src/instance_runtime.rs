@@ -18,6 +18,7 @@ pub struct GlobalLevelContent {
     pub actors: Vec<LevelActor>,
     pub lights: Vec<LevelLight>,
     pub polygons: Vec<LevelPolygon>,
+    pub surfaces: Vec<crate::world::SupportSurface>,
 }
 
 impl GlobalLevelContent {
@@ -31,6 +32,7 @@ impl GlobalLevelContent {
             actors: definition.actors.iter().map(|actor| LevelActor { position: transform.transform_point(actor.position), ..actor.clone() }).collect(),
             lights: definition.lights.iter().map(|light| LevelLight { position: transform.transform_point(light.position), ..*light }).collect(),
             polygons: definition.polygons.iter().map(|polygon| LevelPolygon { vertices: transform_points(&polygon.vertices, transform), ..polygon.clone() }).collect(),
+            surfaces: definition.surfaces.iter().map(|surface| surface.transformed(transform).unwrap_or_else(|_| surface.clone())).collect(),
         })
     }
 }
@@ -176,6 +178,7 @@ mod tests {
             actors: vec![LevelActor { position: Vec3 { x: 0.0, y: 1.0, z: 0.0 }, actor_id: "guard".into(), sprite_id: 4, facing: 1.5, active: true, spawn: true }],
             lights: vec![LevelLight { position: Vec3 { x: 2.0, y: 1.0, z: 3.0 }, color: [1.0, 0.5, 0.25], intensity: 2.0, active: true }],
             polygons: vec![LevelPolygon { vertices: vec![Vec3::ZERO, Vec3 { x: 1.0, y: 0.0, z: 0.0 }, Vec3 { x: 0.0, y: 0.0, z: 1.0 }], material_id: 9, solid: false }],
+            surfaces: vec![],
             anchors: vec![],
             metadata: Default::default(),
         }

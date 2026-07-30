@@ -48,12 +48,15 @@ pub struct CollisionConfig {
     pub player_height: f32,
     pub gravity: f32,
     pub max_fall_speed: f32,
+    pub max_walkable_slope: f32,
+    pub support_snap_distance: f32,
+    pub max_vertical_substeps: u32,
 }
 
 #[wasm_bindgen]
 impl CollisionConfig {
     #[wasm_bindgen(constructor)]
-    pub fn new(player_speed: f32, player_radius: f32, look_sensitivity: f32, player_height: f32, gravity: f32, max_fall_speed: f32) -> Self {
+    pub fn new(player_speed: f32, player_radius: f32, look_sensitivity: f32, player_height: f32, gravity: f32, max_fall_speed: f32, max_walkable_slope: f32, support_snap_distance: f32, max_vertical_substeps: u32) -> Self {
         CollisionConfig {
             player_speed,
             player_radius,
@@ -61,6 +64,9 @@ impl CollisionConfig {
             player_height,
             gravity,
             max_fall_speed,
+            max_walkable_slope,
+            support_snap_distance,
+            max_vertical_substeps,
         }
     }
 }
@@ -74,6 +80,9 @@ impl Default for CollisionConfig {
             player_height: 1.6,
             gravity: 9.8,
             max_fall_speed: 15.0,
+            max_walkable_slope: 35.0_f32.to_radians(),
+            support_snap_distance: 0.02,
+            max_vertical_substeps: 4,
         }
     }
 }
@@ -487,7 +496,7 @@ mod tests {
 
     #[test]
     fn test_collision_config_custom() {
-        let cfg = CollisionConfig::new(6.0, 0.4, 3.0, 1.8, 12.0, 20.0);
+        let cfg = CollisionConfig::new(6.0, 0.4, 3.0, 1.8, 12.0, 20.0, 35.0_f32.to_radians(), 0.02, 4);
         assert_eq!(cfg.player_speed, 6.0);
         assert_eq!(cfg.player_radius, 0.4);
         assert_eq!(cfg.look_sensitivity, 3.0);

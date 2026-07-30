@@ -15,6 +15,8 @@ interface DemoDebugSnapshot {
   instances: Array<{ id: string; state: number; renderResident: boolean; collisionActive: boolean; restoreStatus: number; restoreAttempts: number; stateVersion: string; restoreFailureReason: string; handoffStatus: number }>;
   sourcePlayable: boolean;
   debugMovement?: { x: number; z: number; yaw: number };
+  grounded?: boolean;
+  verticalVelocity?: number;
   queueDepth: number;
   activeLoads: number;
   pins: number;
@@ -30,6 +32,7 @@ declare global {
     __debugPos?: { x: number; y: number; z: number };
     __retroMageDebug?: DemoDebugSnapshot;
     __retroMageWorldTransport?: any;
+    __retroMageTeleport?: (x: number, y: number, z: number) => void;
   }
 }
 
@@ -55,6 +58,7 @@ async function main(): Promise<void> {
   let renderFrame = 0;
   const worldTransport = overflowActors ? WorldTransport.with_capacity(4096, 2, 128, 64) : new WorldTransport();
   window.__retroMageWorldTransport = worldTransport;
+  window.__retroMageTeleport = (x, y, z) => engineState.set_camera(x, y, z, 0, 0);
   const provider = createDemoLevelProvider();
 
   // Application owns provider + manifest. Definitions/topology register first;
@@ -75,7 +79,8 @@ async function main(): Promise<void> {
   const demoEvictions: Array<{ instance_id: string; eviction_reason: string; payload: string }> = [];
   const demoRestores: Record<string, string> = {};
 
-  engineState.set_camera(0, 0, 4, 0, 0);
+  // Spawn in open dungeon floor, clear of the ramp/platform wall geometry.
+  engineState.set_camera(-3, 0, 4, 0, 0);
   engineState.set_ambient_light(0.05);
   engineState.set_max_sight_distance(64);
   engineState.set_cull_precision_distance(64);
@@ -221,6 +226,8 @@ async function main(): Promise<void> {
       instances,
       sourcePlayable: instances.some((instance) => instance.id === 'dungeon-instance' && instance.collisionActive),
       debugMovement: { x: movementX, z: movementZ, yaw: camera.yaw[0] ?? 0 },
+      grounded: engineState.is_grounded(),
+      verticalVelocity: engineState.player_velocity_y,
       queueDepth: worldTransport.scheduler_queue_depth(),
       activeLoads: activeCount,
       pins: instances.filter(i => worldTransport.scheduler_diagnostic_intent(i.id) === 3).length,

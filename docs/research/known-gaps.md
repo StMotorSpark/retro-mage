@@ -43,7 +43,7 @@ This doc records unresolved implementation details and deliberately deferred cap
 
 ## Physics and Simulation
 
-- Full multi-floor movement physics includes stairs, ramps, vertical support, falling, elevators, and head clearance.
+- Advanced multi-floor movement remains separate from the ramp slice: elevators, moving platforms, ladders, jumping, crouching, slope sliding, and dynamic support are undefined.
 - Actor-vs-actor collision and richer actor physics remain undefined.
 - Persistent actor transfer across level instances remains application-controlled and lacks a concrete gameplay slice.
 - Combat, enemy behavior, health, death, inventory, and interaction systems lack feature definitions.

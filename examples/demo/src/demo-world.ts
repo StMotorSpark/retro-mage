@@ -27,6 +27,13 @@ export interface DemoAnchor {
   direction: AnchorDirection;
 }
 
+export interface DemoSurface {
+  bounds: { min: [number, number, number]; max: [number, number, number] };
+  heightFunction: [number, number, number];
+  normal: [number, number, number];
+  walkable: boolean;
+}
+
 export interface DemoLevelDefinition {
   id: DemoLevelId;
   version: '1';
@@ -35,6 +42,7 @@ export interface DemoLevelDefinition {
   actors: readonly DemoActor[];
   lights: readonly DemoLight[];
   anchors: readonly DemoAnchor[];
+  surfaces?: readonly DemoSurface[];
   providerMetadata: { kind: string };
 }
 
@@ -65,6 +73,38 @@ function dungeonTiles(): DemoTile[] {
   for (let x = -4; x <= 10; x += 1) for (let z = 2; z <= 7; z += 1) tiles.push(floor(x, z, 2, 2));
   for (let x = -5; x <= 10; x += 1) { tiles.push(wall(x, 1)); tiles.push(wall(x, 8)); }
   for (let z = 2; z <= 7; z += 1) { tiles.push(wall(-5, z)); if (z !== 4) tiles.push(wall(10, z)); }
+
+  // Walkable Ramp (from z=6 to z=4 at x=0,1). Slope is 0.5.
+  const elevatedFloor = (x: number, y: number, z: number, tileId: number, materialId: number, orientation = 0): DemoTile => ({ x, y, z, tileId, materialId, variant: 0, orientation, solid: false });
+  const ceiling = (x: number, y: number, z: number, tileId: number, materialId: number): DemoTile => ({ x, y, z, tileId, materialId, variant: 0, orientation: 0, solid: true });
+
+  // Platform at top of walkable ramp
+  for (let x = 0; x <= 2; x++) for (let z = 2; z <= 4; z++) tiles.push(elevatedFloor(x, 1, z, 2, 2));
+
+  // Walkable ramp visuals
+  tiles.push(elevatedFloor(0, 0.25, 5.5, 2, 2));
+  tiles.push(elevatedFloor(0, 0.5, 5, 2, 2));
+  tiles.push(elevatedFloor(0, 0.75, 4.5, 2, 2));
+  tiles.push(elevatedFloor(1, 0.25, 5.5, 2, 2));
+  tiles.push(elevatedFloor(1, 0.5, 5, 2, 2));
+  tiles.push(elevatedFloor(1, 0.75, 4.5, 2, 2));
+  tiles.push(elevatedFloor(2, 0.25, 5.5, 2, 2));
+  tiles.push(elevatedFloor(2, 0.5, 5, 2, 2));
+  tiles.push(elevatedFloor(2, 0.75, 4.5, 2, 2));
+
+  // Too-Steep Ramp (from z=6 to z=5 at x=4). Slope is 1.0.
+  // Visuals: orientation=2 at z=5
+  tiles.push(elevatedFloor(4, 0, 5, 2, 2, 2));
+  tiles.push(elevatedFloor(5, 0, 5, 2, 2, 2));
+
+  // Platform at top of too-steep ramp
+  tiles.push(elevatedFloor(4, 1, 4, 2, 2));
+  tiles.push(elevatedFloor(5, 1, 4, 2, 2));
+
+  // Low Ceiling (at x=-2, z=3, y=1.5)
+  tiles.push(ceiling(-2, 1.5, 3, 1, 1));
+  tiles.push(ceiling(-3, 1.5, 3, 1, 1));
+
   return tiles;
 }
 
@@ -83,7 +123,44 @@ const dungeon: DemoLevelDefinition = {
     { x: 7, y: 1.5, z: 4, color: [1, 0.7, 0.3], intensity: 8, active: true },
     { x: 9, y: 1.5, z: 6, color: [1, 0.7, 0.3], intensity: 8, active: true },
   ],
-  anchors: [anchor('outdoor-gate', 10, 4, 'both', -Math.PI / 2)], providerMetadata: { kind: 'authored-dungeon' },
+  anchors: [anchor('outdoor-gate', 10, 4, 'both', -Math.PI / 2)],
+  surfaces: [
+    {
+      bounds: { min: [-6, 0, 0], max: [11, 0, 9] },
+      heightFunction: [0, 0, 0],
+      normal: [0, 1, 0],
+      walkable: true
+    },
+    // Walkable ramp (slope 0.5)
+    {
+      bounds: { min: [-0.5, 0, 4.5], max: [2.5, 1, 6.5] },
+      heightFunction: [0, -0.5, 3.25],
+      normal: [0, 0.8944, 0.4472],
+      walkable: true
+    },
+    // Top platform for walkable ramp
+    {
+      bounds: { min: [-0.5, 1, 1.5], max: [2.5, 1, 4.5] },
+      heightFunction: [0, 0, 1],
+      normal: [0, 1, 0],
+      walkable: true
+    },
+    // Too-steep ramp (slope 1.0)
+    {
+      bounds: { min: [3.5, 0, 4.5], max: [5.5, 1, 5.5] },
+      heightFunction: [0, -1.0, 5.5],
+      normal: [0, 0.7071, 0.7071],
+      walkable: true
+    },
+    // Top platform for too-steep ramp
+    {
+      bounds: { min: [3.5, 1, 3.5], max: [5.5, 1, 4.5] },
+      heightFunction: [0, 0, 1],
+      normal: [0, 1, 0],
+      walkable: true
+    }
+  ],
+  providerMetadata: { kind: 'authored-dungeon' },
 };
 
 const outdoor: DemoLevelDefinition = {
@@ -91,7 +168,16 @@ const outdoor: DemoLevelDefinition = {
   tiles: outdoorTiles(),
   actors: ([[15, -4], [22, -2], [12, 4], [20, 7], [8, 12], [18, 11]] as const).map(([x, z], index) => ({ x, y: 0, z, actorId: `tree-${index}`, spriteId: 1, facing: 0, active: true, spawn: true })),
   lights: [{ x: 12, y: 3, z: 4, color: [0.8, 0.9, 1], intensity: 1, active: true }],
-  anchors: [anchor('dungeon-gate', 0, 0, 'both', -Math.PI / 2)], providerMetadata: { kind: 'authored-outdoor' },
+  anchors: [anchor('dungeon-gate', 0, 0, 'both', -Math.PI / 2)],
+  surfaces: [
+    {
+      bounds: { min: [0, 0, -9], max: [25, 0, 17] },
+      heightFunction: [0, 0, 0],
+      normal: [0, 1, 0],
+      walkable: true
+    }
+  ],
+  providerMetadata: { kind: 'authored-outdoor' },
 };
 
 export const demoDefinitions: readonly DemoLevelDefinition[] = [dungeon, outdoor];
@@ -142,6 +228,9 @@ export function registerDemoWorld(transport: WorldTransport): void {
     for (const actor of resolved.actors) if (!transport.definition_actor(resolved.id, actor.x, actor.y, actor.z, actor.actorId, actor.spriteId, actor.facing, actor.active, actor.spawn)) throw new Error(`Failed actor in ${resolved.id}`);
     for (const light of resolved.lights) if (!transport.definition_light(resolved.id, light.x, light.y, light.z, ...light.color, light.intensity, light.active)) throw new Error(`Failed light in ${resolved.id}`);
     for (const a of resolved.anchors) if (!transport.definition_anchor_oriented(resolved.id, a.id, a.x, a.y, a.z, a.yaw, ...a.volume.min, ...a.volume.max, a.direction === 'in' ? 0 : a.direction === 'out' ? 1 : 2)) throw new Error(`Failed anchor in ${resolved.id}`);
+    if (resolved.surfaces) {
+      for (const s of resolved.surfaces) if (!transport.definition_surface?.(resolved.id, ...s.bounds.min, ...s.bounds.max, ...s.heightFunction, ...s.normal, s.walkable)) throw new Error(`Failed surface in ${resolved.id}`);
+    }
     if (!transport.finish_definition(resolved.id)) throw new Error(`Failed to finish ${resolved.id}`);
   }
   for (const instance of demoManifest.instances) if (!transport.register_instance(instance.id, instance.definitionId, ...instance.position, 0, 0, 0, 1, 1, 0)) throw new Error(`Failed instance ${instance.id}`);
