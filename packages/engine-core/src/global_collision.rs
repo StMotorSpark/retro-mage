@@ -175,7 +175,9 @@ impl GlobalCollisionWorld {
             }
             
             let mut grounded = false;
-            if let Some(sy) = best_y {
+            if self.is_empty() {
+                grounded = true;
+            } else if let Some(sy) = best_y {
                 if result.translation.y >= sy - config.support_snap_distance && result.translation.y <= sy + 0.1 && vy <= 0.0 {
                     result.translation.y = sy;
                     vy = 0.0;
