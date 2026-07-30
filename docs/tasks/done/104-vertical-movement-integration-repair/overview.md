@@ -1,12 +1,12 @@
 ---
 task: "104"
 slug: vertical-movement-integration-repair
-status: pending
+status: done
 depends-on: ["100", "101"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-30
-outcome: ""
+outcome: "Fixed vertical movement desynchronization at the global collision/world-aware tick boundary and corrected synthetic touch movement handling. Added production movement browser coverage; engine and demo build/typecheck evidence recorded in commit 299dd5e."
 ---
 
 # Repair Vertical Movement Integration
