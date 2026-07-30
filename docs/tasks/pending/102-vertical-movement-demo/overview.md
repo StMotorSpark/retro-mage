@@ -1,9 +1,9 @@
 ---
 task: "102"
 slug: vertical-movement-demo
-status: parked
+status: pending
 depends-on: ["101"]
-blocked-by: "task:104"
+blocked-by: ""
 assigned-to: ""
 created: 2026-07-30
 outcome: ""
