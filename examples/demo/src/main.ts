@@ -32,6 +32,7 @@ declare global {
     __debugPos?: { x: number; y: number; z: number };
     __retroMageDebug?: DemoDebugSnapshot;
     __retroMageWorldTransport?: any;
+    __retroMageTeleport?: (x: number, y: number, z: number) => void;
   }
 }
 
@@ -57,6 +58,7 @@ async function main(): Promise<void> {
   let renderFrame = 0;
   const worldTransport = overflowActors ? WorldTransport.with_capacity(4096, 2, 128, 64) : new WorldTransport();
   window.__retroMageWorldTransport = worldTransport;
+  window.__retroMageTeleport = (x, y, z) => engineState.set_camera(x, y, z, 0, 0);
   const provider = createDemoLevelProvider();
 
   // Application owns provider + manifest. Definitions/topology register first;
