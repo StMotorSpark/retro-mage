@@ -3,7 +3,7 @@ task: "102"
 slug: vertical-movement-demo
 status: in-flight
 depends-on: ["101"]
-blocked-by: ""
+blocked-by: "Player position remains at (0, 0, 4) with y=0 and does not respond to movement inputs or snap to the platform at y=1.0, meaning vertical collision/movement behavior cannot be verified."
 assigned-to: "agent"
 created: 2026-07-30
 outcome: ""
@@ -62,4 +62,5 @@ Extend the existing demo with simple ramp, ledge, landing, steep-slope, and low-
 - Stripped trailing whitespace in `demo-world.ts`.
 - Removed untracked test results artifacts.
 - Exact evidence for ramp traversal and blocking missing (headless env / Playwright server not started).
-- Task kept in-flight pending manual or bounded proof of movement DoD items.
+- Attempted to verify movement via Playwright smoke test. Found that player spawns at `(0, 0, 4)` with `y=0` (ignoring platform at `y=1`), and synthetic touch inputs fail to move the player's X or Z coordinates.
+- Task kept in-flight pending physics engine fixes or manual proof of movement DoD items.
