@@ -128,4 +128,22 @@ describe('world-state reader', () => {
     expect(xViewAfter.buffer).toBe(memory.buffer);
     expect(xViewAfter.buffer.byteLength).toBeGreaterThan(0);
   });
+
+  it('exposes vertical movement state and configuration', () => {
+    const { engine } = setupWasmEngine();
+
+    // Default config check
+    expect(engine.collision_gravity()).toBeGreaterThan(0);
+
+    // Test custom config mutations
+    engine.set_collision_gravity(15.0);
+    expect(engine.collision_gravity()).toBeCloseTo(15.0);
+
+    engine.set_collision_max_fall_speed(30.0);
+    expect(engine.collision_max_fall_speed()).toBeCloseTo(30.0);
+
+    // Initial state
+    expect(engine.is_grounded()).toBe(true);
+    expect(engine.player_velocity_y).toBeCloseTo(0.0);
+  });
 });

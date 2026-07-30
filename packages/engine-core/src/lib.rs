@@ -603,6 +603,11 @@ impl EngineState {
         self.tick_count
     }
 
+    /// True if the player is supported by a valid surface.
+    pub fn is_grounded(&self) -> bool {
+        self.player_velocity_y == 0.0
+    }
+
     /// Global ambient light scalar for the loaded space (0.0 = dark, 1.0 = full daylight).
     pub fn ambient_light(&self) -> f32 {
         self.ambient_light
@@ -704,6 +709,54 @@ impl EngineState {
     /// Set camera look sensitivity in radians per second per unit of look input.
     pub fn set_look_sensitivity(&mut self, sensitivity: f32) {
         self.collision_config.look_sensitivity = sensitivity;
+    }
+
+    pub fn collision_gravity(&self) -> f32 {
+        self.collision_config.gravity
+    }
+
+    pub fn set_collision_gravity(&mut self, g: f32) {
+        self.collision_config.gravity = g;
+    }
+
+    pub fn collision_max_fall_speed(&self) -> f32 {
+        self.collision_config.max_fall_speed
+    }
+
+    pub fn set_collision_max_fall_speed(&mut self, v: f32) {
+        self.collision_config.max_fall_speed = v;
+    }
+
+    pub fn collision_max_walkable_slope(&self) -> f32 {
+        self.collision_config.max_walkable_slope
+    }
+
+    pub fn set_collision_max_walkable_slope(&mut self, v: f32) {
+        self.collision_config.max_walkable_slope = v;
+    }
+
+    pub fn collision_support_snap_distance(&self) -> f32 {
+        self.collision_config.support_snap_distance
+    }
+
+    pub fn set_collision_support_snap_distance(&mut self, v: f32) {
+        self.collision_config.support_snap_distance = v;
+    }
+
+    pub fn collision_max_vertical_substeps(&self) -> u32 {
+        self.collision_config.max_vertical_substeps
+    }
+
+    pub fn set_collision_max_vertical_substeps(&mut self, v: u32) {
+        self.collision_config.max_vertical_substeps = v;
+    }
+
+    pub fn collision_player_height(&self) -> f32 {
+        self.collision_config.player_height
+    }
+
+    pub fn set_collision_player_height(&mut self, v: f32) {
+        self.collision_config.player_height = v;
     }
 
     // ==========================================

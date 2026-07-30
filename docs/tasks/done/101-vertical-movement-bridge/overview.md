@@ -1,12 +1,12 @@
 ---
 task: "101"
 slug: vertical-movement-bridge
-status: pending
+status: done
 depends-on: ["100"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-30
-outcome: ""
+outcome: "Exposed vertical movement and support surface transport via WASM bindings. Added TypeScript transport types and validated state preservation across boundaries."
 ---
 
 # Expose Vertical Movement Through Runtime Bridge
@@ -23,12 +23,12 @@ Connect vertical movement state and support-surface content through the Rust/WAS
 
 ## Definition of Done
 
-- [ ] Fresh generated WASM bindings expose all required vertical operations/fields.
-- [ ] TypeScript transport types and readers map vertical state without lossy conversion.
-- [ ] Support surfaces reach runtime collision through normal provider acceptance, not test-only mutation.
-- [ ] Activation, eviction, failure, and stale provider completion retain correct vertical collision behavior.
-- [ ] Bridge tests cover default config, custom config, grounded/falling state, and transformed support surfaces.
-- [ ] Existing build, typecheck, and transport tests pass.
+- [x] Fresh generated WASM bindings expose all required vertical operations/fields.
+- [x] TypeScript transport types and readers map vertical state without lossy conversion.
+- [x] Support surfaces reach runtime collision through normal provider acceptance, not test-only mutation.
+- [x] Activation, eviction, failure, and stale provider completion retain correct vertical collision behavior.
+- [x] Bridge tests cover default config, custom config, grounded/falling state, and transformed support surfaces.
+- [x] Existing build, typecheck, and transport tests pass.
 
 ## Out of Scope
 

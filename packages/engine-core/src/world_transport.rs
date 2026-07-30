@@ -81,6 +81,18 @@ impl WorldTransport {
         builder.definition.lights.push(LevelLight { position: Vec3 { x, y, z }, color: [r, g, b], intensity, active }); true
     }
 
+    pub fn definition_surface(&mut self, definition_id: &str, min_x: f32, min_y: f32, min_z: f32, max_x: f32, max_y: f32, max_z: f32, h_x: f32, h_y: f32, h_c: f32, nx: f32, ny: f32, nz: f32, walkable: bool) -> bool {
+        let Some(builder) = self.builders.get_mut(definition_id) else { return false; };
+        builder.definition.surfaces.push(crate::world::SupportSurface {
+            bounds: Bounds { min: Vec3 { x: min_x, y: min_y, z: min_z }, max: Vec3 { x: max_x, y: max_y, z: max_z } },
+            height_function: [h_x, h_y, h_c],
+            normal: Vec3 { x: nx, y: ny, z: nz },
+            walkable,
+            metadata: HashMap::new(),
+        });
+        true
+    }
+
     pub fn definition_anchor(&mut self, definition_id: &str, anchor_id: &str, x: f32, y: f32, z: f32, min_x: f32, min_y: f32, min_z: f32, max_x: f32, max_y: f32, max_z: f32, direction: u32) -> bool {
         self.definition_anchor_oriented(definition_id, anchor_id, x, y, z, 0.0, min_x, min_y, min_z, max_x, max_y, max_z, direction)
     }

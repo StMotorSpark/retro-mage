@@ -49,6 +49,7 @@ export interface WorldTransportEngine {
   overflowed?: () => boolean;
   overflow_diagnostics_json?: () => string;
   skipped_instances_json?: () => string;
+  definition_surface?(definition_id: string, min_x: number, min_y: number, min_z: number, max_x: number, max_y: number, max_z: number, h_x: number, h_y: number, h_c: number, nx: number, ny: number, nz: number, walkable: boolean): boolean;
 }
 
 export interface WorldTransportViews {
