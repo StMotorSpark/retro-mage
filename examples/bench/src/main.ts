@@ -125,8 +125,8 @@ async function main(): Promise<void> {
   });
 
   // Dynamic light sources (1 stationary ambient light, 1 moving light)
-  engineState.set_indoor_light(0, 0, 3, 0, 1.0, 0.9, 0.7, 5.0, 1);
-  engineState.set_indoor_light(1, 0, 2, -10, 0.4, 0.8, 1.0, 4.0, 1);
+  engineState.set_light(0, 0, 3, 0, 1.0, 0.9, 0.7, 5.0, 1);
+  engineState.set_light(1, 0, 2, -10, 0.4, 0.8, 1.0, 4.0, 1);
 
   // 4. Initialize reader & renderer with resolution cap config
   const reader = new WorldStateReader(engineState, wasmOutput.memory);
@@ -175,7 +175,7 @@ async function main(): Promise<void> {
     if (movingLightZ < -22 || movingLightZ > -2) {
       lightDirection *= -1;
     }
-    engineState.set_indoor_light(1, 0, 2, movingLightZ, 0.4, 0.8, 1.0, 4.0, 1);
+    engineState.set_light(1, 0, 2, movingLightZ, 0.4, 0.8, 1.0, 4.0, 1);
 
     const metrics = timer.tick(now);
     const nativeDpr = window.devicePixelRatio || 1;
