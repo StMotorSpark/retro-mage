@@ -265,6 +265,51 @@ pub struct LevelPolygon {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct SupportSurface {
+    pub bounds: Bounds,
+    pub height_function: [f32; 3], // [a, b, c] for y = a*x + b*z + c
+    pub normal: Vec3,
+    pub walkable: bool,
+    pub metadata: HashMap<String, String>,
+}
+
+impl SupportSurface {
+    pub fn validate(&self) -> Result<(), WorldContractError> {
+        self.bounds.validate()?;
+        if !self.height_function.iter().all(|v| v.is_finite()) {
+            return Err(WorldContractError::NonFinite("height_function"));
+        }
+        if !self.normal.is_finite() {
+            return Err(WorldContractError::NonFinite("normal"));
+        }
+        Ok(())
+    }
+
+    pub fn transformed(&self, transform: &Transform) -> Result<Self, WorldContractError> {
+        let new_bounds = self.bounds.transformed(transform)?;
+        let p0 = Vec3 { x: 0.0, y: self.height_function[2], z: 0.0 };
+        let new_p0 = transform.transform_point(p0);
+        
+        let new_normal = transform.rotation.normalized().rotate(self.normal);
+        
+        let mut new_height_function = [0.0, 0.0, 0.0];
+        if new_normal.y.abs() > f32::EPSILON {
+            new_height_function[0] = -new_normal.x / new_normal.y;
+            new_height_function[1] = -new_normal.z / new_normal.y;
+            new_height_function[2] = new_p0.y + (new_normal.x * new_p0.x + new_normal.z * new_p0.z) / new_normal.y;
+        }
+
+        Ok(Self {
+            bounds: new_bounds,
+            height_function: new_height_function,
+            normal: new_normal,
+            walkable: self.walkable,
+            metadata: self.metadata.clone(),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct LevelDefinition {
     pub id: String,
     pub version: String,
@@ -274,6 +319,7 @@ pub struct LevelDefinition {
     pub lights: Vec<LevelLight>,
     pub polygons: Vec<LevelPolygon>,
     pub anchors: Vec<LevelAnchor>,
+    pub surfaces: Vec<SupportSurface>,
     pub metadata: HashMap<String, String>,
 }
 
@@ -286,6 +332,7 @@ impl LevelDefinition {
         for actor in &self.actors { validate_id(&actor.actor_id, "actor")?; if !actor.position.is_finite() { return Err(WorldContractError::NonFinite("actor position")); } }
         for light in &self.lights { if !light.position.is_finite() || light.color.iter().any(|value| !value.is_finite()) || !light.intensity.is_finite() { return Err(WorldContractError::NonFinite("light")); } }
         for polygon in &self.polygons { if polygon.vertices.len() < 3 || polygon.vertices.iter().any(|point| !point.is_finite()) { return Err(WorldContractError::InvalidPolygon); } }
+        for surface in &self.surfaces { surface.validate()?; }
         let mut ids = std::collections::HashSet::new();
         for anchor in &self.anchors {
             anchor.validate()?;
@@ -379,6 +426,22 @@ mod tests {
     fn bounds() -> Bounds { Bounds { min: Vec3 { x: -1.0, y: 0.0, z: -2.0 }, max: Vec3 { x: 1.0, y: 2.0, z: 2.0 } } }
 
     #[test]
+    fn transforms_support_surface_correctly() {
+        let mut transform = Transform::IDENTITY;
+        transform.translation = Vec3 { x: 10.0, y: 5.0, z: 0.0 };
+        let surface = SupportSurface {
+            bounds: Bounds { min: Vec3::ZERO, max: Vec3 { x: 10.0, y: 0.0, z: 10.0 } },
+            height_function: [0.0, 0.0, 0.0],
+            normal: Vec3 { x: 0.0, y: 1.0, z: 0.0 },
+            walkable: true,
+            metadata: HashMap::new(),
+        };
+        let new_surface = surface.transformed(&transform).unwrap();
+        assert_eq!(new_surface.height_function, [0.0, 0.0, 5.0]);
+        assert_eq!(new_surface.normal, Vec3 { x: 0.0, y: 1.0, z: 0.0 });
+    }
+
+    #[test]
     fn transforms_local_point_to_global_space() {
         let transform = Transform { translation: Vec3 { x: 10.0, y: 3.0, z: 4.0 }, rotation: Quaternion::IDENTITY, scale: 2.0 };
         assert_eq!(transform.transform_point(Vec3 { x: 1.0, y: 2.0, z: 3.0 }), Vec3 { x: 12.0, y: 7.0, z: 10.0 });
@@ -387,7 +450,7 @@ mod tests {
     #[test]
     fn derives_world_bounds_from_all_corners() {
         let instance = LevelInstance { id: "room".into(), definition_id: "d".into(), definition_version: "1".into(), transform: Transform { translation: Vec3 { x: 5.0, y: 2.0, z: -1.0 }, ..Transform::IDENTITY }, state: RuntimeState::Known, persistence: PersistencePolicy::Session, render_resident: false, collision_active: false, simulation_active: false, restore_status: RestoreStatus::None, state_version: String::new(), restore_attempts: 0, handoff_status: HandoffStatus::None };
-        let definition = LevelDefinition { id: "d".into(), version: "1".into(), bounds: bounds(), tiles: vec![], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], metadata: HashMap::new() };
+        let definition = LevelDefinition { id: "d".into(), version: "1".into(), bounds: bounds(), tiles: vec![], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], surfaces: vec![], metadata: HashMap::new() };
         assert_eq!(instance.world_bounds(&definition).unwrap(), Bounds { min: Vec3 { x: 4.0, y: 2.0, z: -3.0 }, max: Vec3 { x: 6.0, y: 4.0, z: 1.0 } });
     }
 
@@ -398,7 +461,7 @@ mod tests {
         transform.scale = 0.0;
         assert_eq!(transform.validate(), Err(WorldContractError::InvalidScale));
         assert_eq!((Bounds { min: Vec3 { x: 1.0, y: 0.0, z: 0.0 }, max: Vec3::ZERO }).validate(), Err(WorldContractError::InvertedBounds));
-        let mut definition = LevelDefinition { id: "".into(), version: "1".into(), bounds: bounds(), tiles: vec![], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], metadata: HashMap::new() };
+        let mut definition = LevelDefinition { id: "".into(), version: "1".into(), bounds: bounds(), tiles: vec![], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], surfaces: vec![], metadata: HashMap::new() };
         assert_eq!(definition.validate(), Err(WorldContractError::EmptyId("definition")));
         definition.id = "d".into(); definition.anchors.push(LevelAnchor { id: "".into(), transform: Transform::IDENTITY, volume: bounds(), direction: AnchorDirection::Both });
         assert_eq!(definition.validate(), Err(WorldContractError::EmptyId("anchor")));

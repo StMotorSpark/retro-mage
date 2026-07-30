@@ -63,7 +63,7 @@ impl WorldTransport {
     /// Start definition registration. Bounds are local-space.
     pub fn begin_definition(&mut self, id: &str, version: &str, min_x: f32, min_y: f32, min_z: f32, max_x: f32, max_y: f32, max_z: f32) -> bool {
         if id.trim().is_empty() || version.trim().is_empty() { return false; }
-        self.builders.insert(id.into(), DefinitionBuilder { definition: LevelDefinition { id: id.into(), version: version.into(), bounds: Bounds { min: Vec3 { x: min_x, y: min_y, z: min_z }, max: Vec3 { x: max_x, y: max_y, z: max_z } }, tiles: vec![], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], metadata: Default::default() } }); true
+        self.builders.insert(id.into(), DefinitionBuilder { definition: LevelDefinition { id: id.into(), version: version.into(), bounds: Bounds { min: Vec3 { x: min_x, y: min_y, z: min_z }, max: Vec3 { x: max_x, y: max_y, z: max_z } }, tiles: vec![], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], surfaces: vec![], metadata: Default::default() } }); true
     }
 
     pub fn definition_tile(&mut self, definition_id: &str, x: f32, y: f32, z: f32, tile_id: u32, material_id: u32, variant: u16, orientation: u8, solid: bool, north: bool, east: bool, south: bool, west: bool, vertical: bool) -> bool {

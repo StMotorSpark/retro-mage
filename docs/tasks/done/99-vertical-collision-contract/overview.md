@@ -1,12 +1,12 @@
 ---
 task: "99"
 slug: vertical-collision-contract
-status: pending
+status: done
 depends-on: []
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-30
-outcome: ""
+outcome: "Added max_walkable_slope, support_snap_distance, max_vertical_substeps to CollisionConfig. Added SupportSurface to LevelDefinition, GlobalLevelContent, CollisionInstance with fields bounds, height_function, normal, walkable, metadata. SupportSurface::transformed handles slope rotation. All tests pass."
 ---
 
 # Define Vertical Collision Contract

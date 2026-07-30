@@ -26,6 +26,7 @@ impl SolidAabb {
 pub struct CollisionInstance {
     pub id: String,
     pub solids: Vec<SolidAabb>,
+    pub surfaces: Vec<crate::world::SupportSurface>,
 }
 
 impl CollisionInstance {
@@ -50,7 +51,7 @@ impl CollisionInstance {
             }
             SolidAabb { min, max }
         }).collect();
-        Self { id: instance_id.to_owned(), solids }
+        Self { id: instance_id.to_owned(), solids, surfaces: content.surfaces.clone() }
     }
 
     /// Compatibility constructor; runtime projection uses `from_content`.
@@ -80,7 +81,7 @@ impl GlobalCollisionWorld {
     pub fn add_solid(&mut self, instance_id: &str, solid: SolidAabb, collision_active: bool) {
         self.instances
             .entry(instance_id.to_owned())
-            .or_insert_with(|| CollisionInstance { id: instance_id.to_owned(), solids: Vec::new() })
+            .or_insert_with(|| CollisionInstance { id: instance_id.to_owned(), solids: Vec::new(), surfaces: Vec::new() })
             .solids
             .push(solid);
         self.active.insert(instance_id.to_owned(), collision_active);
@@ -135,7 +136,7 @@ mod tests {
     use crate::world::{Bounds, PersistencePolicy, RuntimeState};
 
     fn level(id: &str, transform: Transform) -> (LevelInstance, LevelDefinition) {
-        (LevelInstance { id: id.into(), definition_id: "d".into(), definition_version: "1".into(), transform, state: RuntimeState::Active, persistence: PersistencePolicy::Session, render_resident: true, collision_active: true, simulation_active: true, restore_status: crate::world::RestoreStatus::None, state_version: String::new(), restore_attempts: 0, handoff_status: crate::world::HandoffStatus::None }, LevelDefinition { id: "d".into(), version: "1".into(), bounds: Bounds { min: Vec3::ZERO, max: Vec3 { x: 4.0, y: 2.0, z: 4.0 } }, tiles: vec![crate::world::LevelTile { position: Vec3 { x: 0.0, y: 0.0, z: -2.0 }, tile_id: 0, material_id: 0, variant: 0, orientation: 0, solid: true, openings: Default::default(), stairs: None }], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], metadata: Default::default() })
+        (LevelInstance { id: id.into(), definition_id: "d".into(), definition_version: "1".into(), transform, state: RuntimeState::Active, persistence: PersistencePolicy::Session, render_resident: true, collision_active: true, simulation_active: true, restore_status: crate::world::RestoreStatus::None, state_version: String::new(), restore_attempts: 0, handoff_status: crate::world::HandoffStatus::None }, LevelDefinition { id: "d".into(), version: "1".into(), bounds: Bounds { min: Vec3::ZERO, max: Vec3 { x: 4.0, y: 2.0, z: 4.0 } }, tiles: vec![crate::world::LevelTile { position: Vec3 { x: 0.0, y: 0.0, z: -2.0 }, tile_id: 0, material_id: 0, variant: 0, orientation: 0, solid: true, openings: Default::default(), stairs: None }], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], surfaces: vec![], metadata: Default::default() })
     }
 
     #[test]
@@ -152,7 +153,7 @@ mod tests {
         let content = GlobalLevelContent {
             bounds: Bounds { min: Vec3::ZERO, max: Vec3 { x: 12.0, y: 2.0, z: 2.0 } },
             tiles: vec![crate::world::LevelTile { position: Vec3 { x: 10.0, y: 0.0, z: 1.0 }, tile_id: 1, material_id: 2, variant: 0, orientation: 0, solid: true, openings: Default::default(), stairs: None }],
-            actors: vec![], lights: vec![], polygons: vec![],
+            actors: vec![], lights: vec![], polygons: vec![], surfaces: vec![],
         };
         let projection = CollisionInstance::from_content("global", &content);
         assert_eq!(projection.solids[0].min.x, 9.5);
