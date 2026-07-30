@@ -1,10 +1,10 @@
 ---
 task: "102"
 slug: vertical-movement-demo
-status: in-flight
+status: parked
 depends-on: ["101"]
-blocked-by: "Player position remains at (0, 0, 4) with y=0 and does not respond to movement inputs or snap to the platform at y=1.0, meaning vertical collision/movement behavior cannot be verified."
-assigned-to: "agent"
+blocked-by: "task:104"
+assigned-to: ""
 created: 2026-07-30
 outcome: ""
 ---
