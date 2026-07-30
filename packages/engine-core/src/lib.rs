@@ -167,8 +167,8 @@ impl EngineState {
         );
         let (new_px, new_py, new_pz, new_vy) = if self.global_collision_configured {
             let pose = world::Transform { translation: world::Vec3 { x: self.camera.x[0], y: self.camera.y[0], z: self.camera.z[0] }, rotation: world::Quaternion { x: 0.0, y: (self.camera.yaw[0] * 0.5).sin(), z: 0.0, w: (self.camera.yaw[0] * 0.5).cos() }, scale: 1.0 };
-            let moved = self.global_collision.resolve_movement(pose, dx, dz, self.collision_config.player_radius, self.collision_config.player_height);
-            (moved.translation.x, moved.translation.y, moved.translation.z, self.player_velocity_y)
+            let (moved, moved_vy) = self.global_collision.resolve_movement(pose, dx, dz, self.player_velocity_y, &self.collision_config, dt_f32);
+            (moved.translation.x, moved.translation.y, moved.translation.z, moved_vy)
         } else {
             collision::resolve_movement(
                 self.camera.x[0], self.camera.y[0], self.camera.z[0], dx, self.player_velocity_y, dz,
@@ -262,11 +262,12 @@ impl EngineState {
         );
 
         let pose = world::Transform { translation: world::Vec3 { x: self.camera.x[0], y: self.camera.y[0], z: self.camera.z[0] }, rotation: world::Quaternion { x: 0.0, y: (self.camera.yaw[0] * 0.5).sin(), z: 0.0, w: (self.camera.yaw[0] * 0.5).cos() }, scale: 1.0 };
-        let moved = global_collision.resolve_movement(pose, dx, dz, self.collision_config.player_radius, self.collision_config.player_height);
+        let (moved, new_vy) = global_collision.resolve_movement(pose, dx, dz, self.player_velocity_y, &self.collision_config, dt_f32);
         
         self.camera.x[0] = moved.translation.x;
         self.camera.y[0] = moved.translation.y;
         self.camera.z[0] = moved.translation.z;
+        self.player_velocity_y = new_vy;
 
         self.seam_injection_tiles.count = 0;
         self.recompute_visibility();

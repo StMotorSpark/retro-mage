@@ -437,6 +437,9 @@ mod tests {
 
         let mut engine = crate::EngineState::new();
         engine.global_collision_configured = true;
+        let mut config = engine.collision_config();
+        config.gravity = 0.0;
+        engine.set_collision_config(config);
         engine.set_player_speed(10.0);
         engine.camera.x[0] = 0.0;
         engine.camera.y[0] = 0.0;

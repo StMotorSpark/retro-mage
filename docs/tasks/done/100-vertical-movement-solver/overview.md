@@ -1,12 +1,12 @@
 ---
 task: "100"
 slug: vertical-movement-solver
-status: pending
+status: done
 depends-on: ["99"]
 blocked-by: ""
-assigned-to: ""
+assigned-to: "agent"
 created: 2026-07-30
-outcome: ""
+outcome: "Implemented vertical movement logic in global_collision.rs with gravity, slopes, landing, and ceiling checks. All tests pass."
 ---
 
 # Implement Vertical Movement Solver
@@ -26,14 +26,14 @@ Extend engine-core movement with ramp support, gravity, landing, static ceiling 
 
 ## Definition of Done
 
-- [ ] Ramp ascent/descent changes Y continuously while body remains upright.
-- [ ] Ledge departure enters falling state; landing clears downward velocity and restores grounded state.
-- [ ] Highest valid support selection is deterministic for overlapping floors.
-- [ ] Too-steep support never produces grounded state and uphill movement is blocked.
-- [ ] Ceiling checks cover full body interval and prevent penetration.
-- [ ] Large frame deltas use clamping/bounded substeps and do not tunnel through tested floors/ceilings.
-- [ ] Rust tests cover grounded movement, falling, landing, slope rejection, ceiling clearance, seams, and failure-safe edge cases.
-- [ ] Existing flat collision, crossing, and world-aware tick tests pass.
+- [x] Ramp ascent/descent changes Y continuously while body remains upright.
+- [x] Ledge departure enters falling state; landing clears downward velocity and restores grounded state.
+- [x] Highest valid support selection is deterministic for overlapping floors.
+- [x] Too-steep support never produces grounded state and uphill movement is blocked.
+- [x] Ceiling checks cover full body interval and prevent penetration.
+- [x] Large frame deltas use clamping/bounded substeps and do not tunnel through tested floors/ceilings.
+- [x] Rust tests cover grounded movement, falling, landing, slope rejection, ceiling clearance, seams, and failure-safe edge cases.
+- [x] Existing flat collision, crossing, and world-aware tick tests pass.
 
 ## Out of Scope
 
