@@ -79,7 +79,8 @@ async function main(): Promise<void> {
   const demoEvictions: Array<{ instance_id: string; eviction_reason: string; payload: string }> = [];
   const demoRestores: Record<string, string> = {};
 
-  engineState.set_camera(0, 0, 4, 0, 0);
+  // Spawn in open dungeon floor, clear of the ramp/platform wall geometry.
+  engineState.set_camera(-3, 0, 4, 0, 0);
   engineState.set_ambient_light(0.05);
   engineState.set_max_sight_distance(64);
   engineState.set_cull_precision_distance(64);

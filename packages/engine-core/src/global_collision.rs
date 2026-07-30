@@ -167,7 +167,10 @@ impl GlobalCollisionWorld {
                     if result.translation.x + radius >= s.bounds.min.x && result.translation.x - radius <= s.bounds.max.x &&
                        result.translation.z + radius >= s.bounds.min.z && result.translation.z - radius <= s.bounds.max.z {
                         let sy = s.height_function[0] * result.translation.x + s.height_function[1] * result.translation.z + s.height_function[2];
-                        if sy <= result.translation.y + 0.1 {
+                        // Include nearby support slightly above the current pose so a
+                        // spawn or link arrival that starts just below its floor can
+                        // recover instead of entering an unbounded fall.
+                        if sy <= result.translation.y + 0.1 || sy - result.translation.y <= height * 2.0 {
                             if let Some(by) = best_y { if sy > by { best_y = Some(sy); } } else { best_y = Some(sy); }
                         }
                     }
@@ -321,6 +324,11 @@ mod tests {
         let (moved, vy) = world.resolve_movement(pose, 0.0, 1.0, 0.0, &config, 0.1);
         assert_eq!(moved.translation.y, 0.0);
         assert_eq!(vy, 0.0);
+
+        let pose_recover = Transform { translation: Vec3 { x: 0.0, y: -0.5, z: 0.0 }, rotation: crate::world::Quaternion::IDENTITY, scale: 1.0 };
+        let (recovered, recovered_vy) = world.resolve_movement(pose_recover, 0.0, 0.0, 0.0, &config, 0.1);
+        assert_eq!(recovered.translation.y, 0.0);
+        assert_eq!(recovered_vy, 0.0);
 
         let pose2 = Transform { translation: Vec3 { x: 6.0, y: 0.0, z: 0.0 }, rotation: crate::world::Quaternion::IDENTITY, scale: 1.0 };
         let (moved2, vy2) = world.resolve_movement(pose2, 0.0, 0.0, 0.0, &config, 0.1);
