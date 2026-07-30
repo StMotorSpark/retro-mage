@@ -83,29 +83,29 @@ async function main(): Promise<void> {
   // Floor grid extending 30 units into background (Z = +4 to -26)
   for (let x = -3; x <= 3; x++) {
     for (let z = -26; z <= 4; z++) {
-      engineState.set_tile(tileIdx++, x, 0, z, 1, 0, 0, 0);
+      engineState.set_indoor_tile(tileIdx++, x, 0, z, 1, 0, 0, 0, 0.0);
     }
   }
 
   // Corridor walls (left & right)
   for (let z = -26; z <= 4; z++) {
-    engineState.set_tile(tileIdx++, -4, 1, z, 2, 0, 1, 0);
-    engineState.set_tile(tileIdx++, -4, 2, z, 2, 0, 1, 0);
-    engineState.set_tile(tileIdx++, 4, 1, z, 2, 0, 1, 0);
-    engineState.set_tile(tileIdx++, 4, 2, z, 2, 0, 1, 0);
+    engineState.set_indoor_tile(tileIdx++, -4, 1, z, 2, 0, 1, 0, 0.0);
+    engineState.set_indoor_tile(tileIdx++, -4, 2, z, 2, 0, 1, 0, 0.0);
+    engineState.set_indoor_tile(tileIdx++, 4, 1, z, 2, 0, 1, 0, 0.0);
+    engineState.set_indoor_tile(tileIdx++, 4, 2, z, 2, 0, 1, 0, 0.0);
   }
 
   // Back wall at Z = -26
   for (let x = -3; x <= 3; x++) {
-    engineState.set_tile(tileIdx++, x, 1, -26, 3, 0, 1, 0);
-    engineState.set_tile(tileIdx++, x, 2, -26, 3, 0, 1, 0);
+    engineState.set_indoor_tile(tileIdx++, x, 1, -26, 3, 0, 1, 0, 0.0);
+    engineState.set_indoor_tile(tileIdx++, x, 2, -26, 3, 0, 1, 0, 0.0);
   }
 
   // Obstacle/pillar blocks placed along corridor to increase polygon count
   const pillarZ = [-2, -7, -12, -17, -22];
   for (const pz of pillarZ) {
-    engineState.set_tile(tileIdx++, -2, 1, pz, 3, 0, 1, 0);
-    engineState.set_tile(tileIdx++, 2, 1, pz, 3, 0, 1, 0);
+    engineState.set_indoor_tile(tileIdx++, -2, 1, pz, 3, 0, 1, 0, 0.0);
+    engineState.set_indoor_tile(tileIdx++, 2, 1, pz, 3, 0, 1, 0, 0.0);
   }
 
   // 8 active sprite actors placed along the corridor depth
@@ -121,12 +121,12 @@ async function main(): Promise<void> {
   ];
 
   actorPositions.forEach((pos, idx) => {
-    engineState.set_actor(idx, pos.x, 0.5, pos.z, 0, pos.sprite, 1);
+    engineState.set_indoor_actor(idx, pos.x, 0.5, pos.z, 0, pos.sprite, 1);
   });
 
   // Dynamic light sources (1 stationary ambient light, 1 moving light)
-  engineState.set_light(0, 0, 3, 0, 1.0, 0.9, 0.7, 5.0, 1);
-  engineState.set_light(1, 0, 2, -10, 0.4, 0.8, 1.0, 4.0, 1);
+  engineState.set_indoor_light(0, 0, 3, 0, 1.0, 0.9, 0.7, 5.0, 1);
+  engineState.set_indoor_light(1, 0, 2, -10, 0.4, 0.8, 1.0, 4.0, 1);
 
   // 4. Initialize reader & renderer with resolution cap config
   const reader = new WorldStateReader(engineState, wasmOutput.memory);
@@ -175,7 +175,7 @@ async function main(): Promise<void> {
     if (movingLightZ < -22 || movingLightZ > -2) {
       lightDirection *= -1;
     }
-    engineState.set_light(1, 0, 2, movingLightZ, 0.4, 0.8, 1.0, 4.0, 1);
+    engineState.set_indoor_light(1, 0, 2, movingLightZ, 0.4, 0.8, 1.0, 4.0, 1);
 
     const metrics = timer.tick(now);
     const nativeDpr = window.devicePixelRatio || 1;

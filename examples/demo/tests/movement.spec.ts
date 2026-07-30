@@ -30,7 +30,13 @@ async function stopMove(page: Page) {
   await page.evaluate(({ selector }) => {
     const target = document.querySelector(selector);
     if (!target) return;
-    target.dispatchEvent(new TouchEvent('touchend', { touches: [], targetTouches: [], changedTouches: [], bubbles: true }));
+    const touchEnd = new Touch({
+      identifier: 12345,
+      target,
+      clientX: 0,
+      clientY: 0,
+    });
+    target.dispatchEvent(new TouchEvent('touchend', { touches: [], targetTouches: [], changedTouches: [touchEnd], bubbles: true }));
   }, { selector: '.retro-input-move-zone' });
 }
 
@@ -96,15 +102,54 @@ test('vertical movement demo', async () => {
   console.log('Pos after ascending ramp:', state.pose);
   expect(state.pose.y).toBeGreaterThan(0.9);
 
-  // 3. Walk off the ledge (walk +X)
-  await dispatchMove(page, 30, 0);
+  // 2.1 Descend the ramp (walk +Z)
+  await dispatchMove(page, 0, 10);
+  await expect.poll(async () => {
+    const debug = await getDebug();
+    return debug.pose.z > 6.8;
+  }, { timeout: 15000 }).toBe(true);
 
+  await stopMove(page);
+
+  await expect.poll(async () => {
+    const debug = await getDebug();
+    return debug.grounded && debug.verticalVelocity === 0;
+  }, { timeout: 5000 }).toBe(true);
+
+  state = await getDebug();
+  console.log('Pos after descending ramp:', state.pose);
+  expect(state.pose.y).toBeLessThan(0.1);
+
+  // 2.2 Ascend again for the ledge fall
+  await dispatchMove(page, 0, -10);
+  await expect.poll(async () => {
+    const debug = await getDebug();
+    return debug.pose.z < 4.4;
+  }, { timeout: 15000 }).toBe(true);
+
+  await stopMove(page);
+
+  await expect.poll(async () => {
+    const debug = await getDebug();
+    return debug.grounded && debug.verticalVelocity === 0;
+  }, { timeout: 5000 }).toBe(true);
+
+  // 3. Walk off the ledge (walk -X)
+  await dispatchMove(page, -30, 0);
+
+  // Assert falling state DURING the fall
+  await expect.poll(async () => {
+    const debug = await getDebug();
+    // It should become ungrounded and gain negative vertical velocity
+    return !debug.grounded && debug.verticalVelocity! < 0;
+  }, { timeout: 15000, intervals: [50] }).toBe(true);
+
+  // Assert landing
   await expect.poll(async () => {
     const debug = await getDebug();
     console.log('Polled pos (moving +X):', debug.pose, 'velY:', debug.verticalVelocity);
     return debug.pose.y < 0.1 && debug.grounded;
   }, { timeout: 15000 }).toBe(true);
-
 
   await stopMove(page);
 
