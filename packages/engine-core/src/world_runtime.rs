@@ -118,6 +118,10 @@ impl WorldRuntime {
         }
         if !self.residency.activate_for_crossing(&resolution.target_instance_id, true)? { return Ok(CrossingEvaluation { resolution: None, rejection: Some(CrossingRejection::NotReady) }); }
         self.sync_topology_instance(&resolution.target_instance_id);
+        // Crossing transfers gameplay ownership to target. Source remains resident
+        // for visibility/retention, but must stop simulation and collision so the
+        // scheduler can later evaluate it for eviction and persistence handoff.
+        self.residency.deactivate(&current)?;
         self.residency.set_current(Some(&resolution.target_instance_id))?;
         // Crossing-critical pair pin ends when transaction commits. Current-instance
         // pin and scheduler link relevance retain content as needed afterward.
@@ -229,8 +233,23 @@ impl WorldRuntime {
         self.sync_topology_instance(id);
         Ok(handoff)
     }
+    pub fn acknowledge_handoff(&mut self, id: &str, success: bool, failure_reason: Option<String>) -> Result<(), WorldRuntimeError> {
+        self.residency.acknowledge_handoff(id, success, failure_reason)?;
+        self.sync_topology_instance(id);
+        Ok(())
+    }
     pub fn set_application_payload(&mut self, id: &str, payload: Vec<u8>) -> Result<(), WorldRuntimeError> {
         self.residency.set_application_payload(id, payload)?;
+        Ok(())
+    }
+    pub fn begin_restore(&mut self, id: &str) -> Result<u32, WorldRuntimeError> {
+        let attempt = self.residency.begin_restore(id)?;
+        self.sync_topology_instance(id);
+        Ok(attempt)
+    }
+    pub fn complete_restore(&mut self, id: &str, attempt: u32, success: bool, version: String, failure_reason: Option<String>) -> Result<(), WorldRuntimeError> {
+        self.residency.complete_restore(id, attempt, success, version, failure_reason)?;
+        self.sync_topology_instance(id);
         Ok(())
     }
     pub fn set_current(&mut self, id: Option<&str>) -> Result<(), WorldRuntimeError> { Ok(self.residency.set_current(id)?) }
@@ -295,7 +314,7 @@ mod tests {
         LevelDefinition { id: "room".into(), version: "1".into(), bounds: Bounds { min: Vec3::ZERO, max: Vec3 { x: 1.0, y: 1.0, z: 1.0 } }, tiles: vec![crate::world::LevelTile { position: Vec3::ZERO, tile_id: 0, material_id: 0, variant: 0, orientation: 0, solid: true, openings: Default::default(), stairs: None }], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], metadata: Default::default() }
     }
     fn manifest() -> WorldManifest {
-        WorldManifest { definitions: vec![DefinitionDescriptor { id: "room".into(), version: "1".into(), anchors: vec![] }], instances: vec![InstanceDescriptor { instance: LevelInstance { id: "room-instance".into(), definition_id: "room".into(), definition_version: "1".into(), transform: Transform::IDENTITY, state: RuntimeState::Known, persistence: PersistencePolicy::Session, render_resident: false, collision_active: false, simulation_active: false } }], links: vec![], starting_locations: vec![] }
+        WorldManifest { definitions: vec![DefinitionDescriptor { id: "room".into(), version: "1".into(), anchors: vec![] }], instances: vec![InstanceDescriptor { instance: LevelInstance { id: "room-instance".into(), definition_id: "room".into(), definition_version: "1".into(), transform: Transform::IDENTITY, state: RuntimeState::Known, persistence: PersistencePolicy::Session, render_resident: false, collision_active: false, simulation_active: false, restore_status: crate::world::RestoreStatus::None, state_version: String::new(), restore_attempts: 0, handoff_status: crate::world::HandoffStatus::None } }], links: vec![], starting_locations: vec![] }
     }
 
     #[test]

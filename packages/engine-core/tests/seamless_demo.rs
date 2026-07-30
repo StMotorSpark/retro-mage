@@ -19,7 +19,7 @@ fn outdoor() -> LevelDefinition {
 }
 
 fn instance(id: &str, definition_id: &str) -> InstanceDescriptor {
-    InstanceDescriptor { instance: LevelInstance { id: id.into(), definition_id: definition_id.into(), definition_version: "1".into(), transform: Transform::IDENTITY, state: RuntimeState::Known, persistence: PersistencePolicy::Session, render_resident: false, collision_active: false, simulation_active: false } }
+    InstanceDescriptor { instance: LevelInstance { id: id.into(), definition_id: definition_id.into(), definition_version: "1".into(), transform: Transform::IDENTITY, state: RuntimeState::Known, persistence: PersistencePolicy::Session, render_resident: false, collision_active: false, simulation_active: false, restore_status: engine_core::world::RestoreStatus::None, state_version: String::new(), restore_attempts: 0, handoff_status: engine_core::world::HandoffStatus::None } }
 }
 
 fn manifest() -> WorldManifest {

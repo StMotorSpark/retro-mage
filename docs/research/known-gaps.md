@@ -8,6 +8,7 @@ relates-to:
   - "[World Runtime](../architecture/world-runtime.md)"
   - "[Provider Lifecycle](../architecture/provider-lifecycle.md)"
   - "[Eviction and Reload](../architecture/eviction-reload.md)"
+  - "[Persistence and Restore](../architecture/persistence-restore.md)"
   - "[World Streaming](../architecture/world-streaming.md)"
   - "[Collision Bridge](../architecture/collision-bridge.md)"
   - "[Rendering](../architecture/rendering.md)"
@@ -25,9 +26,8 @@ This doc records unresolved implementation details and deliberately deferred cap
 ## World Runtime
 
 - The application-owned level file format and authoring tool are undecided; the engine consumes resolved definitions and does not prescribe either.
-- Provider lifecycle integration lacks implementation proof for scheduler-emitted pull requests, cancellation propagation, terminal request cleanup, and explicit retry.
 - Runtime topology mutation is supported by contract but lacks an implementation slice for creating and linking instances during play.
-- Detailed persistence serialization is application-owned; the eviction handoff and reload state-restoration boundary lack implementation proof.
+- Detailed persistence serialization remains application-owned; production save formats, storage, encryption, and migration algorithms lack implementations.
 - Infinite procedural regions are outside the initial finite-bounds runtime contract.
 - Memory budgets and platform-specific eviction heuristics require measurement against representative content.
 - Link overlap collision ownership needs a concrete policy implementation beyond explicit masks/ownership metadata.
@@ -79,6 +79,7 @@ These decisions are recorded in their authoritative design docs:
 - [World Runtime](../architecture/world-runtime.md) — lifecycle and provider boundaries
 - [Provider Lifecycle](../architecture/provider-lifecycle.md) — request execution and result acceptance
 - [Eviction and Reload](../architecture/eviction-reload.md) — protected release and reload boundary
+- [Persistence and Restore](../architecture/persistence-restore.md) — state handoff, restore, and activation safety
 - [Example Deployment](../architecture/example-deployment.md) — PWA and deployed demo behavior
 - [World Streaming](../architecture/world-streaming.md) — residency behavior
 - [Collision Bridge](../architecture/collision-bridge.md) — runtime-owned collision integration contract

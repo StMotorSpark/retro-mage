@@ -144,7 +144,7 @@ export function registerDemoWorld(transport: WorldTransport): void {
     for (const a of resolved.anchors) if (!transport.definition_anchor_oriented(resolved.id, a.id, a.x, a.y, a.z, a.yaw, ...a.volume.min, ...a.volume.max, a.direction === 'in' ? 0 : a.direction === 'out' ? 1 : 2)) throw new Error(`Failed anchor in ${resolved.id}`);
     if (!transport.finish_definition(resolved.id)) throw new Error(`Failed to finish ${resolved.id}`);
   }
-  for (const instance of demoManifest.instances) if (!transport.register_instance(instance.id, instance.definitionId, ...instance.position, 0, 0, 0, 1, 1, 1)) throw new Error(`Failed instance ${instance.id}`);
+  for (const instance of demoManifest.instances) if (!transport.register_instance(instance.id, instance.definitionId, ...instance.position, 0, 0, 0, 1, 1, 0)) throw new Error(`Failed instance ${instance.id}`);
   const { source, target } = demoManifest.link;
   if (!transport.register_bidirectional_link(demoManifest.link.id, source.instanceId, source.anchorId, target.instanceId, target.anchorId)) throw new Error('Failed demo topology link');
 }

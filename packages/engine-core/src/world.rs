@@ -299,7 +299,13 @@ impl LevelDefinition {
 pub enum RuntimeState { Known, Loading, Resident, Active, Evictable, Evicted, Failed }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PersistencePolicy { Persistent, Session, Regenerated }
+pub enum PersistencePolicy { Persistent, Session, Regenerated, ApplicationManaged }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RestoreStatus { None, Pending, Restored, Failed(String) }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HandoffStatus { None, Pending, Acknowledged, Failed(String) }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LevelInstance {
@@ -312,6 +318,10 @@ pub struct LevelInstance {
     pub render_resident: bool,
     pub collision_active: bool,
     pub simulation_active: bool,
+    pub restore_status: RestoreStatus,
+    pub state_version: String,
+    pub restore_attempts: u32,
+    pub handoff_status: HandoffStatus,
 }
 
 impl LevelInstance {
@@ -376,7 +386,7 @@ mod tests {
 
     #[test]
     fn derives_world_bounds_from_all_corners() {
-        let instance = LevelInstance { id: "room".into(), definition_id: "d".into(), definition_version: "1".into(), transform: Transform { translation: Vec3 { x: 5.0, y: 2.0, z: -1.0 }, ..Transform::IDENTITY }, state: RuntimeState::Known, persistence: PersistencePolicy::Session, render_resident: false, collision_active: false, simulation_active: false };
+        let instance = LevelInstance { id: "room".into(), definition_id: "d".into(), definition_version: "1".into(), transform: Transform { translation: Vec3 { x: 5.0, y: 2.0, z: -1.0 }, ..Transform::IDENTITY }, state: RuntimeState::Known, persistence: PersistencePolicy::Session, render_resident: false, collision_active: false, simulation_active: false, restore_status: RestoreStatus::None, state_version: String::new(), restore_attempts: 0, handoff_status: HandoffStatus::None };
         let definition = LevelDefinition { id: "d".into(), version: "1".into(), bounds: bounds(), tiles: vec![], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], metadata: HashMap::new() };
         assert_eq!(instance.world_bounds(&definition).unwrap(), Bounds { min: Vec3 { x: 4.0, y: 2.0, z: -3.0 }, max: Vec3 { x: 6.0, y: 4.0, z: 1.0 } });
     }

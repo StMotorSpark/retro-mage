@@ -135,7 +135,7 @@ mod tests {
     use crate::world::{Bounds, PersistencePolicy, RuntimeState};
 
     fn level(id: &str, transform: Transform) -> (LevelInstance, LevelDefinition) {
-        (LevelInstance { id: id.into(), definition_id: "d".into(), definition_version: "1".into(), transform, state: RuntimeState::Active, persistence: PersistencePolicy::Session, render_resident: true, collision_active: true, simulation_active: true }, LevelDefinition { id: "d".into(), version: "1".into(), bounds: Bounds { min: Vec3::ZERO, max: Vec3 { x: 4.0, y: 2.0, z: 4.0 } }, tiles: vec![crate::world::LevelTile { position: Vec3 { x: 0.0, y: 0.0, z: -2.0 }, tile_id: 0, material_id: 0, variant: 0, orientation: 0, solid: true, openings: Default::default(), stairs: None }], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], metadata: Default::default() })
+        (LevelInstance { id: id.into(), definition_id: "d".into(), definition_version: "1".into(), transform, state: RuntimeState::Active, persistence: PersistencePolicy::Session, render_resident: true, collision_active: true, simulation_active: true, restore_status: crate::world::RestoreStatus::None, state_version: String::new(), restore_attempts: 0, handoff_status: crate::world::HandoffStatus::None }, LevelDefinition { id: "d".into(), version: "1".into(), bounds: Bounds { min: Vec3::ZERO, max: Vec3 { x: 4.0, y: 2.0, z: 4.0 } }, tiles: vec![crate::world::LevelTile { position: Vec3 { x: 0.0, y: 0.0, z: -2.0 }, tile_id: 0, material_id: 0, variant: 0, orientation: 0, solid: true, openings: Default::default(), stairs: None }], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], metadata: Default::default() })
     }
 
     #[test]

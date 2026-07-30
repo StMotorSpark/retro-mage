@@ -174,9 +174,23 @@ Execute as specified. If scope needs adjustment, **do not modify it yourself** â
 
 ---
 
+## Completion Evidence Gate
+
+Agent completion text is not evidence. Before moving any task to `done`, verify:
+
+1. Every Definition of Done checkbox against the actual diff and behavior.
+2. Required tests ran; record exact commands and results in the outcome.
+3. Producer/consumer boundaries are wired end-to-end, not only represented by fields or types.
+4. Success, failure, retry, stale, and cancellation paths are covered where in scope.
+5. Browser proofs assert exact lifecycle states and flags, not only object existence.
+6. Generated traces, screenshots, recordings, and temporary artifacts are absent.
+7. Folder, frontmatter status, dependency, and `assigned-to` invariants match.
+
+If any criterion is unmet, keep task `in-flight` or park it with precise blocker notes. Never mark done based only on a subagent or test summary.
+
 ## Completing a Task (in-flight â†’ done)
 
-When **all** Definition of Done criteria met:
+When **all** Definition of Done criteria and Completion Evidence Gate checks are met:
 
 ```bash
 mv docs/tasks/in-flight/NN-slug docs/tasks/done/NN-slug

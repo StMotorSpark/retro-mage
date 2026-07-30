@@ -351,6 +351,8 @@ impl WorldTopology {
             state: crate::world::RuntimeState::Known,
             persistence: crate::world::PersistencePolicy::Session,
             render_resident: false, collision_active: false, simulation_active: false,
+            restore_status: crate::world::RestoreStatus::None, state_version: String::new(),
+            restore_attempts: 0, handoff_status: crate::world::HandoffStatus::None,
         }};
         self.register_instance(descriptor)?;
         Ok(instance_id)
@@ -416,7 +418,7 @@ mod tests {
     use crate::world::{AnchorDirection, Bounds, Transform, Vec3, RuntimeState, PersistencePolicy};
 
     fn instance(id: &str, def: &str) -> InstanceDescriptor {
-        InstanceDescriptor { instance: LevelInstance { id: id.into(), definition_id: def.into(), definition_version: "1".into(), transform: Transform::IDENTITY, state: RuntimeState::Known, persistence: PersistencePolicy::Session, render_resident: false, collision_active: false, simulation_active: false } }
+        InstanceDescriptor { instance: LevelInstance { id: id.into(), definition_id: def.into(), definition_version: "1".into(), transform: Transform::IDENTITY, state: RuntimeState::Known, persistence: PersistencePolicy::Session, render_resident: false, collision_active: false, simulation_active: false, restore_status: crate::world::RestoreStatus::None, state_version: String::new(), restore_attempts: 0, handoff_status: crate::world::HandoffStatus::None } }
     }
     fn manifest() -> WorldManifest {
         WorldManifest { definitions: vec![DefinitionDescriptor { id: "room".into(), version: "1".into(), anchors: vec![anchor()] }], instances: vec![instance("a", "room"), instance("b", "room")], links: vec![], starting_locations: vec![] }

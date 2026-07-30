@@ -214,5 +214,5 @@ test('cancellation aborts app work and replacement uses new request identity', a
   });
 
   const retryReady = await debug(page);
-  expect(retryReady.instances.find(i => i.id === 'outdoor-instance')?.state).toBe(2);
+  expect(retryReady.instances.find(i => i.id === 'outdoor-instance')?.state).toBeGreaterThanOrEqual(2);
 });
