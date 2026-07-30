@@ -15,6 +15,8 @@ interface DemoDebugSnapshot {
   instances: Array<{ id: string; state: number; renderResident: boolean; collisionActive: boolean; restoreStatus: number; restoreAttempts: number; stateVersion: string; restoreFailureReason: string; handoffStatus: number }>;
   sourcePlayable: boolean;
   debugMovement?: { x: number; z: number; yaw: number };
+  grounded?: boolean;
+  verticalVelocity?: number;
   queueDepth: number;
   activeLoads: number;
   pins: number;
@@ -221,6 +223,8 @@ async function main(): Promise<void> {
       instances,
       sourcePlayable: instances.some((instance) => instance.id === 'dungeon-instance' && instance.collisionActive),
       debugMovement: { x: movementX, z: movementZ, yaw: camera.yaw[0] ?? 0 },
+      grounded: engineState.is_grounded(),
+      verticalVelocity: engineState.player_velocity_y,
       queueDepth: worldTransport.scheduler_queue_depth(),
       activeLoads: activeCount,
       pins: instances.filter(i => worldTransport.scheduler_diagnostic_intent(i.id) === 3).length,

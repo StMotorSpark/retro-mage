@@ -73,6 +73,38 @@ function dungeonTiles(): DemoTile[] {
   for (let x = -4; x <= 10; x += 1) for (let z = 2; z <= 7; z += 1) tiles.push(floor(x, z, 2, 2));
   for (let x = -5; x <= 10; x += 1) { tiles.push(wall(x, 1)); tiles.push(wall(x, 8)); }
   for (let z = 2; z <= 7; z += 1) { tiles.push(wall(-5, z)); if (z !== 4) tiles.push(wall(10, z)); }
+
+  // Walkable Ramp (from z=6 to z=4 at x=0,1). Slope is 0.5.
+  const elevatedFloor = (x: number, y: number, z: number, tileId: number, materialId: number, orientation = 0): DemoTile => ({ x, y, z, tileId, materialId, variant: 0, orientation, solid: false });
+  const ceiling = (x: number, y: number, z: number, tileId: number, materialId: number): DemoTile => ({ x, y, z, tileId, materialId, variant: 0, orientation: 0, solid: true });
+
+  // Platform at top of walkable ramp
+  for (let x = 0; x <= 2; x++) for (let z = 2; z <= 4; z++) tiles.push(elevatedFloor(x, 1, z, 2, 2));
+
+  // Walkable ramp visuals
+  tiles.push(elevatedFloor(0, 0.25, 5.5, 2, 2));
+  tiles.push(elevatedFloor(0, 0.5, 5, 2, 2));
+  tiles.push(elevatedFloor(0, 0.75, 4.5, 2, 2));
+  tiles.push(elevatedFloor(1, 0.25, 5.5, 2, 2));
+  tiles.push(elevatedFloor(1, 0.5, 5, 2, 2));
+  tiles.push(elevatedFloor(1, 0.75, 4.5, 2, 2));
+  tiles.push(elevatedFloor(2, 0.25, 5.5, 2, 2));
+  tiles.push(elevatedFloor(2, 0.5, 5, 2, 2));
+  tiles.push(elevatedFloor(2, 0.75, 4.5, 2, 2));
+
+  // Too-Steep Ramp (from z=6 to z=5 at x=4). Slope is 1.0.
+  // Visuals: orientation=2 at z=5
+  tiles.push(elevatedFloor(4, 0, 5, 2, 2, 2));
+  tiles.push(elevatedFloor(5, 0, 5, 2, 2, 2));
+
+  // Platform at top of too-steep ramp
+  tiles.push(elevatedFloor(4, 1, 4, 2, 2));
+  tiles.push(elevatedFloor(5, 1, 4, 2, 2));
+
+  // Low Ceiling (at x=-2, z=3, y=1.5)
+  tiles.push(ceiling(-2, 1.5, 3, 1, 1));
+  tiles.push(ceiling(-3, 1.5, 3, 1, 1));
+
   return tiles;
 }
 
@@ -96,6 +128,34 @@ const dungeon: DemoLevelDefinition = {
     {
       bounds: { min: [-6, 0, 0], max: [11, 0, 9] },
       heightFunction: [0, 0, 0],
+      normal: [0, 1, 0],
+      walkable: true
+    },
+    // Walkable ramp (slope 0.5)
+    {
+      bounds: { min: [-0.5, 0, 4.5], max: [2.5, 1, 6.5] },
+      heightFunction: [0, -0.5, 3.25],
+      normal: [0, 0.8944, 0.4472],
+      walkable: true
+    },
+    // Top platform for walkable ramp
+    {
+      bounds: { min: [-0.5, 1, 1.5], max: [2.5, 1, 4.5] },
+      heightFunction: [0, 0, 1],
+      normal: [0, 1, 0],
+      walkable: true
+    },
+    // Too-steep ramp (slope 1.0)
+    {
+      bounds: { min: [3.5, 0, 4.5], max: [5.5, 1, 5.5] },
+      heightFunction: [0, -1.0, 5.5],
+      normal: [0, 0.7071, 0.7071],
+      walkable: true
+    },
+    // Top platform for too-steep ramp
+    {
+      bounds: { min: [3.5, 1, 3.5], max: [5.5, 1, 4.5] },
+      heightFunction: [0, 0, 1],
       normal: [0, 1, 0],
       walkable: true
     }

@@ -1,10 +1,10 @@
 ---
 task: "102"
 slug: vertical-movement-demo
-status: pending
+status: in-flight
 depends-on: ["101"]
 blocked-by: ""
-assigned-to: ""
+assigned-to: "agent"
 created: 2026-07-30
 outcome: ""
 ---
@@ -31,7 +31,7 @@ Extend the existing demo with simple ramp, ledge, landing, steep-slope, and low-
 - [ ] Too-steep ramp blocks uphill movement.
 - [ ] Low ceiling blocks body penetration.
 - [ ] Existing seamless and persistence behavior remains intact.
-- [ ] Demo build/typecheck pass without new generated artifacts.
+- [x] Demo build/typecheck pass without new generated artifacts.
 
 ## Out of Scope
 
@@ -54,3 +54,12 @@ Extend the existing demo with simple ramp, ledge, landing, steep-slope, and low-
 - Read: `docs/features/demo-scope.md`.
 - Depends on: task:101.
 - Key files: `examples/demo/src/demo-world.ts`, `examples/demo/src/main.ts`, `packages/render/src/world-state/`.
+
+## Session Notes
+
+- Code typechecks and builds cleanly.
+- Added debug exposures (`grounded`, `verticalVelocity`).
+- Stripped trailing whitespace in `demo-world.ts`.
+- Removed untracked test results artifacts.
+- Exact evidence for ramp traversal and blocking missing (headless env / Playwright server not started).
+- Task kept in-flight pending manual or bounded proof of movement DoD items.
