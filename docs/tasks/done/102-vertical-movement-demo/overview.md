@@ -1,12 +1,12 @@
 ---
 task: "102"
 slug: vertical-movement-demo
-status: pending
+status: done
 depends-on: ["101"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-30
-outcome: ""
+outcome: "Added authored ramp, platform, ledge, steep-slope, and low-ceiling demo content with production support-surface transport and movement diagnostics. Demo build/typecheck and browser movement proof completed in commits f0259d6 and 163a455."
 ---
 
 # Add Vertical Movement Demo Content

@@ -4,7 +4,7 @@ slug: vertical-movement-solver
 status: done
 depends-on: ["99"]
 blocked-by: ""
-assigned-to: "agent"
+assigned-to: ""
 created: 2026-07-30
 outcome: "Implemented vertical movement logic in global_collision.rs with gravity, slopes, landing, and ceiling checks. All tests pass."
 ---

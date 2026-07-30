@@ -289,9 +289,9 @@ impl SupportSurface {
         let new_bounds = self.bounds.transformed(transform)?;
         let p0 = Vec3 { x: 0.0, y: self.height_function[2], z: 0.0 };
         let new_p0 = transform.transform_point(p0);
-        
+
         let new_normal = transform.rotation.normalized().rotate(self.normal);
-        
+
         let mut new_height_function = [0.0, 0.0, 0.0];
         if new_normal.y.abs() > f32::EPSILON {
             new_height_function[0] = -new_normal.x / new_normal.y;

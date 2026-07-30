@@ -120,13 +120,13 @@ impl GlobalCollisionWorld {
         let steps = (distance / (radius.max(0.05) * 0.5)).ceil().max(1.0) as usize;
         let sx = dx / steps as f32;
         let sz = dz / steps as f32;
-        
+
         let min_slope = config.max_walkable_slope.cos();
 
         for _ in 0..steps {
             let mut combined = result;
             combined.translation.x += sx; combined.translation.z += sz;
-            
+
             let is_blocked = |t: Transform| -> bool {
                 if self.collides(t, radius, height) { return true; }
                 let check_y = t.translation.y;
@@ -158,7 +158,7 @@ impl GlobalCollisionWorld {
             let step = sub_dt.min(rem_dt);
             if step <= 0.0 { break; }
             rem_dt -= step;
-            
+
             let mut best_y = None;
             for instance in self.instances.values() {
                 if !self.active.get(&instance.id).copied().unwrap_or(false) { continue; }
@@ -173,7 +173,7 @@ impl GlobalCollisionWorld {
                     }
                 }
             }
-            
+
             let mut grounded = false;
             if self.is_empty() {
                 grounded = true;
@@ -184,7 +184,7 @@ impl GlobalCollisionWorld {
                     grounded = true;
                 }
             }
-            
+
             if !grounded {
                 vy -= config.gravity * step;
                 if vy < -config.max_fall_speed { vy = -config.max_fall_speed; }
@@ -197,7 +197,7 @@ impl GlobalCollisionWorld {
                 }
                 result.translation.y = next_y;
             }
-            
+
             let mut lowest_c = None;
             for solid in self.solids() {
                 if result.translation.x + radius >= solid.min.x && result.translation.x - radius <= solid.max.x &&
@@ -214,7 +214,7 @@ impl GlobalCollisionWorld {
                 }
             }
         }
-        
+
         (result, vy)
     }
 }
@@ -300,7 +300,7 @@ mod tests {
     fn vertical_movement_tests() {
         let mut world = GlobalCollisionWorld::new();
         let mut instance = CollisionInstance { id: "test".into(), solids: vec![], surfaces: vec![] };
-        
+
         instance.surfaces.push(crate::world::SupportSurface {
             bounds: Bounds { min: Vec3 { x: -5.0, y: 0.0, z: -5.0 }, max: Vec3 { x: 5.0, y: 0.0, z: 5.0 } },
             height_function: [0.0, 0.0, 0.0],
@@ -308,25 +308,25 @@ mod tests {
             walkable: true,
             metadata: std::collections::HashMap::new(),
         });
-        
+
         instance.solids.push(SolidAabb { min: Vec3 { x: -5.0, y: 2.0, z: -5.0 }, max: Vec3 { x: 5.0, y: 3.0, z: 5.0 } });
-        
+
         world.set_instance(instance, true);
-        
+
         let mut config = crate::collision::CollisionConfig::default();
         config.gravity = 10.0;
         config.player_height = 1.0;
-        
+
         let pose = Transform { translation: Vec3 { x: 0.0, y: 0.0, z: 0.0 }, rotation: crate::world::Quaternion::IDENTITY, scale: 1.0 };
         let (moved, vy) = world.resolve_movement(pose, 0.0, 1.0, 0.0, &config, 0.1);
         assert_eq!(moved.translation.y, 0.0);
         assert_eq!(vy, 0.0);
-        
+
         let pose2 = Transform { translation: Vec3 { x: 6.0, y: 0.0, z: 0.0 }, rotation: crate::world::Quaternion::IDENTITY, scale: 1.0 };
         let (moved2, vy2) = world.resolve_movement(pose2, 0.0, 0.0, 0.0, &config, 0.1);
         assert!(vy2 < 0.0);
         assert!(moved2.translation.y < 0.0);
-        
+
         let pose3 = Transform { translation: Vec3 { x: 0.0, y: 1.0, z: 0.0 }, rotation: crate::world::Quaternion::IDENTITY, scale: 1.0 };
         let (moved3, _vy3) = world.resolve_movement(pose3, 0.0, 0.0, 5.0, &config, 0.1);
         assert!(moved3.translation.y <= 1.0);
