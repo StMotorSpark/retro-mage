@@ -1,12 +1,12 @@
 ---
 task: "105"
 slug: material-registry
-status: pending
+status: done
 depends-on: []
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-03
-outcome: ""
+outcome: "Added MaterialDescriptor types and MaterialRegistry in render package. Enforced independent application descriptors without WebGL types. Implemented fallback handling and validation with focused unit tests. Passed render tests and workspace typecheck."
 ---
 
 # Implement Material Registry Contract
