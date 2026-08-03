@@ -17,6 +17,7 @@ Each entry links to a design doc and includes the doc's one-line summary. Docs d
 
 | Doc | Summary |
 |-----|---------|
+| [`docs/features/demo-experience.md`](./features/demo-experience.md) | The Retro Mage showcase demo presents one continuous first-person journey from a torch-lit dungeon through a forest, stream crossing, and vertically layered castle. |
 | [`docs/features/demo-scope.md`](./features/demo-scope.md) | The Retro Mage demo proves a continuous global scene by connecting a small authored dungeon level to an outdoor level with visible preloading, traversal, collision, sprites, sky, and stylized lighting. |
 | [`docs/features/level-transitions.md`](./features/level-transitions.md) | Retro Mage connects reusable level instances through explicit anchors and application-owned links while rendering both sides as one continuous global scene. |
 | [`docs/features/world-model.md`](./features/world-model.md) | Retro Mage represents one continuous global 3D world made from reusable authored or application-generated level definitions placed as runtime instances. |
