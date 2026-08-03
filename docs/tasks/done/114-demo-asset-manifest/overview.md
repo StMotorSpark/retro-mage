@@ -6,7 +6,7 @@ depends-on: ["105"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-03
-outcome: "Created asset folders and README/checklist for dungeon, castle, outdoor, sprite, and sky content. Documented asset keys, material roles, UV modes, alpha expectations, and human handoff/blocker rule. Updated dependent task prompts (108, 110, 111, 112) with explicit reference to the README. Verified git diff --check, pnpm test, link/format checks passed."
+outcome: "Repaired. Folder structure committed via .gitkeep markers. README paths and asset lists verified against requirements. Blocker rule verified in dependent tasks."
 ---
 
 # Define Demo Asset Manifest
@@ -24,13 +24,13 @@ Create the application-owned demo asset folder structure, asset-key manifest, an
 
 ## Definition of Done
 
-- [x] Folder structure exists under `examples/demo/assets/`.
-- [x] README lists every required asset for dungeon, forest, outdoor route, and castle slices.
-- [x] Each required asset has an asset key, role/material, UV mode, and alpha expectation.
-- [x] README clearly separates required from optional assets.
-- [x] Missing supplied assets are visible and cannot be mistaken for completed visual acceptance.
-- [x] No image binaries are invented or added by this task.
-- [x] Demo asset conventions do not move ownership into engine-core or render.
+- [x] Folder structure exists under `examples/demo/assets/`. (Added .gitkeep to dungeon, castle, outdoor, sky, sprite)
+- [x] README lists every required asset for dungeon, forest, outdoor route, and castle slices. (Verified in assets/README.md)
+- [x] Each required asset has an asset key, role/material, UV mode, and alpha expectation. (Verified in assets/README.md)
+- [x] README clearly separates required from optional assets. (Verified section "Optional Assets")
+- [x] Missing supplied assets are visible and cannot be mistaken for completed visual acceptance. (Documented in "Human Handoff and Blocker Rule")
+- [x] No image binaries are invented or added by this task. (Only .gitkeep markers used)
+- [x] Demo asset conventions do not move ownership into engine-core or render. (Kept in examples/demo/assets)
 
 ## Out of Scope
 
