@@ -1,12 +1,12 @@
 ---
 task: "114"
 slug: demo-asset-manifest
-status: pending
+status: done
 depends-on: ["105"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-03
-outcome: ""
+outcome: "Created asset folders and README/checklist for dungeon, castle, outdoor, sprite, and sky content. Documented asset keys, material roles, UV modes, alpha expectations, and human handoff/blocker rule. Updated dependent task prompts (108, 110, 111, 112) with explicit reference to the README. Verified git diff --check, pnpm test, link/format checks passed."
 ---
 
 # Define Demo Asset Manifest
@@ -24,13 +24,13 @@ Create the application-owned demo asset folder structure, asset-key manifest, an
 
 ## Definition of Done
 
-- [ ] Folder structure exists under `examples/demo/assets/`.
-- [ ] README lists every required asset for dungeon, forest, outdoor route, and castle slices.
-- [ ] Each required asset has an asset key, role/material, UV mode, and alpha expectation.
-- [ ] README clearly separates required from optional assets.
-- [ ] Missing supplied assets are visible and cannot be mistaken for completed visual acceptance.
-- [ ] No image binaries are invented or added by this task.
-- [ ] Demo asset conventions do not move ownership into engine-core or render.
+- [x] Folder structure exists under `examples/demo/assets/`.
+- [x] README lists every required asset for dungeon, forest, outdoor route, and castle slices.
+- [x] Each required asset has an asset key, role/material, UV mode, and alpha expectation.
+- [x] README clearly separates required from optional assets.
+- [x] Missing supplied assets are visible and cannot be mistaken for completed visual acceptance.
+- [x] No image binaries are invented or added by this task.
+- [x] Demo asset conventions do not move ownership into engine-core or render.
 
 ## Out of Scope
 

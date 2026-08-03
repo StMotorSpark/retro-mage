@@ -41,7 +41,7 @@ Build the castle entry hall, three vertical layers, columns/statue billboards, g
 ## Implementation Steps
 
 1. Read demo experience/slices and vertical movement docs.
-2. Add supplied castle interior assets/material assignments. If absent, continue non-visual integration only and record the visual blocker.
+2. Add supplied castle interior assets/material assignments. If absent, continue non-visual integration only and record the visual blocker (see `examples/demo/assets/README.md`).
 3. Build entry, stairs, balcony, layers, and shell rooms through existing content contracts.
 4. Configure castle lighting without inventing multi-light blending.
 5. Add focused browser proof and run route regressions.

@@ -41,7 +41,7 @@ Extend the outdoor route across varied grass, an opaque sloped stream with colli
 ## Implementation Steps
 
 1. Read material, demo-slice, collision, and seam docs.
-2. Add supplied terrain, water, cobblestone, and castle assets. If absent, continue non-visual integration only and record the visual blocker.
+2. Add supplied terrain, water, cobblestone, and castle assets. If absent, continue non-visual integration only and record the visual blocker (see `examples/demo/assets/README.md`).
 3. Build visual stream and separate collision-only barrier.
 4. Place castle exterior and entry through global level-instance content.
 5. Prove route in browser and record collision/material/scale gaps.

@@ -42,7 +42,7 @@ Replace placeholder showcase content with the first authored dungeon route: torc
 ## Implementation Steps
 
 1. Read demo experience/slices and inspect current demo world/runtime setup.
-2. Inventory supplied assets; do not generate replacement art. If required assets are absent, continue non-visual integration only and record the visual blocker.
+2. Inventory supplied assets; do not generate replacement art. If required assets are absent, continue non-visual integration only and record the visual blocker (see `examples/demo/assets/README.md`).
 3. Build authored dungeon content through existing provider/world paths.
 4. Wire material IDs, textures, sprites, lights, and collision.
 5. Run focused browser proof plus relevant regression tests; record gaps.

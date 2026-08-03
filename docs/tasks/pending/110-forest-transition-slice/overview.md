@@ -40,7 +40,7 @@ Connect the dungeon showcase to a dense billboard forest, clearing, road, blue s
 ## Implementation Steps
 
 1. Read demo experience/slices and current authored provider/link setup.
-2. Add supplied tree, sky, and cloud assets through material contract. If absent, continue integration with explicit fallback and record visual acceptance as blocked.
+2. Add supplied tree, sky, and cloud assets through material contract. If absent, continue integration with explicit fallback and record visual acceptance as blocked (see `examples/demo/assets/README.md`).
 3. Build outdoor content as authored/provider content with explicit link.
 4. Configure outdoor lighting and collision while preserving crossing policy.
 5. Add focused browser proof and run transition/streaming regressions.
