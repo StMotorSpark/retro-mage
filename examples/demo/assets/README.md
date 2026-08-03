@@ -1,6 +1,27 @@
 # Demo Assets
 
-This directory contains application-owned visual assets for the Retro Mage showcase demo.
+This directory contains application-owned visual assets for the Retro Mage showcase demo. Asset keys map to source files below; filenames do not need to match asset keys.
+
+## Current Source Mapping
+
+| Asset key | Source file |
+| :--- | :--- |
+| `demo.dungeon.wall` | `dungeon/textures/dungeon.wall.png` |
+| `demo.dungeon.floor` | `dungeon/textures/dungeon.floor.png` |
+| `demo.dungeon.ceiling` | `dungeon/textures/dungeon.ceiling.png` |
+| `demo.castle.exterior` | `castle/textures/castle.exterior.wall.png` |
+| `demo.castle.interior` | `castle/textures/castle.interior.floor.png` |
+| `demo.outdoor.grass` | `outdoor/textures/forest.floor.png` |
+| `demo.outdoor.road` | `outdoor/textures/road.png` |
+| `demo.outdoor.cobblestone` | `outdoor/textures/cobblestone.png` |
+| `demo.outdoor.mountain` | `outdoor/textures/mountain.rock.png` |
+| `demo.outdoor.water` | `outdoor/textures/stream.water.png` |
+| `demo.sprite.torch` | `sprite/torch.1.png` |
+| `demo.sky.background` | `sky/textures/sky.background.png` |
+
+## Temporary Placeholders
+
+Flat-color 128×128 PNGs for dungeon ceiling, road, cobblestone, mountain rock, and stream water, plus a 512×256 sky color, are temporary integration assets. Replace them with supplied art before visual acceptance. They exist only to unblock material, geometry, and browser integration work.
 
 ## Human Handoff and Blocker Rule
 **CRITICAL:** Image assets are human-supplied. Tasks must NOT generate replacement art, invent image binaries, or move ownership into engine-core or render. If required assets are missing when implementing a demo slice, developers must:
