@@ -8,7 +8,7 @@ export class MaterialRegistry {
   }
 
   /**
-   * Registers a material descriptor. 
+   * Registers a material descriptor.
    * Validation is performed to ensure the descriptor is well-formed.
    */
   register(descriptor: MaterialDescriptor): void {
@@ -39,7 +39,7 @@ export class MaterialRegistry {
     }
     return material;
   }
-  
+
   /**
    * Checks if a material is registered.
    */

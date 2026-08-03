@@ -10,9 +10,13 @@ export interface MaterialDescriptor {
   uvMode: UvMode;
   /** Rendering capabilities and passes */
   flags: MaterialFlag[];
+  /** LUT/palette configuration */
+  lutConfig?: unknown;
+  /** Emissive configuration */
+  emissiveConfig?: unknown;
 }
 
-/** 
+/**
  * Fallback material used when an invalid or missing material is requested.
  * Ensure it is visibly distinct (e.g. solid magenta) in the renderer.
  */
