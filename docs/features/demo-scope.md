@@ -82,7 +82,7 @@ The demo does not require:
 - HUD or inventory
 - animated sprites
 - audio
-- full multi-floor movement physics
+- advanced multi-floor movement physics beyond authored ramp/support surfaces
 - WebGPU backend
 - procedural clouds
 - advanced portal culling

@@ -23,14 +23,14 @@ Add deterministic serial Playwright coverage for ramp movement, gravity, landing
 
 ## Definition of Done
 
-- [ ] Browser fixture ascends and descends ramp with monotonic expected Y movement.
-- [ ] Player walks off ledge, enters falling state, lands, and becomes grounded.
-- [ ] Too-steep ramp blocks uphill movement without corrupting pose.
-- [ ] Low ceiling prevents body/head penetration.
-- [ ] Diagnostics prove support selection and vertical velocity transitions, not merely DOM/object existence.
-- [ ] Existing browser proof suites pass serially.
-- [ ] Focused command is documented and bounded.
-- [ ] No screenshots, traces, caches, or generated artifacts enter git.
+- [x] Browser fixture ascends and descends ramp with monotonic expected Y movement.
+- [x] Player walks off ledge, enters falling state, lands, and becomes grounded.
+- [x] Too-steep ramp blocks uphill movement without corrupting pose.
+- [x] Low ceiling prevents body/head penetration.
+- [x] Diagnostics prove support selection and vertical velocity transitions, not merely DOM/object existence.
+- [x] Existing browser proof suites pass serially.
+- [x] Focused command is documented and bounded.
+- [x] No screenshots, traces, caches, or generated artifacts enter git.
 
 ## Out of Scope
 
