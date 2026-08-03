@@ -2,7 +2,7 @@
 task: "112"
 slug: castle-interior-slice
 status: pending
-depends-on: ["111"]
+depends-on: ["111", "114"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-03
@@ -28,7 +28,7 @@ Build the castle entry hall, three vertical layers, columns/statue billboards, g
 - [ ] Three distinct vertical layers render and collide correctly.
 - [ ] Player reaches balcony and sees entry hall below.
 - [ ] Columns/statues render with correct cutout/depth behavior.
-- [ ] Castle lighting is visibly brighter/cooler with broad falloff.
+- [ ] Castle lighting is visibly brighter/cooler with broad falloff when required supplied assets are present.
 - [ ] Existing vertical, transition, and runtime proofs pass.
 
 ## Out of Scope
@@ -41,7 +41,7 @@ Build the castle entry hall, three vertical layers, columns/statue billboards, g
 ## Implementation Steps
 
 1. Read demo experience/slices and vertical movement docs.
-2. Add supplied castle interior assets/material assignments.
+2. Add supplied castle interior assets/material assignments. If absent, continue non-visual integration only and record the visual blocker.
 3. Build entry, stairs, balcony, layers, and shell rooms through existing content contracts.
 4. Configure castle lighting without inventing multi-light blending.
 5. Add focused browser proof and run route regressions.

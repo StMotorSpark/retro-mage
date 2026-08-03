@@ -2,7 +2,7 @@
 task: "111"
 slug: stream-castle-exterior
 status: pending
-depends-on: ["110"]
+depends-on: ["110", "114"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-03
@@ -27,7 +27,7 @@ Extend the outdoor route across varied grass, an opaque sloped stream with colli
 - [ ] Stream surface renders opaque with correct slope/material.
 - [ ] Player cannot enter stream.
 - [ ] Cobblestone path crosses stream without blockage.
-- [ ] Castle exterior is visible from clearing and road.
+- [ ] Castle exterior is visible from clearing and road when required supplied assets are present.
 - [ ] Castle entry sightline has no seam or coordinate discontinuity.
 - [ ] Focused browser proof and relevant regressions pass.
 
@@ -41,7 +41,7 @@ Extend the outdoor route across varied grass, an opaque sloped stream with colli
 ## Implementation Steps
 
 1. Read material, demo-slice, collision, and seam docs.
-2. Add supplied terrain, water, cobblestone, and castle assets.
+2. Add supplied terrain, water, cobblestone, and castle assets. If absent, continue non-visual integration only and record the visual blocker.
 3. Build visual stream and separate collision-only barrier.
 4. Place castle exterior and entry through global level-instance content.
 5. Prove route in browser and record collision/material/scale gaps.

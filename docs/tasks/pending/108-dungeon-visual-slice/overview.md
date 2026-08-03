@@ -2,7 +2,7 @@
 task: "108"
 slug: dungeon-visual-slice
 status: pending
-depends-on: ["106", "107"]
+depends-on: ["106", "107", "114"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-03
@@ -29,7 +29,7 @@ Replace placeholder showcase content with the first authored dungeon route: torc
 - [ ] Billboard decorative sprites render as cutouts.
 - [ ] Warm dim light has tight falloff and no shadow/blend path.
 - [ ] Existing runtime/browser proofs remain passing.
-- [ ] Supplied asset list and any missing assets are recorded.
+- [ ] Required supplied assets are present, or missing assets are explicitly recorded as visual-acceptance blockers.
 
 ## Out of Scope
 
@@ -42,7 +42,7 @@ Replace placeholder showcase content with the first authored dungeon route: torc
 ## Implementation Steps
 
 1. Read demo experience/slices and inspect current demo world/runtime setup.
-2. Inventory supplied assets; do not generate replacement art.
+2. Inventory supplied assets; do not generate replacement art. If required assets are absent, continue non-visual integration only and record the visual blocker.
 3. Build authored dungeon content through existing provider/world paths.
 4. Wire material IDs, textures, sprites, lights, and collision.
 5. Run focused browser proof plus relevant regression tests; record gaps.
