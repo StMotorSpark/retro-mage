@@ -4,6 +4,7 @@ tags: [architecture, rendering, lighting, webgl, lut]
 summary: Retro Mage computes surface shading using dynamic 2D lighting lookup tables (LUTs) generated at runtime, mapping surface base colors and active point lights read from engine-core's WASM buffer to shaded pixel colors.
 relates-to:
   - "[Rendering](./rendering.md)"
+  - "[Material Contract](./material-contract.md)"
   - "[WASM Bridge](./wasm-bridge.md)"
   - "[Demo Scope](../features/demo-scope.md)"
   - "[Repo Structure](./repo-structure.md)"
@@ -80,9 +81,9 @@ Per frame, `packages/render` reads active lights from linear memory:
    For each fragment at world position $P$:
    - Distance to light $i$: $d_i = \|P - L_i\|$
    - Distance falloff: $A_i = \text{clamp}\left(1.0 - \left(\frac{d_i}{\text{radius}_i}\right)^2, 0.0, 1.0\right) \times \text{intensity}_i$
-   - Total accumulated light intensity:
-     $$I_{\text{total}} = \text{clamp}\left(u\_ambientLight + \sum_{i=0}^{N-1} A_i, 0.0, 1.0\right)$$
-   - The fragment shader converts $I_{\text{total}}$ to a row index $y = \text{floor}(I_{\text{total}} \times 31.0)$, samples `u_lightingLut` at coordinate $(u = \text{baseColor}, v = (y + 0.5) / 32.0)$, and multiplies by light color accumulation.
+   - Selected light contribution: the renderer chooses the strongest relevant point-light contribution instead of blending multiple light colors.
+   - Total illumination: `clamp(ambient + strongestContribution, 0.0, 1.0)`.
+   - The fragment shader converts illumination to a row index, samples `u_lightingLut`, and applies the selected light's RGB-aware palette mapping.
 
 ## Application API — Torch Point Lights Example
 
@@ -111,6 +112,7 @@ During each render frame:
 ## Related Docs
 
 - [Rendering](./rendering.md) — overall tile/sprite/LUT rendering architecture
+- [Material Contract](./material-contract.md) — material ownership and lighting boundary
 - [WASM Bridge](./wasm-bridge.md) — `lights` buffer layout and pointers in linear memory
 - [Demo Scope](../features/demo-scope.md) — demo dungeon layout and torch light specification
 - [Repo Structure](./repo-structure.md) — vertical slice organization within `packages/render`

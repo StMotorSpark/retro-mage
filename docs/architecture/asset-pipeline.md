@@ -5,6 +5,7 @@ summary: Retro Mage ships texture assets as KTX2/UASTC, compressed by the consum
 relates-to:
   - "[Tech Stack](./tech-stack.md)"
   - "[Rendering](./rendering.md)"
+  - "[Material Contract](./material-contract.md)"
   - "[Repo Structure](./repo-structure.md)"
   - "[Known Gaps](../research/known-gaps.md)"
   - "[Example Deployment](./example-deployment.md)"
@@ -47,6 +48,7 @@ KTX2/UASTC transcoding and rendering is confirmed working end-to-end on both des
 
 - [Tech Stack](./tech-stack.md) — the WebGL2 baseline and iPhone 16e reference device this format is validated against
 - [Rendering](./rendering.md) — the low-poly, retro visual approach this format's memory/bandwidth budget supports
+- [Material Contract](./material-contract.md) — application asset ownership and material usage
 - [Repo Structure](./repo-structure.md) — the engine-package-vs-consuming-game boundary this pipeline's responsibility split follows
 - [Known Gaps](../research/known-gaps.md) — remaining undecided asset-pipeline questions: the compression Vite plugin's exact implementation, tile/sprite folder conventions, and the outdoor chunk file format
 - [Example Deployment](./example-deployment.md) — how build-time-compressed KTX2 textures ship as static files in the deployed example
