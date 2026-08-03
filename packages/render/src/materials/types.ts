@@ -1,6 +1,19 @@
 export type UvMode = 'tile-repeat' | 'explicit' | 'billboard';
 export type MaterialFlag = 'opaque' | 'cutout' | 'lit' | 'unlit' | 'emissive' | 'water' | 'sky';
 
+export interface LutConfig {
+  paletteColors: string[];
+  intensityBandCount: number;
+  ambientLevel: number;
+  rgbLightColorMode: 'multiply' | 'tint' | 'override';
+  emissiveMapping: string;
+}
+
+export interface EmissiveConfig {
+  color: string;
+  intensity: number;
+}
+
 export interface MaterialDescriptor {
   /** Stable string material ID (e.g. "dungeon-stone", "grass") */
   id: string;
@@ -11,9 +24,9 @@ export interface MaterialDescriptor {
   /** Rendering capabilities and passes */
   flags: MaterialFlag[];
   /** LUT/palette configuration */
-  lutConfig?: unknown;
+  lutConfig?: LutConfig;
   /** Emissive configuration */
-  emissiveConfig?: unknown;
+  emissiveConfig?: EmissiveConfig;
 }
 
 /**

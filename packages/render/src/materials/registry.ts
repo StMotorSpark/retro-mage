@@ -24,6 +24,22 @@ export class MaterialRegistry {
       console.warn(`MaterialRegistry: Material ${descriptor.id} missing or invalid flags.`);
       descriptor = { ...descriptor, flags: [] };
     }
+    if (descriptor.lutConfig) {
+      if (!Array.isArray(descriptor.lutConfig.paletteColors)) {
+        console.warn(`MaterialRegistry: Material ${descriptor.id} has invalid lutConfig.paletteColors.`);
+      }
+      if (typeof descriptor.lutConfig.intensityBandCount !== 'number') {
+        console.warn(`MaterialRegistry: Material ${descriptor.id} has invalid lutConfig.intensityBandCount.`);
+      }
+    }
+    if (descriptor.emissiveConfig) {
+      if (typeof descriptor.emissiveConfig.intensity !== 'number') {
+        console.warn(`MaterialRegistry: Material ${descriptor.id} has invalid emissiveConfig.intensity.`);
+      }
+      if (typeof descriptor.emissiveConfig.color !== 'string') {
+        console.warn(`MaterialRegistry: Material ${descriptor.id} has invalid emissiveConfig.color.`);
+      }
+    }
     this.materials.set(descriptor.id, descriptor);
   }
 

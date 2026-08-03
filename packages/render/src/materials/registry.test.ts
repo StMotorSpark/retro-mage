@@ -46,6 +46,29 @@ describe('MaterialRegistry', () => {
     consoleSpy.mockRestore();
   });
 
+  it('validates lutConfig and emissiveConfig', () => {
+    const registry = new MaterialRegistry();
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    registry.register({
+      id: 'bad-configs',
+      textureAssetKeys: [],
+      uvMode: 'tile-repeat',
+      flags: [],
+      // @ts-ignore - intentional bad data
+      lutConfig: { paletteColors: 'not-an-array', intensityBandCount: 'not-a-number' },
+      // @ts-ignore
+      emissiveConfig: { color: 123, intensity: 'high' }
+    });
+
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('invalid lutConfig.paletteColors'));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('invalid lutConfig.intensityBandCount'));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('invalid emissiveConfig.intensity'));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('invalid emissiveConfig.color'));
+
+    consoleSpy.mockRestore();
+  });
+
   it('allows replacing an existing material', () => {
     const registry = new MaterialRegistry();
     const initial: MaterialDescriptor = {
