@@ -1,4 +1,5 @@
 import type { LightsView } from '../world-state/types.js';
+export * from './lut.js';
 
 export interface ActiveLight {
   x: number;
