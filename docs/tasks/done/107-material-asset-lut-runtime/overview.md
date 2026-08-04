@@ -6,7 +6,7 @@ depends-on: ["105"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-03
-outcome: "Implemented renderer-owned material asset resolution with app-supplied byte resolver, deterministic fallback diagnostics, KTX2/UASTC reuse, GPU cleanup, pure configurable LUT generation/upload, and emissive mapping. Baked LUT override explicitly deferred. Tests: pnpm --filter render test -- --run; pnpm --filter render typecheck; pnpm --filter vite-plugin-ktx2 test; pnpm --filter demo build; pnpm --filter demo typecheck; git diff --check."
+outcome: "Implemented packages/render/src/materials/resources.ts and resources.test.ts for app byte-resolver boundary, renderer GPU ownership/cleanup, KTX2 reuse, fallback diagnostics; implemented packages/render/src/lighting/lut.ts and lut.test.ts for deterministic configurable LUT, warm/cool palettes, bands, ambient, RGB modes, emissive mapping, and upload. Baked LUT override explicitly deferred. Tests: pnpm --filter render test -- --run (46 pass); pnpm --filter render typecheck; pnpm --filter vite-plugin-ktx2 test (2 pass); pnpm --filter demo build; pnpm --filter demo typecheck; git diff --check."
 ---
 
 # Wire Material Assets and Runtime LUT
@@ -23,12 +23,12 @@ Implement renderer-side texture resource resolution and app-configured runtime L
 
 ## Definition of Done
 
-- [ ] Material texture keys resolve through an app-owned asset boundary.
-- [ ] Renderer owns GPU texture/LUT resources and cleanup.
-- [ ] Runtime LUT generation is deterministic and configurable.
-- [ ] Optional baked LUT override boundary is documented or explicitly deferred without ambiguity.
-- [ ] Missing asset behavior is visible and tested.
-- [ ] Render tests and demo build/typecheck pass.
+- [x] Material texture keys resolve through an app-owned asset boundary.
+- [x] Renderer owns GPU texture/LUT resources and cleanup.
+- [x] Runtime LUT generation is deterministic and configurable.
+- [x] Optional baked LUT override boundary is documented or explicitly deferred without ambiguity.
+- [x] Missing asset behavior is visible and tested.
+- [x] Render tests and demo build/typecheck pass.
 
 ## Out of Scope
 
