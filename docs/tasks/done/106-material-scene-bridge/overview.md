@@ -1,12 +1,12 @@
 ---
 task: "106"
 slug: material-scene-bridge
-status: pending
+status: done
 depends-on: ["105"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-03
-outcome: "Tile, billboard, and polygon material transport implementations are complete in tasks 106, 115, and 117. Resume reconciliation to verify the combined bridge contract and close task metadata."
+outcome: "Reconciled combined tile/billboard/polygon bridge. Producers: packages/engine-core/src/world_transport.rs; WASM readers: packages/render/src/world-state/transport.ts and types.ts; render adapter: packages/render/src/world-state/scene.ts. Numeric material IDs, UV metadata, flags, global instance data, app-owned descriptor boundaries, renderer-neutral transport, explicit legacy defaults, atomic publication, and overflow behavior are covered by existing tests. Results: git diff --check passed; pnpm --filter engine-core test passed (118 unit, 5 integration, 0 doc failures); pnpm --filter render test -- --run passed (8 files, 41 tests); pnpm --filter render typecheck passed."
 ---
 
 # Add Material Data to Scene Transport
@@ -23,7 +23,7 @@ Carry material identity and required surface metadata from engine-owned world co
 ## Definition of Done
 
 - [x] Bridge schema documents material fields and ownership.
-- [ ] World content can submit material-bound tile/polygon/billboard data.
+- [x] World content can submit material-bound tile/polygon/billboard data.
 - [x] Renderer receives material identity without receiving WebGL objects.
 - [x] Old content remains compatible through explicit default/fallback behavior.
 - [x] Rust and TypeScript boundary tests pass.
