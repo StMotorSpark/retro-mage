@@ -6,7 +6,7 @@ depends-on: ["106", "107", "114"]
 blocked-by: ""
 assigned-to: "agent"
 created: 2026-08-03
-outcome: "Final verification: all required supplied assets present and valid PNG, including dungeon decoration sprite; decoration asset copied to runtime public resolver path. Checks pass: git diff --check, render 46 tests, render typecheck, demo build/typecheck. Focused serial Playwright with documented SwiftShader flags: 2/5 browser proofs pass; 3 fail because outdoor-instance remains state 0 instead of expected preload/overflow states, with no page diagnostics. Exact repro: pnpm exec playwright test -c playwright.config.ts examples/demo/tests/browser-seamless.spec.ts --workers=1; failures at lines 78, 105, 163. Dungeon-specific visual route acceptance remains unproven; task stays in-flight pending browser/runtime investigation. No generated art or retained traces."
+outcome: "Fixed preload relevance/start-seam mismatch and overflow fixture ownership in e9738d9: demo relevance is 20, lifecycle diagnostics expose known/loading/resident/failed instances, and overflow fixture capacity leaves dungeon source resident so outdoor target overflows. Checks pass: git diff --check, render 46 tests, render typecheck, demo build/typecheck. Focused serial Playwright reaches 3/5; remaining eviction and cancellation routes time out. Rust preload experiment was reverted after WebGL/WASM ABI regression. Task remains in-flight pending browser/runtime investigation; no generated artifacts retained."
 ---
 
 # Build Dungeon Visual Slice
