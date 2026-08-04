@@ -6,7 +6,7 @@ depends-on: ["106", "107", "114"]
 blocked-by: ""
 assigned-to: "agent"
 created: 2026-08-03
-outcome: "Fixed preload relevance/start-seam mismatch and overflow fixture ownership in e9738d9: demo relevance is 20, lifecycle diagnostics expose known/loading/resident/failed instances, and overflow fixture capacity leaves dungeon source resident so outdoor target overflows. Checks pass: git diff --check, render 46 tests, render typecheck, demo build/typecheck. Focused serial Playwright reaches 3/5; remaining eviction and cancellation routes time out. Rust preload experiment was reverted after WebGL/WASM ABI regression. Task remains in-flight pending browser/runtime investigation; no generated artifacts retained."
+outcome: "Fixed renderer WASM polygon-view binding bug: transport passed unbound generated methods, causing browser __wbg_ptr crashes. Corrected polygon pointer binding and stale eviction assertion to include documented Evictable state. Checks pass: git diff --check, render 46 tests, render typecheck, demo build/typecheck. Focused browser proof reaches 3/5 before eviction assertion fix; cancellation remains blocked because target stays Required/pinned as active transition pair, so reverse strafe cannot cancel pending preload. Task remains in-flight; no generated artifacts retained."
 ---
 
 # Build Dungeon Visual Slice

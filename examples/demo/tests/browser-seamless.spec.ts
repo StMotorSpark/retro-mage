@@ -135,14 +135,14 @@ test('unneeded content becomes evictable and reloads when relevant', async ({ pa
   await strafe(page, -70, (snapshot) => snapshot.activeInstance === 'dungeon-instance');
   await strafe(page, -40, (snapshot) => {
     const outdoor = snapshot.instances.find(i => i.id === 'outdoor-instance');
-    return outdoor === undefined || outdoor.state === 0 || outdoor.state === 5; // Known or Evicted
+    return outdoor === undefined || outdoor.state === 0 || outdoor.state === 4 || outdoor.state === 5; // Known, Evictable, or Evicted
   });
 
   const evicted = await debug(page);
   expect(evicted.activeInstance).toBe('dungeon-instance');
   const outdoorEvicted = evicted.instances.find((instance) => instance.id === 'outdoor-instance');
-  // It should be 0 (Known) or 5 (Evicted)
-  expect(outdoorEvicted?.state === 0 || outdoorEvicted?.state === 5).toBe(true);
+  // It should be 0 (Known), 4 (Evictable), or 5 (Evicted)
+  expect(outdoorEvicted?.state === 0 || outdoorEvicted?.state === 4 || outdoorEvicted?.state === 5).toBe(true);
   
   // Verify eviction diagnostics
   expect(evicted.evictions.length).toBeGreaterThan(0);
