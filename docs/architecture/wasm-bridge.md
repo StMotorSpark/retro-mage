@@ -9,6 +9,7 @@ relates-to:
   - "[Collision Bridge](./collision-bridge.md)"
   - "[Rendering](./rendering.md)"
   - "[Scene Capacity](./scene-capacity.md)"
+  - "[Polygon Scene Transport](./polygon-scene-transport.md)"
   - "[Visibility](./visibility.md)"
   - "[Input Event Schema](./input-schema.md)"
   - "[Test-Driven Development](../principles/test-driven-development.md)"
@@ -57,6 +58,7 @@ Each bridge schema has one documented owner and colocated tests. Changes update 
 - [Collision Bridge](./collision-bridge.md) — runtime-owned movement integration
 - [Rendering](./rendering.md) — global scene consumer
 - [Scene Capacity](./scene-capacity.md) — configured buffers and overflow semantics
+- [Polygon Scene Transport](./polygon-scene-transport.md) — polygon render data boundary
 - [Visibility](./visibility.md) — render relevance
 - [Input Event Schema](./input-schema.md) — reverse-direction input contract
 - [Test-Driven Development](../principles/test-driven-development.md) — boundary tests
