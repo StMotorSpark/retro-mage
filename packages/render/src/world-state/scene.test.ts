@@ -11,7 +11,20 @@ describe('GlobalSceneSubmission', () => {
     expect(view.instanceIds).toEqual(['source', 'target']);
     expect(view.tiles.count).toBe(2);
     expect(Array.from(view.tiles.x.slice(0, 2))).toEqual([1, 101]);
+    expect(view.tiles.material_id?.[0]).toBe(0);
+    expect(view.tiles.render_flags?.[0]).toBe(5);
     expect(view.actors.count).toBe(1);
+  });
+
+  it('carries material identity, UV data, and render flags', () => {
+    const scene = new GlobalSceneSubmission({ tiles: 1 });
+    scene.submit({ id: 'room', tiles: [{ x: 1, y: 2, z: 3, material_id: 7, uv_mode: 1, uv_u: 2.5, uv_v: 3.5, render_flags: 6 }] });
+    const tile = scene.view().tiles;
+    expect(tile.material_id?.[0]).toBe(7);
+    expect(tile.uv_mode?.[0]).toBe(1);
+    expect(tile.uv_u?.[0]).toBe(2.5);
+    expect(tile.uv_v?.[0]).toBe(3.5);
+    expect(tile.render_flags?.[0]).toBe(6);
   });
 
   it('keeps overlapping source and target geometry in one depth-tested scene', () => {

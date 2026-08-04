@@ -7,6 +7,10 @@ export interface WorldTransportEngine {
   tiles_z_ptr(): number;
   tiles_tile_id_ptr(): number;
   tiles_material_id_ptr(): number;
+  tiles_uv_mode_ptr?(): number;
+  tiles_uv_u_ptr?(): number;
+  tiles_uv_v_ptr?(): number;
+  tiles_render_flags_ptr?(): number;
   tiles_variant_ptr(): number;
   tiles_north_ptr(): number;
   tiles_east_ptr(): number;
@@ -122,6 +126,10 @@ export class WorldTransportReader {
         tc,
         old?.tiles.material_id,
       ),
+      uv_mode: this.engine.tiles_uv_mode_ptr ? f32(this.memory, this.engine.tiles_uv_mode_ptr(), tc, old?.tiles.uv_mode) : new Float32Array(tc),
+      uv_u: this.engine.tiles_uv_u_ptr ? f32(this.memory, this.engine.tiles_uv_u_ptr(), tc, old?.tiles.uv_u) : new Float32Array(tc),
+      uv_v: this.engine.tiles_uv_v_ptr ? f32(this.memory, this.engine.tiles_uv_v_ptr(), tc, old?.tiles.uv_v) : new Float32Array(tc),
+      render_flags: this.engine.tiles_render_flags_ptr ? f32(this.memory, this.engine.tiles_render_flags_ptr(), tc, old?.tiles.render_flags) : new Float32Array(tc).fill(5),
       variant: f32(this.memory, this.engine.tiles_variant_ptr(), tc, old?.tiles.variant),
       orientation: f32(
         this.memory,

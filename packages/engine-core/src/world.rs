@@ -232,6 +232,12 @@ pub struct LevelTile {
     pub position: Vec3,
     pub tile_id: u32,
     pub material_id: u32,
+    /// Renderer-neutral UV mode/data and material contract flags.
+    /// Defaults: tile-repeat, (0, 0), opaque|lit (0b0101).
+    pub uv_mode: u8,
+    pub uv_u: f32,
+    pub uv_v: f32,
+    pub render_flags: u32,
     pub variant: u16,
     pub orientation: u8,
     pub solid: bool,

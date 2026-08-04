@@ -35,7 +35,7 @@ The input-to-engine direction uses the normalized per-frame function-call schema
 
 Bridge storage uses preallocated typed buffers where fixed-capacity SoA access provides a measured benefit. Variable scene content uses configurable capacities or instance/chunk submission units rather than one hidden tiny global visible-tile limit. Overflow is explicit and observable; silent geometry loss is invalid.
 
-The exact field order, numeric types, capacity, and pointer/count contracts are documented with the implementation slice that owns each buffer. Boundary tests cover stride, pointer, count, active flags, and memory-growth view refresh.
+The exact field order, numeric types, capacity, and pointer/count contracts are documented with the implementation slice that owns each buffer. World tile SoA exposes `material_id`, `uv_mode` (0 tile-repeat, 1 explicit, 2 billboard), `uv_u`, `uv_v`, and `render_flags` (opaque=1, cutout=2, lit=4, unlit=8, emissive=16, water=32, sky=64), all `f32` scalar lanes. Missing legacy metadata defaults to material 0, UV mode/data 0, flags opaque|lit (5). These are renderer-neutral values; descriptors/texture keys stay app-owned and WebGL resources never enter WASM. Boundary tests cover stride, pointer, count, active flags, and memory-growth view refresh.
 
 ## Global Coordinates
 

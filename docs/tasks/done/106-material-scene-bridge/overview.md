@@ -1,12 +1,12 @@
 ---
 task: "106"
 slug: material-scene-bridge
-status: pending
+status: done
 depends-on: ["105"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-03
-outcome: ""
+outcome: "Added renderer-neutral material ID, UV mode/data, and render flags to engine world tile transport and TypeScript scene views, with legacy defaults. Preserved global transforms, atomic fixed-capacity publication, overflow diagnostics, app-owned descriptors, and GPU boundary. Verified Rust transport and render scene/reader tests."
 ---
 
 # Add Material Data to Scene Transport
