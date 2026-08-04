@@ -27,7 +27,7 @@ pub struct WorldTransport {
     definitions: HashMap<String, LevelDefinition>,
     builders: HashMap<String, DefinitionBuilder>,
     tile_x: Vec<f32>, tile_y: Vec<f32>, tile_z: Vec<f32>, tile_id: Vec<f32>, tile_material: Vec<f32>, tile_uv_mode: Vec<f32>, tile_uv_u: Vec<f32>, tile_uv_v: Vec<f32>, tile_render_flags: Vec<f32>, tile_variant: Vec<f32>, tile_orientation: Vec<f32>, tile_solid: Vec<f32>, tile_north: Vec<f32>, tile_east: Vec<f32>, tile_south: Vec<f32>, tile_west: Vec<f32>, tile_opening: Vec<f32>,
-    actor_x: Vec<f32>, actor_y: Vec<f32>, actor_z: Vec<f32>, actor_facing: Vec<f32>, actor_sprite: Vec<f32>, actor_active: Vec<f32>,
+    actor_x: Vec<f32>, actor_y: Vec<f32>, actor_z: Vec<f32>, actor_facing: Vec<f32>, actor_sprite: Vec<f32>, actor_active: Vec<f32>, actor_material: Vec<f32>, actor_uv_mode: Vec<f32>, actor_uv_u: Vec<f32>, actor_uv_v: Vec<f32>, actor_render_flags: Vec<f32>,
     light_x: Vec<f32>, light_y: Vec<f32>, light_z: Vec<f32>, light_r: Vec<f32>, light_g: Vec<f32>, light_b: Vec<f32>, light_intensity: Vec<f32>, light_active: Vec<f32>,
     instance_ids: Vec<String>, instance_states: Vec<u32>, instance_render: Vec<f32>, instance_collision: Vec<f32>, instance_simulation: Vec<f32>,
     instance_restore_status: Vec<u32>, instance_restore_attempts: Vec<u32>, instance_versions: Vec<String>, instance_failures: Vec<String>, instance_handoff_status: Vec<u32>,
@@ -51,7 +51,7 @@ impl WorldTransport {
         Self {
             runtime: WorldRuntime::new(crate::world_manifest::WorldManifest { definitions: vec![], instances: vec![], links: vec![], starting_locations: vec![] }).expect("empty world manifest"), definitions: HashMap::new(), builders: HashMap::new(),
             tile_x: vec![0.; tile_capacity], tile_y: vec![0.; tile_capacity], tile_z: vec![0.; tile_capacity], tile_id: vec![0.; tile_capacity], tile_material: vec![0.; tile_capacity], tile_uv_mode: vec![0.; tile_capacity], tile_uv_u: vec![0.; tile_capacity], tile_uv_v: vec![0.; tile_capacity], tile_render_flags: vec![5.; tile_capacity], tile_variant: vec![0.; tile_capacity], tile_orientation: vec![0.; tile_capacity], tile_solid: vec![0.; tile_capacity], tile_north: vec![0.; tile_capacity], tile_east: vec![0.; tile_capacity], tile_south: vec![0.; tile_capacity], tile_west: vec![0.; tile_capacity], tile_opening: vec![0.; tile_capacity],
-            actor_x: vec![0.; actor_capacity], actor_y: vec![0.; actor_capacity], actor_z: vec![0.; actor_capacity], actor_facing: vec![0.; actor_capacity], actor_sprite: vec![0.; actor_capacity], actor_active: vec![0.; actor_capacity],
+            actor_x: vec![0.; actor_capacity], actor_y: vec![0.; actor_capacity], actor_z: vec![0.; actor_capacity], actor_facing: vec![0.; actor_capacity], actor_sprite: vec![0.; actor_capacity], actor_active: vec![0.; actor_capacity], actor_material: vec![0.; actor_capacity], actor_uv_mode: vec![2.; actor_capacity], actor_uv_u: vec![0.; actor_capacity], actor_uv_v: vec![0.; actor_capacity], actor_render_flags: vec![6.; actor_capacity],
             light_x: vec![0.; light_capacity], light_y: vec![0.; light_capacity], light_z: vec![0.; light_capacity], light_r: vec![0.; light_capacity], light_g: vec![0.; light_capacity], light_b: vec![0.; light_capacity], light_intensity: vec![0.; light_capacity], light_active: vec![0.; light_capacity],
             instance_ids: Vec::with_capacity(instance_capacity), instance_states: vec![0; instance_capacity], instance_render: vec![0.; instance_capacity], instance_collision: vec![0.; instance_capacity], instance_simulation: vec![0.; instance_capacity],
             instance_restore_status: vec![0; instance_capacity], instance_restore_attempts: vec![0; instance_capacity], instance_versions: Vec::with_capacity(instance_capacity), instance_failures: Vec::with_capacity(instance_capacity), instance_handoff_status: vec![0; instance_capacity],
@@ -80,7 +80,14 @@ impl WorldTransport {
 
     pub fn definition_actor(&mut self, definition_id: &str, x: f32, y: f32, z: f32, actor_id: &str, sprite_id: u32, facing: f32, active: bool, spawn: bool) -> bool {
         let Some(builder) = self.builders.get_mut(definition_id) else { return false; };
-        builder.definition.actors.push(LevelActor { position: Vec3 { x, y, z }, actor_id: actor_id.into(), sprite_id, facing, active, spawn }); true
+        builder.definition.actors.push(LevelActor { position: Vec3 { x, y, z }, actor_id: actor_id.into(), sprite_id, facing, active, spawn, material_id: 0, uv_mode: 2, uv_u: 0.0, uv_v: 0.0, render_flags: 6 }); true
+    }
+
+    /// Set billboard material metadata; only numeric renderer-neutral values cross bridge.
+    pub fn definition_actor_surface(&mut self, definition_id: &str, index: usize, material_id: u32, uv_mode: u8, uv_u: f32, uv_v: f32, render_flags: u32) -> bool {
+        let Some(actor) = self.builders.get_mut(definition_id).and_then(|b| b.definition.actors.get_mut(index)) else { return false; };
+        if uv_mode != 2 || !uv_u.is_finite() || !uv_v.is_finite() { return false; }
+        actor.material_id = material_id; actor.uv_mode = uv_mode; actor.uv_u = uv_u; actor.uv_v = uv_v; actor.render_flags = render_flags; true
     }
 
     pub fn definition_light(&mut self, definition_id: &str, x: f32, y: f32, z: f32, r: f32, g: f32, b: f32, intensity: f32, active: bool) -> bool {
@@ -291,7 +298,7 @@ macro_rules! ptr_api { ($($name:ident: $field:ident),* $(,)?) => {
     #[wasm_bindgen]
     impl WorldTransport { $(pub fn $name(&self) -> *const f32 { self.$field.as_ptr() })* }
 }; }
-ptr_api!(tiles_x_ptr: tile_x, tiles_y_ptr: tile_y, tiles_z_ptr: tile_z, tiles_tile_id_ptr: tile_id, tiles_material_id_ptr: tile_material, tiles_uv_mode_ptr: tile_uv_mode, tiles_uv_u_ptr: tile_uv_u, tiles_uv_v_ptr: tile_uv_v, tiles_render_flags_ptr: tile_render_flags, tiles_variant_ptr: tile_variant, tiles_orientation_ptr: tile_orientation, tiles_solid_ptr: tile_solid, tiles_north_ptr: tile_north, tiles_east_ptr: tile_east, tiles_south_ptr: tile_south, tiles_west_ptr: tile_west, tiles_opening_ptr: tile_opening, actors_x_ptr: actor_x, actors_y_ptr: actor_y, actors_z_ptr: actor_z, actors_facing_ptr: actor_facing, actors_sprite_id_ptr: actor_sprite, actors_active_ptr: actor_active, lights_x_ptr: light_x, lights_y_ptr: light_y, lights_z_ptr: light_z, lights_r_ptr: light_r, lights_g_ptr: light_g, lights_b_ptr: light_b, lights_intensity_ptr: light_intensity, lights_active_ptr: light_active);
+ptr_api!(tiles_x_ptr: tile_x, tiles_y_ptr: tile_y, tiles_z_ptr: tile_z, tiles_tile_id_ptr: tile_id, tiles_material_id_ptr: tile_material, tiles_uv_mode_ptr: tile_uv_mode, tiles_uv_u_ptr: tile_uv_u, tiles_uv_v_ptr: tile_uv_v, tiles_render_flags_ptr: tile_render_flags, tiles_variant_ptr: tile_variant, tiles_orientation_ptr: tile_orientation, tiles_solid_ptr: tile_solid, tiles_north_ptr: tile_north, tiles_east_ptr: tile_east, tiles_south_ptr: tile_south, tiles_west_ptr: tile_west, tiles_opening_ptr: tile_opening, actors_x_ptr: actor_x, actors_y_ptr: actor_y, actors_z_ptr: actor_z, actors_facing_ptr: actor_facing, actors_sprite_id_ptr: actor_sprite, actors_active_ptr: actor_active, actors_material_id_ptr: actor_material, actors_uv_mode_ptr: actor_uv_mode, actors_uv_u_ptr: actor_uv_u, actors_uv_v_ptr: actor_uv_v, actors_render_flags_ptr: actor_render_flags, lights_x_ptr: light_x, lights_y_ptr: light_y, lights_z_ptr: light_z, lights_r_ptr: light_r, lights_g_ptr: light_g, lights_b_ptr: light_b, lights_intensity_ptr: light_intensity, lights_active_ptr: light_active);
 
 impl WorldTransport {
     fn sync(&mut self) {
@@ -347,7 +354,7 @@ impl WorldTransport {
             self.instances += 1;
             if let Some(content) = content_opt {
                 for tile in &content.tiles { let i = self.tiles; self.tile_x[i]=tile.position.x; self.tile_y[i]=tile.position.y; self.tile_z[i]=tile.position.z; self.tile_id[i]=tile.tile_id as f32; self.tile_material[i]=tile.material_id as f32; self.tile_uv_mode[i]=tile.uv_mode as f32; self.tile_uv_u[i]=tile.uv_u; self.tile_uv_v[i]=tile.uv_v; self.tile_render_flags[i]=tile.render_flags as f32; self.tile_variant[i]=tile.variant as f32; self.tile_orientation[i]=tile.orientation as f32; self.tile_solid[i]=tile.solid as u8 as f32; self.tile_north[i]=tile.openings.north as u8 as f32; self.tile_east[i]=tile.openings.east as u8 as f32; self.tile_south[i]=tile.openings.south as u8 as f32; self.tile_west[i]=tile.openings.west as u8 as f32; self.tile_opening[i]=tile.openings.vertical as u8 as f32; self.tiles+=1; }
-                for actor in &content.actors { let i=self.actors; self.actor_x[i]=actor.position.x; self.actor_y[i]=actor.position.y; self.actor_z[i]=actor.position.z; self.actor_facing[i]=actor.facing; self.actor_sprite[i]=actor.sprite_id as f32; self.actor_active[i]=actor.active as u8 as f32; self.actors+=1; }
+                for actor in &content.actors { let i=self.actors; self.actor_x[i]=actor.position.x; self.actor_y[i]=actor.position.y; self.actor_z[i]=actor.position.z; self.actor_facing[i]=actor.facing; self.actor_sprite[i]=actor.sprite_id as f32; self.actor_active[i]=actor.active as u8 as f32; self.actor_material[i]=actor.material_id as f32; self.actor_uv_mode[i]=actor.uv_mode as f32; self.actor_uv_u[i]=actor.uv_u; self.actor_uv_v[i]=actor.uv_v; self.actor_render_flags[i]=actor.render_flags as f32; self.actors+=1; }
                 for light in &content.lights { let i=self.lights; self.light_x[i]=light.position.x; self.light_y[i]=light.position.y; self.light_z[i]=light.position.z; self.light_r[i]=light.color[0]; self.light_g[i]=light.color[1]; self.light_b[i]=light.color[2]; self.light_intensity[i]=light.intensity; self.light_active[i]=light.active as u8 as f32; self.lights+=1; }
             }
         }

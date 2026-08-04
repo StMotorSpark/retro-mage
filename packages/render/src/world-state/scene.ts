@@ -25,6 +25,11 @@ export interface GlobalSceneActor {
   facing?: number;
   sprite_id?: number;
   active?: number;
+  material_id?: number;
+  uv_mode?: number;
+  uv_u?: number;
+  uv_v?: number;
+  render_flags?: number;
 }
 
 export interface GlobalSceneLight {

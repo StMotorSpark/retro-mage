@@ -175,7 +175,7 @@ mod tests {
                 max: Vec3 { x: 2.0, y: 1.0, z: 3.0 },
             },
             tiles: vec![LevelTile { position: Vec3 { x: 1.0, y: 0.0, z: 2.0 }, tile_id: 7, material_id: 3, uv_mode: 0, uv_u: 0.0, uv_v: 0.0, render_flags: 5, variant: 2, orientation: 1, solid: true, openings: Default::default(), stairs: None }],
-            actors: vec![LevelActor { position: Vec3 { x: 0.0, y: 1.0, z: 0.0 }, actor_id: "guard".into(), sprite_id: 4, facing: 1.5, active: true, spawn: true }],
+            actors: vec![LevelActor { position: Vec3 { x: 0.0, y: 1.0, z: 0.0 }, actor_id: "guard".into(), sprite_id: 4, facing: 1.5, active: true, spawn: true, material_id: 0, uv_mode: 2, uv_u: 0.0, uv_v: 0.0, render_flags: 6 }],
             lights: vec![LevelLight { position: Vec3 { x: 2.0, y: 1.0, z: 3.0 }, color: [1.0, 0.5, 0.25], intensity: 2.0, active: true }],
             polygons: vec![LevelPolygon { vertices: vec![Vec3::ZERO, Vec3 { x: 1.0, y: 0.0, z: 0.0 }, Vec3 { x: 0.0, y: 0.0, z: 1.0 }], material_id: 9, solid: false }],
             surfaces: vec![],

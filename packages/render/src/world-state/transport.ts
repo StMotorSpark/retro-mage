@@ -25,6 +25,11 @@ export interface WorldTransportEngine {
   actors_facing_ptr(): number;
   actors_sprite_id_ptr(): number;
   actors_active_ptr(): number;
+  actors_material_id_ptr?(): number;
+  actors_uv_mode_ptr?(): number;
+  actors_uv_u_ptr?(): number;
+  actors_uv_v_ptr?(): number;
+  actors_render_flags_ptr?(): number;
   lights_x_ptr(): number;
   lights_y_ptr(): number;
   lights_z_ptr(): number;
@@ -158,6 +163,11 @@ export class WorldTransportReader {
       facing: f32(this.memory, this.engine.actors_facing_ptr(), ac, old?.actors.facing),
       sprite_id: f32(this.memory, this.engine.actors_sprite_id_ptr(), ac, old?.actors.sprite_id),
       active: f32(this.memory, this.engine.actors_active_ptr(), ac, old?.actors.active),
+      material_id: this.engine.actors_material_id_ptr ? f32(this.memory, this.engine.actors_material_id_ptr(), ac, old?.actors.material_id) : new Float32Array(ac),
+      uv_mode: this.engine.actors_uv_mode_ptr ? f32(this.memory, this.engine.actors_uv_mode_ptr(), ac, old?.actors.uv_mode) : new Float32Array(ac).fill(2),
+      uv_u: this.engine.actors_uv_u_ptr ? f32(this.memory, this.engine.actors_uv_u_ptr(), ac, old?.actors.uv_u) : new Float32Array(ac),
+      uv_v: this.engine.actors_uv_v_ptr ? f32(this.memory, this.engine.actors_uv_v_ptr(), ac, old?.actors.uv_v) : new Float32Array(ac),
+      render_flags: this.engine.actors_render_flags_ptr ? f32(this.memory, this.engine.actors_render_flags_ptr(), ac, old?.actors.render_flags) : new Float32Array(ac).fill(6),
       count: ac,
     };
     const lights = {

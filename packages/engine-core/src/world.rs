@@ -253,6 +253,12 @@ pub struct LevelActor {
     pub facing: f32,
     pub active: bool,
     pub spawn: bool,
+    /// Renderer-neutral billboard material metadata. Legacy actors use defaults.
+    pub material_id: u32,
+    pub uv_mode: u8,
+    pub uv_u: f32,
+    pub uv_v: f32,
+    pub render_flags: u32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
