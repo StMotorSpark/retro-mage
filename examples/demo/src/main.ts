@@ -69,7 +69,7 @@ async function main(): Promise<void> {
     'demo.dungeon.ceiling': '/assets/dungeon/textures/dungeon.ceiling.png', 'demo.sprite.torch': '/assets/sprite/torch.1.png',
     'demo.sprite.dungeon_deco': '/assets/sprite/dungeon.deco.png',
   };
-  const worldTransport = overflowActors ? WorldTransport.with_capacity(4096, 2, 128, 64) : new WorldTransport();
+  const worldTransport = overflowActors ? WorldTransport.with_capacity(4096, 3, 128, 64) : new WorldTransport();
   window.__retroMageWorldTransport = worldTransport;
   window.__retroMageTeleport = (x, y, z) => engineState.set_camera(x, y, z, 0, 0);
   const provider = createDemoLevelProvider();
@@ -79,9 +79,11 @@ async function main(): Promise<void> {
   registerDemoWorld(worldTransport);
   if (demoManifest.link.preload !== 'before-visible') throw new Error('Demo link must preload before visible.');
   if (!worldTransport.set_current_instance('dungeon-instance')) throw new Error('Failed to set source current instance.');
-  if (!worldTransport.set_scheduler_policy(10, 0, 2)) throw new Error('Failed to configure demo streaming scheduler.');
+  if (!worldTransport.set_scheduler_policy(20, 0, 2)) throw new Error('Failed to configure demo streaming scheduler.');
 
   const pendingLoads = new Map<string, AbortController>();
+  // Render snapshot contains resident instances only; diagnostics also expose known/loading/failed.
+  const lifecycleDiagnostics = new Map<string, { state: number; renderResident: boolean; collisionActive: boolean }>(demoManifest.instances.map(({ id }) => [id, { state: 0, renderResident: false, collisionActive: false }]));
   const savedPayloads: Record<string, string> = { 'outdoor-instance': 'initial-app-state-123' };
   const initialOutdoorPayload = savedPayloads['outdoor-instance'];
   if (!initialOutdoorPayload || !worldTransport.set_application_payload('outdoor-instance', initialOutdoorPayload)) throw new Error('Failed to seed outdoor persistence state.');
@@ -174,8 +176,10 @@ async function main(): Promise<void> {
         const definitionId = instanceId.replace('-instance', '') as DemoLevelId;
         const controller = new AbortController();
         pendingLoads.set(instanceId, controller);
+        lifecycleDiagnostics.set(instanceId, { state: 1, renderResident: false, collisionActive: false });
         void provider.resolveAsync(definitionId, { delayMs: definitionId === 'outdoor' ? (slowOutdoor ? 2000 : 250) : 40, fail: definitionId === 'outdoor' && failOutdoor, signal: controller.signal }).then(() => {
           if (!worldTransport.accept_definition(requestId, instanceId)) throw new Error(`Failed to accept ${instanceId}`);
+          lifecycleDiagnostics.set(instanceId, { state: 2, renderResident: true, collisionActive: false });
           if (savedPayloads[instanceId] && !worldTransport.set_application_payload(instanceId, savedPayloads[instanceId])) throw new Error(`Failed to restore persistence handle for ${instanceId}`);
           if (savedPayloads[instanceId]) {
             const payload = corruptRestore ? 'corrupt-payload' : savedPayloads[instanceId];
@@ -195,6 +199,7 @@ async function main(): Promise<void> {
           pendingLoads.delete(instanceId);
           if (error instanceof DOMException && error.name === 'AbortError') return;
           if (!worldTransport.fail_load(requestId, instanceId, error instanceof Error ? error.message : String(error))) throw new Error(`Failed to reject ${instanceId}`);
+          lifecycleDiagnostics.set(instanceId, { state: 6, renderResident: false, collisionActive: false });
           if (instanceId === 'outdoor-instance') console.warn('Outdoor preload failed by debug request; source remains playable.');
         });
       }
@@ -221,17 +226,21 @@ async function main(): Promise<void> {
       tilesCount: world.tiles.count, actorsCount: world.actors.count, activeWorldStructure: activeInstance === 'outdoor-instance' ? 'Outdoor' : 'Indoor',
     });
     const pose = { x, y: camera.y[0] ?? 0, z: camera.z[0] ?? 0 };
-    const instances = world.instances.map((instance) => ({
-      id: instance.id,
-      state: instance.state,
-      renderResident: instance.render_resident,
-      collisionActive: instance.collision_active,
-      restoreStatus: instance.restore_status,
-      restoreAttempts: instance.restore_attempts,
-      stateVersion: instance.state_version,
-      restoreFailureReason: instance.restore_failure_reason,
-      handoffStatus: instance.handoff_status,
-    }));
+    const instances = demoManifest.instances.map(({ id }) => {
+      const runtime = world.instances.find((instance) => instance.id === id);
+      const diagnostic = lifecycleDiagnostics.get(id)!;
+      return {
+        id,
+        state: runtime?.state ?? diagnostic.state,
+        renderResident: runtime?.render_resident ?? diagnostic.renderResident,
+        collisionActive: runtime?.collision_active ?? diagnostic.collisionActive,
+        restoreStatus: runtime?.restore_status ?? 0,
+        restoreAttempts: runtime?.restore_attempts ?? 0,
+        stateVersion: runtime?.state_version ?? '',
+        restoreFailureReason: runtime?.restore_failure_reason ?? '',
+        handoffStatus: runtime?.handoff_status ?? 0,
+      };
+    });
     window.__debugPos = pose;
     window.__retroMageDebug = {
       ready: true,
