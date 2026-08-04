@@ -1,7 +1,7 @@
 ---
 feature: polygon-scene-transport
 tags: [architecture, rendering, wasm, polygons, materials]
-summary: Retro Mage transports authored polygon render content through a fixed-capacity renderer-neutral WASM scene boundary with explicit material, UV, transform, publication, and overflow rules.
+summary: Retro Mage transports authored polygon geometry through fixed-capacity renderer-neutral WASM buffers with explicit packing, validation, transforms, publication, and ownership.
 relates-to:
   - "[Material Contract](./material-contract.md)"
   - "[WASM Bridge](./wasm-bridge.md)"
@@ -12,53 +12,58 @@ relates-to:
 
 # Polygon Scene Transport
 
-Retro Mage transports authored polygon render content from engine-owned world instances into the renderer through the same global scene publication boundary used by tile content. The transport remains renderer-neutral: application material identity and surface metadata cross the boundary, while texture descriptors and GPU resources remain outside engine-core and WASM.
+Engine-core publishes validated authored polygon instances as one global, renderer-neutral scene snapshot. Polygon render geometry stays separate from collision geometry.
 
-## Polygon Record
+## Fixed Representation
 
-Each submitted polygon has a stable scene entry containing:
+Transport uses fixed-capacity SoA buffers. `polygon_count` counts records; `vertex_count` and `index_count` count packed lanes for accepted records. Each polygon record stores:
 
-- global placement or transformed vertex positions
-- vertex count and index/triangle data according to the fixed transport representation
-- material registry reference
-- UV mode and UV data
-- renderer-neutral render flags
-- instance identity or source metadata required for diagnostics
-- active/publication state through the scene snapshot
+```text
+polygon_instance_id : u32   // stable runtime instance identity
+source_id            : u32   // authored polygon identity; diagnostic only
+vertex_start         : u32
+vertex_count         : u32
+index_start          : u32
+index_count          : u32   // multiple of 3
+material_id          : u32   // application registry ID; 0 = fallback
+uv_mode              : f32   // 0 tile-repeat, 1 explicit, 2 billboard
+uv_start             : u32   // index into uv lanes; 0 when tile-repeat
+render_flags         : f32   // opaque=1, cutout=2, lit=4, unlit=8, emissive=16, water=32, sky=64
+placement_id         : u32   // stable level-instance placement identity
+```
 
-The exact vertex/index packing follows the existing fixed-capacity scene conventions selected by the implementation task. The public contract does not expose WebGL buffers, shader objects, texture URLs, or application material descriptor objects.
+Packed vertex lanes are interleaved `f32` records, exactly 8 lanes each:
+`position_x, position_y, position_z, normal_x, normal_y, normal_z, uv_u, uv_v`.
+Indices are `u32` triangle indices, local to that polygon's vertex range. UVs duplicate vertex lanes in the vertex buffer for explicit mode; `uv_start` is therefore reserved and always zero in initial transport. Tile-repeat uses zero UV lanes and renderer/material-defined mapping. Billboard mode is legal in metadata but polygon transport does not create billboards.
 
-## Material Metadata
+`polygon_count`, `vertex_count`, and `index_count` are published scalar counts. No sentinel or implicit stride exists. All starts/counts are validated against those counts. TypeScript views use little-endian WASM `Uint32Array`/`Float32Array` lanes and refresh views after memory growth.
 
-Polygon material metadata follows [Material Contract](./material-contract.md):
+Configured defaults: `polygon_instances = 4096`, `polygon_vertices = 65536`, `polygon_indices = 98304` (32,768 triangles). Capacities are non-negative, fixed for transport lifetime, independently overridable by application at `WorldTransport` creation. Zero is valid.
 
-- material identity uses a stable numeric scene reference resolved by the application/render boundary
-- UV mode uses the shared encoded values: tile-repeat, explicit, or billboard where applicable
-- UV data carries the minimum values required by the selected representation
-- render flags use the shared opaque, cutout, lit, unlit, emissive, water, and sky capability encoding
+## Material, UV, Flags
 
-Missing polygon metadata uses explicit compatibility defaults: material reference `0`, tile-repeat UV mode, zero UV data, and opaque/lit-compatible render flags defined by the transport schema.
+`material_id` is stable numeric reference into application material registry; it is not a string, descriptor pointer, texture key, or GPU handle. Encoding matches [Material Contract](./material-contract.md). Flags are the shared bit values above; incompatible combinations (both lit and unlit, or neither opaque/cutout where required) reject geometry. Initial compatibility default is material `0`, tile-repeat (`uv_mode=0`), zero UV lanes, `opaque|lit` (`render_flags=5`). Missing metadata never shifts buffer layout.
 
-## Capacity and Publication
+## Transform and Identity
 
-Polygon capacity is application-configured with the other scene capacities. Submission is atomic per world snapshot: if a polygon category exceeds capacity, the renderer receives no partial polygon publication from the rejected snapshot. Overflow remains observable through the existing diagnostics contract and does not silently drop geometry.
+Authored positions and normals are local to level content. Engine-core owns local-to-global conversion during instance submission: positions use placement transform; normals use the corresponding inverse-transpose direction transform then normalization. Renderer receives global positions only and performs no level/seam transform. `placement_id` identifies placed level instance; `polygon_instance_id` identifies one submitted polygon occurrence; `source_id` identifies authored source. IDs are diagnostic/batching metadata, not app-owned object references.
 
-A committed polygon snapshot preserves global transforms, instance ordering, and material metadata together. Renderer culling can later reject draw work without changing transport ownership or gameplay awareness.
+## Validation and Publication
 
-## Ownership
+Before writing a snapshot, engine-core validates every candidate polygon: at least 3 vertices; index count divisible by 3; each index within polygon vertex range; finite positions, normals, and UVs; non-degenerate triangles; valid UV mode and flags; checked integer arithmetic for starts/counts. Invalid geometry rejects its containing instance and emits deterministic diagnostic `(frame_id, placement_id, source_id, reason, field/index)`. No partial instance or partial snapshot publishes.
 
-Engine-core owns polygon content validity, global transformation, active residency, and publication timing. The application owns material descriptors, texture asset keys, LUT configuration, and source authoring data. The renderer owns GPU allocation, upload, batching, shader execution, and polygon draw passes.
+Submission follows scene-capacity instance ordering. Runtime preflights polygon record, vertex, and index capacity plus all other categories. Any failure rejects whole instance, records requested counts and configured limits, and leaves prior published snapshot unchanged. A frame publishes only after all accepted writes and counts complete; publication swaps one immutable snapshot/token atomically. Renderer sees previous complete snapshot or new complete snapshot, never mixed counts. Accepted instances remain visible candidates; renderer may later frustum/distance/depth/occlusion-cull them without mutating transport or gameplay. Rejected instance is absent from renderer visibility; default crossing policy blocks target as defined by [Scene Capacity](./scene-capacity.md).
 
-Collision geometry remains separate from polygon render geometry. A polygon can be visual-only, while collision-only geometry does not require a polygon render entry.
+## Ownership and Compatibility
 
-## Compatibility and Failure
+Engine-core owns authored geometry validation, transformed packed data, residency, identity, and atomic publication. Application owns material descriptors, texture asset keys/URLs, palette/LUT config, and authoring data. Renderer owns GPU buffers, upload, batching, shaders, passes, and fallback material resolution. No WebGL object, shader, texture URL, descriptor object, or GPU handle crosses WASM.
 
-Older content without polygon render metadata receives documented defaults. Invalid polygon geometry or metadata is rejected before publication with an observable diagnostic. Capacity overflow preserves the source world state and reports the requested count and configured capacity.
+Unknown/missing material is renderer-diagnostic plus deterministic fallback appearance, not transport rejection. Malformed geometry, non-finite values, invalid indices, invalid metadata, and capacity overflow reject deterministically before publication. Legacy polygon content without render metadata uses defaults above. Content without polygon geometry produces no polygon record. Collision-only geometry remains collision-only.
 
 ## Related Docs
 
-- [Material Contract](./material-contract.md) — material identity and ownership
-- [WASM Bridge](./wasm-bridge.md) — cross-boundary representation rules
-- [Scene Capacity](./scene-capacity.md) — fixed capacities and overflow
-- [Rendering](./rendering.md) — global scene execution
-- [World Model](../features/world-model.md) — local definitions and global instances
+- [Material Contract](./material-contract.md)
+- [WASM Bridge](./wasm-bridge.md)
+- [Scene Capacity](./scene-capacity.md)
+- [Rendering](./rendering.md)
+- [World Model](../features/world-model.md)

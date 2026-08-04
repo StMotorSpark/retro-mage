@@ -1,12 +1,12 @@
 ---
 task: "116"
 slug: polygon-scene-transport-design
-status: pending
+status: done
 depends-on: []
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-03
-outcome: ""
+outcome: "Defined concrete polygon SoA transport, material/UV/flag encoding, global transform and identity rules, atomic publication, fixed capacities, validation diagnostics, compatibility defaults, and ownership boundaries. Updated polygon-scene-transport.md, wasm-bridge.md, scene-capacity.md; docs/_map.md summary remains accurate. Checks: git diff --check; bounded Markdown link/format check via Python script."
 ---
 
 # Design Polygon Scene Transport

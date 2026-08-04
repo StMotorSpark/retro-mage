@@ -13,7 +13,7 @@ relates-to:
 
 # Scene Capacity and Overflow
 
-The global scene uses fixed, preallocated structure-of-arrays buffers whose capacities are configured by the consuming application when `WorldTransport` is created. Capacity applies to logical scene objects and protects predictable frame cost, stable WASM views, and explicit failure behavior as resident content changes.
+The global scene uses fixed, preallocated structure-of-arrays buffers whose capacities are configured by the consuming application when `WorldTransport` is created. Polygon defaults are 4096 records, 65536 vertices, and 98304 indices; all are independently overridable and fixed for transport lifetime. Capacity applies to logical scene objects and packed polygon lanes and protects predictable frame cost, stable WASM views, and explicit failure behavior as resident content changes.
 
 ## Capacity Configuration
 
@@ -23,6 +23,9 @@ The engine supplies defaults for each scene category. The application can overri
 tiles       → logical tile entries
 actors      → logical actor entries
 lights      → logical point-light entries
+polygons    → submitted polygon records
+vertices    → packed polygon vertex records
+indices     → packed polygon triangle indices
 instances   → resident instance metadata entries
 ```
 
@@ -84,7 +87,7 @@ Overflow does not deactivate source collision, evict content, teleport the playe
 - Per-category counts describe only successfully published entries.
 - Instance metadata aligns with accepted instance IDs only.
 - Zero capacities remain valid for boundary tests and intentionally empty categories.
-- Polygon submission is outside this contract until polygon transport and rendering are defined.
+- Polygon records, packed vertices, packed indices, and publication rules follow [Polygon Scene Transport](./polygon-scene-transport.md).
 - Dynamic resizing and chunked scene submission are separate capabilities, not implicit overflow recovery.
 
 ## Tests and Proof
@@ -98,6 +101,8 @@ The implementation carries tests for:
 - multiple overflowing instances with deterministic diagnostics
 - per-frame overflow reset
 - accepted instances continuing to render after a later overflow
+- polygon record/vertex/index capacity rejection without partial publication
+- malformed polygon, invalid index, non-finite value, and deterministic diagnostic behavior
 - collision and gameplay remaining unchanged by render overflow
 - target traversal blocked by default when target publication overflows
 - TypeScript adapter and Rust/WASM transport sharing equivalent semantics
