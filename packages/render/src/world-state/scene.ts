@@ -96,7 +96,17 @@ export class SceneCapacityError extends Error {
   }
 }
 
+export interface GlobalScenePolygonsView {
+  readonly instance_id: Uint32Array; readonly source_id: Uint32Array;
+  readonly vertex_start: Uint32Array; readonly vertex_count: Uint32Array;
+  readonly index_start: Uint32Array; readonly index_count: Uint32Array;
+  readonly material_id: Uint32Array; readonly uv_mode: Float32Array; readonly render_flags: Float32Array; readonly placement_id: Uint32Array;
+  readonly vertices: Float32Array; readonly indices: Uint32Array;
+  readonly count: number; readonly vertex_count_total: number; readonly index_count_total: number;
+}
+
 export interface GlobalSceneView {
+  readonly polygons?: GlobalScenePolygonsView;
   readonly tiles: TilesView;
   readonly actors: ActorsView;
   readonly lights: LightsView;

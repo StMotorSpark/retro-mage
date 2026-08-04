@@ -1,12 +1,12 @@
 ---
 task: "117"
 slug: polygon-scene-transport
-status: pending
+status: done
 depends-on: ["115", "116"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-03
-outcome: ""
+outcome: "Implemented polygon SoA transport: fixed record/vertex/index buffers, global transforms, metadata, WASM pointers/counts, TS typed views, validation, defaults, atomic capacity rejection. Tests: pnpm --filter engine-core test passed (123 unit + 5 integration), pnpm --filter render test -- --run passed (41), pnpm --filter render typecheck passed, git diff --check passed."
 ---
 
 # Implement Polygon Scene Transport
@@ -26,14 +26,14 @@ Implement the fixed-capacity renderer-neutral polygon scene boundary defined by 
 
 ## Definition of Done
 
-- [ ] Polygon fields and packing match `polygon-scene-transport.md`.
-- [ ] Engine publishes validated global polygon data through WASM.
-- [ ] Renderer receives polygon data with material/UV/flags and no GPU/app descriptor leakage.
-- [ ] Capacity, overflow, invalid geometry, and atomic publication behavior are tested.
-- [ ] Legacy/default behavior is explicit and tested.
-- [ ] Existing tile, billboard, actor, crossing, and scene-capacity behavior remains passing.
-- [ ] Focused Rust/TypeScript tests and typechecks pass.
-- [ ] No demo geometry/assets or shader work is included.
+- [x] Polygon fields and packing match `polygon-scene-transport.md`.
+- [x] Engine publishes validated global polygon data through WASM.
+- [x] Renderer receives polygon data with material/UV/flags and no GPU/app descriptor leakage.
+- [x] Capacity, overflow, invalid geometry, and atomic publication behavior are tested.
+- [x] Legacy/default behavior is explicit and tested.
+- [x] Existing tile, billboard, actor, crossing, and scene-capacity behavior remains passing.
+- [x] Focused Rust/TypeScript tests and typechecks pass.
+- [x] No demo geometry/assets or shader work is included.
 
 ## Out of Scope
 

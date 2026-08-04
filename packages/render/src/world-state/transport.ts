@@ -1,5 +1,5 @@
 import type { ActorsView, LightsView, TilesView } from './types.js';
-import type { GlobalSceneOverflowDiagnostic, GlobalSceneView } from './scene.js';
+import type { GlobalSceneOverflowDiagnostic, GlobalSceneView, GlobalScenePolygonsView } from './scene.js';
 
 export interface WorldTransportEngine {
   tiles_x_ptr(): number;
@@ -59,6 +59,8 @@ export interface WorldTransportEngine {
   overflow_diagnostics_json?: () => string;
   skipped_instances_json?: () => string;
   definition_surface?(definition_id: string, min_x: number, min_y: number, min_z: number, max_x: number, max_y: number, max_z: number, h_x: number, h_y: number, h_c: number, nx: number, ny: number, nz: number, walkable: boolean): boolean;
+  polygon_count?(): number; polygon_vertex_count?(): number; polygon_index_count?(): number;
+  polygons_instance_ptr?(): number; polygons_source_ptr?(): number; polygons_vertex_start_ptr?(): number; polygons_vertex_count_ptr?(): number; polygons_index_start_ptr?(): number; polygons_index_count_ptr?(): number; polygons_material_id_ptr?(): number; polygons_uv_mode_ptr?(): number; polygons_render_flags_ptr?(): number; polygons_placement_ptr?(): number; polygon_vertices_ptr?(): number; polygon_indices_ptr?(): number;
 }
 
 export interface WorldTransportViews {
@@ -181,6 +183,13 @@ export class WorldTransportReader {
       active: f32(this.memory, this.engine.lights_active_ptr(), lc, old?.lights.active),
       count: lc,
     };
+    let polygons: GlobalScenePolygonsView | undefined;
+    if (this.engine.polygon_count && this.engine.polygons_instance_ptr && this.engine.polygon_vertices_ptr) {
+      const pc = this.engine.polygon_count(), vc = this.engine.polygon_vertex_count?.() ?? 0, ic = this.engine.polygon_index_count?.() ?? 0;
+      const u32 = (fn: (() => number) | undefined) => new Uint32Array(this.memory.buffer, fn ? fn() : 0, pc);
+      const f = (fn: (() => number) | undefined, n: number) => new Float32Array(this.memory.buffer, fn ? fn() : 0, n);
+      polygons = { instance_id: u32(this.engine.polygons_instance_ptr), source_id: u32(this.engine.polygons_source_ptr), vertex_start: u32(this.engine.polygons_vertex_start_ptr), vertex_count: u32(this.engine.polygons_vertex_count_ptr), index_start: u32(this.engine.polygons_index_start_ptr), index_count: u32(this.engine.polygons_index_count_ptr), material_id: u32(this.engine.polygons_material_id_ptr), uv_mode: f(this.engine.polygons_uv_mode_ptr, pc), render_flags: f(this.engine.polygons_render_flags_ptr, pc), placement_id: u32(this.engine.polygons_placement_ptr), vertices: f(this.engine.polygon_vertices_ptr, vc * 8), indices: new Uint32Array(this.memory.buffer, this.engine.polygon_indices_ptr ? this.engine.polygon_indices_ptr() : 0, ic), count: pc, vertex_count_total: vc, index_count_total: ic };
+    }
     const instances = Array.from({ length: this.engine.instance_count() }, (_, i) => ({
       id: this.engine.instance_id(i),
       state: this.engine.instance_state(i),
@@ -194,6 +203,7 @@ export class WorldTransportReader {
       handoff_status: this.engine.instance_handoff_status(i),
     }));
     const scene: GlobalSceneView = {
+      polygons,
       tiles,
       actors,
       lights,
