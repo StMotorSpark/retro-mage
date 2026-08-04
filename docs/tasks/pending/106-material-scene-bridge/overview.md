@@ -1,12 +1,12 @@
 ---
 task: "106"
 slug: material-scene-bridge
-status: parked
+status: pending
 depends-on: ["105"]
-blocked-by: "human/design: polygon scene transport schema required"
+blocked-by: ""
 assigned-to: ""
 created: 2026-08-03
-outcome: "Tile material transport is verified in commit f5961e9, but polygon scene transport is undefined and billboard material metadata is absent. Parked pending polygon bridge design and separate billboard implementation task."
+outcome: "Tile, billboard, and polygon material transport implementations are complete in tasks 106, 115, and 117. Resume reconciliation to verify the combined bridge contract and close task metadata."
 ---
 
 # Add Material Data to Scene Transport
@@ -27,10 +27,6 @@ Carry material identity and required surface metadata from engine-owned world co
 - [x] Renderer receives material identity without receiving WebGL objects.
 - [x] Old content remains compatible through explicit default/fallback behavior.
 - [x] Rust and TypeScript boundary tests pass.
-
-## Parking Notes
-
-Tile material identity, UV metadata, and render flags cross engine-core → WASM → TypeScript scene views with legacy defaults. Existing actors have sprite transport but no material metadata. World polygons exist in engine content models but have no polygon scene buffer or WASM transport schema. This task remains parked until polygon transport is designed; billboard metadata proceeds as a separate task.
 
 ## Out of Scope
 
