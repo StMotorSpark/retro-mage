@@ -6,7 +6,7 @@ depends-on: ["105"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-03
-outcome: "Added numeric billboard material, UV, and render-flag SoA lanes from LevelActor through WorldTransport WASM pointers into TypeScript actor/scene views. Legacy adapters default material 0, billboard UV 2/zero data, flags 6; no GPU/app descriptor data crosses bridge. Tests: pnpm --filter engine-core test (116+5 Rust), pnpm --filter render test -- --run (40), pnpm --filter render typecheck, git diff --check."
+outcome: "Added focused Rust producer/WASM pointer coverage for material 23, billboard UV 2/(0.25,0.75), flags 10, identity state, legacy defaults, and atomic actor overflow; added TypeScript transport consumer round-trip coverage. Tests: pnpm --filter engine-core test (121 unit + 5 integration passed), pnpm --filter render test -- --run (41 passed), pnpm --filter render typecheck passed, git diff --check passed. Pending task deletion staged with done task retained."
 ---
 
 # Add Billboard Material Metadata

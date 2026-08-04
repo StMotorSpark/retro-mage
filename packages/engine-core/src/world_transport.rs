@@ -375,6 +375,7 @@ mod tests {
         assert!(t.definition_tile("room", 1., 0., 2., 7, 3, 2, 1, true, false, false, false, false, true));
         assert!(t.definition_tile_surface("room", 0, 1, 2.5, 3.5, 6));
         assert!(t.definition_actor("room", 0., 1., 0., "guard", 4, 1.5, true, true));
+        assert!(t.definition_actor_surface("room", 0, 23, 2, 0.25, 0.75, 10));
         assert!(t.definition_light("room", 2., 1., 0., 1., 0.5, 0.25, 2., true));
         assert!(t.finish_definition("room"));
         assert!(t.register_instance("east", "room", 10., 0., 0., 0., 0., 0., 1., 1., 0));
@@ -382,8 +383,28 @@ mod tests {
         assert!(request > 0);
         assert!(t.accept_definition(request, "east"));
         assert_eq!(t.tile_count(), 1); assert_eq!(t.actor_count(), 1); assert_eq!(t.light_count(), 1);
+        assert_eq!(t.actor_sprite[0], 4.); assert_eq!(t.actor_facing[0], 1.5); assert_eq!(t.actor_active[0], 1.);
+        assert_eq!(t.actor_material[0], 23.); assert_eq!(t.actor_uv_mode[0], 2.); assert_eq!(t.actor_uv_u[0], 0.25); assert_eq!(t.actor_uv_v[0], 0.75); assert_eq!(t.actor_render_flags[0], 10.);
+        assert_eq!(t.actors_material_id_ptr(), t.actor_material.as_ptr());
         assert_eq!(t.tile_x[0], 11.); assert_eq!(t.tile_material[0], 3.); assert_eq!(t.tile_uv_mode[0], 1.); assert_eq!(t.tile_uv_u[0], 2.5); assert_eq!(t.tile_uv_v[0], 3.5); assert_eq!(t.tile_render_flags[0], 6.); assert_eq!(t.instance_state(0), 2); assert!(!t.overflowed());
     }
+    #[test]
+    fn legacy_actor_defaults_and_atomic_actor_overflow() {
+        let mut t = WorldTransport::with_capacity(1, 1, 1, 1);
+        assert!(t.begin_definition("r", "1", 0., 0., 0., 1., 1., 1.));
+        assert!(t.definition_actor("r", 0., 0., 0., "legacy", 9, 0.5, false, true));
+        assert!(t.finish_definition("r"));
+        assert!(t.register_instance("i", "r", 0., 0., 0., 0., 0., 0., 1., 1., 0));
+        let request = t.begin_load("i", "test"); assert!(request > 0); assert!(t.accept_definition(request, "i"));
+        assert_eq!((t.actor_material[0], t.actor_uv_mode[0], t.actor_uv_u[0], t.actor_uv_v[0], t.actor_render_flags[0]), (0., 2., 0., 0., 6.));
+        assert_eq!((t.actor_sprite[0], t.actor_facing[0], t.actor_active[0]), (9., 0.5, 0.));
+        t.clear();
+        let mut full = WorldTransport::with_capacity(0, 0, 1, 1);
+        assert!(full.begin_definition("r", "1", 0., 0., 0., 1., 1., 1.)); assert!(full.definition_actor("r", 0., 0., 0., "a", 1, 0., true, true)); assert!(full.finish_definition("r"));
+        assert!(full.register_instance("i", "r", 0., 0., 0., 0., 0., 0., 1., 1., 0)); let req = full.begin_load("i", "test"); assert!(full.accept_definition(req, "i"));
+        assert!(full.overflowed()); assert_eq!(full.actor_count(), 0); assert_eq!(full.instance_count(), 0);
+    }
+
     #[test]
     fn overflow_sticky_and_counts_never_exceed_capacity() {
         let mut t = WorldTransport::with_capacity(0, 0, 0, 1);
