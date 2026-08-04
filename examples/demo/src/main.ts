@@ -1,5 +1,5 @@
 import init, { EngineState, WorldTransport } from 'engine-core';
-import { createRenderer, MaterialRegistry, uploadLut, WorldStateReader, WorldTransportReader } from 'render';
+import { createRenderer, MaterialRegistry, resolveMaterialResources, uploadLut, WorldStateReader, WorldTransportReader } from 'render';
 import { createInputSource, FACE1 } from 'input';
 import { PerfOverlay } from './perf-overlay.js';
 import { createDemoLevelProvider, demoManifest, registerDemoWorld, type DemoLevelId } from './demo-world.js';
@@ -62,10 +62,12 @@ async function main(): Promise<void> {
   materials.register({ id: 'mat_dungeon_stone', textureAssetKeys: ['demo.dungeon.wall', 'demo.dungeon.floor'], uvMode: 'tile-repeat', flags: ['opaque', 'lit'], lutConfig: dungeonLut });
   materials.register({ id: 'mat_dungeon_ceiling', textureAssetKeys: ['demo.dungeon.ceiling'], uvMode: 'tile-repeat', flags: ['opaque', 'lit'], lutConfig: dungeonLut });
   materials.register({ id: 'mat_emissive_torch', textureAssetKeys: ['demo.sprite.torch'], uvMode: 'billboard', flags: ['cutout', 'emissive'], emissiveConfig: { color: '#ff9a38', intensity: 1.4 } });
-  materials.register({ id: 'mat_dungeon_deco', textureAssetKeys: [], uvMode: 'billboard', flags: ['cutout', 'lit'], lutConfig: dungeonLut });
+  // Explicit billboard metadata: decorative content uses authored asset key, never empty-key fallback.
+  materials.register({ id: 'mat_dungeon_deco', textureAssetKeys: ['demo.sprite.dungeon_deco'], uvMode: 'billboard', flags: ['cutout', 'lit'], lutConfig: dungeonLut });
   const assetPaths: Record<string, string> = {
     'demo.dungeon.wall': '/assets/dungeon/textures/dungeon.wall.png', 'demo.dungeon.floor': '/assets/dungeon/textures/dungeon.floor.png',
     'demo.dungeon.ceiling': '/assets/dungeon/textures/dungeon.ceiling.png', 'demo.sprite.torch': '/assets/sprite/torch.1.png',
+    'demo.sprite.dungeon_deco': '/assets/sprite/dungeon.deco.png',
   };
   const worldTransport = overflowActors ? WorldTransport.with_capacity(4096, 2, 128, 64) : new WorldTransport();
   window.__retroMageWorldTransport = worldTransport;
@@ -107,16 +109,24 @@ async function main(): Promise<void> {
   });
 
   try {
-    const loadPng = async (key: string): Promise<WebGLTexture | undefined> => {
-      const response = await fetch(assetPaths[key]!); if (!response.ok) return undefined;
-      const image = await createImageBitmap(await response.blob()); const texture = gl.createTexture(); if (!texture) return undefined;
-      gl.bindTexture(gl.TEXTURE_2D, texture); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image); return texture;
+    // App resolves keys/URLs; renderer creates, uploads, owns, and disposes GPU resources.
+    const resolveBytes = async (key: string): Promise<ArrayBuffer> => {
+      const source = assetPaths[key];
+      if (!source) throw new Error(`Unknown demo asset key: ${key}`);
+      const response = await fetch(source);
+      if (!response.ok) throw new Error(`Asset fetch failed (${response.status}): ${key}`);
+      return response.arrayBuffer();
     };
-    const wallTexture = await loadPng('demo.dungeon.wall'); const floorTexture = await loadPng('demo.dungeon.floor'); const ceilingTexture = await loadPng('demo.dungeon.ceiling'); const torchTexture = await loadPng('demo.sprite.torch');
-    if (wallTexture) renderer.tileRenderer?.setTexture(1, wallTexture); if (floorTexture) renderer.tileRenderer?.setTexture(2, floorTexture); if (ceilingTexture) renderer.tileRenderer?.setTexture(3, ceilingTexture); if (torchTexture) renderer.spriteRenderer?.setTexture(2, torchTexture);
+    const descriptors = ['mat_dungeon_stone', 'mat_dungeon_ceiling', 'mat_emissive_torch', 'mat_dungeon_deco'];
+    for (const id of descriptors) {
+      const resources = await resolveMaterialResources(gl, materials.resolve(id), resolveBytes,
+        (diagnostic) => console.warn(`[demo material diagnostic] ${diagnostic.kind}: ${diagnostic.materialId}/${diagnostic.assetKey}`));
+      // Resource lifetime remains renderer-owned; retain handle until renderer shutdown.
+      void resources;
+    }
     // LUT config app-owned; renderer owns upload/runtime sampling.
-    uploadLut(gl, dungeonLut); materials.resolve('mat_dungeon_stone');
-  } catch (err) { console.error('Failed to load demo dungeon assets:', err); }
+    uploadLut(gl, dungeonLut);
+  } catch (err) { console.error('Failed to resolve demo dungeon assets:', err); }
   assetsReady = true;
 
   const inputSource = createInputSource(overlay, { touch: { lookSensitivity: 5 } });
