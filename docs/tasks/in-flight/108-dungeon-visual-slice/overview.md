@@ -1,12 +1,12 @@
 ---
 task: "108"
 slug: dungeon-visual-slice
-status: pending
+status: in-flight
 depends-on: ["106", "107", "114"]
 blocked-by: ""
-assigned-to: ""
+assigned-to: "agent"
 created: 2026-08-03
-outcome: ""
+outcome: "Implemented authored dungeon route geometry, material-key resolver, PNG runtime asset wiring, torch/decor billboard slots, vaulted ceiling scale, warm torch lights, and app LUT config. Focused checks pass: demo build/typecheck, render 46 tests, git diff --check. Task remains in-flight: dungeon ceiling source is explicitly temporary flat placeholder, so visual acceptance still blocked until human-supplied ceiling art replaces it; no generated art used."
 ---
 
 # Build Dungeon Visual Slice

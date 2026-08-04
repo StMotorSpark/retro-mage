@@ -70,7 +70,10 @@ const anchor = (id: string, x: number, z: number, direction: AnchorDirection, ya
 
 function dungeonTiles(): DemoTile[] {
   const tiles: DemoTile[] = [];
+  // Route: compact start room (-4..0) -> open doorway -> vaulted hall -> side room.
   for (let x = -4; x <= 10; x += 1) for (let z = 2; z <= 7; z += 1) tiles.push(floor(x, z, 2, 2));
+  // Temporary flat ceiling uses supplied placeholder asset; y=2 keeps player route open.
+  for (let x = -4; x <= 10; x += 1) for (let z = 2; z <= 7; z += 1) tiles.push({ x, y: 2, z, tileId: 3, materialId: 4, variant: 0, orientation: 0, solid: true });
   for (let x = -5; x <= 10; x += 1) { tiles.push(wall(x, 1)); tiles.push(wall(x, 8)); }
   for (let z = 2; z <= 7; z += 1) { tiles.push(wall(-5, z)); if (z !== 4) tiles.push(wall(10, z)); }
 
@@ -105,6 +108,9 @@ function dungeonTiles(): DemoTile[] {
   tiles.push(ceiling(-2, 1.5, 3, 1, 1));
   tiles.push(ceiling(-3, 1.5, 3, 1, 1));
 
+  // Taller hallway ceiling and side-room ceiling (visual scale cue).
+  for (let x = 1; x <= 6; x++) for (let z = 2; z <= 7; z++) tiles.push({ x, y: 3, z, tileId: 3, materialId: 4, variant: 0, orientation: 0, solid: true });
+  for (let x = 7; x <= 9; x++) for (let z = 5; z <= 7; z++) tiles.push({ x, y: 2, z, tileId: 3, materialId: 4, variant: 0, orientation: 0, solid: true });
   return tiles;
 }
 
@@ -116,7 +122,12 @@ function outdoorTiles(): DemoTile[] {
 
 const dungeon: DemoLevelDefinition = {
   id: 'dungeon', version: '1', bounds: { min: [-6, 0, 0], max: [11, 3, 9] },
-  tiles: dungeonTiles(), actors: [],
+  tiles: dungeonTiles(),
+  actors: [
+    { x: -3.5, y: 1, z: 3, actorId: 'torch-start', spriteId: 2, facing: 0, active: true, spawn: true },
+    { x: 2, y: 1, z: 6.5, actorId: 'torch-hall', spriteId: 2, facing: 0, active: true, spawn: true },
+    { x: 8, y: 1, z: 6, actorId: 'dungeon-deco', spriteId: 3, facing: 0, active: true, spawn: true },
+  ],
   lights: [
     { x: -2, y: 1.5, z: 4, color: [1, 0.7, 0.3], intensity: 8, active: true },
     { x: 2, y: 1.5, z: 4, color: [1, 0.7, 0.3], intensity: 8, active: true },

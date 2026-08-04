@@ -1,5 +1,5 @@
 import init, { EngineState, WorldTransport } from 'engine-core';
-import { createRenderer, loadKtx2Texture, WorldStateReader, WorldTransportReader } from 'render';
+import { createRenderer, MaterialRegistry, uploadLut, WorldStateReader, WorldTransportReader } from 'render';
 import { createInputSource, FACE1 } from 'input';
 import { PerfOverlay } from './perf-overlay.js';
 import { createDemoLevelProvider, demoManifest, registerDemoWorld, type DemoLevelId } from './demo-world.js';
@@ -56,6 +56,17 @@ async function main(): Promise<void> {
   const failAcknowledge = searchParams.has('failAcknowledge');
   let assetsReady = false;
   let renderFrame = 0;
+  // App-owned asset-key resolver + material contract. Renderer receives numeric IDs only.
+  const materials = new MaterialRegistry();
+  const dungeonLut = { paletteColors: ['#241713', '#6b3b22', '#c56b32', '#f1bd65'], intensityBandCount: 8, ambientLevel: 0.05, rgbLightColorMode: 'tint' as const, emissiveMapping: 'add' };
+  materials.register({ id: 'mat_dungeon_stone', textureAssetKeys: ['demo.dungeon.wall', 'demo.dungeon.floor'], uvMode: 'tile-repeat', flags: ['opaque', 'lit'], lutConfig: dungeonLut });
+  materials.register({ id: 'mat_dungeon_ceiling', textureAssetKeys: ['demo.dungeon.ceiling'], uvMode: 'tile-repeat', flags: ['opaque', 'lit'], lutConfig: dungeonLut });
+  materials.register({ id: 'mat_emissive_torch', textureAssetKeys: ['demo.sprite.torch'], uvMode: 'billboard', flags: ['cutout', 'emissive'], emissiveConfig: { color: '#ff9a38', intensity: 1.4 } });
+  materials.register({ id: 'mat_dungeon_deco', textureAssetKeys: [], uvMode: 'billboard', flags: ['cutout', 'lit'], lutConfig: dungeonLut });
+  const assetPaths: Record<string, string> = {
+    'demo.dungeon.wall': '/assets/dungeon/textures/dungeon.wall.png', 'demo.dungeon.floor': '/assets/dungeon/textures/dungeon.floor.png',
+    'demo.dungeon.ceiling': '/assets/dungeon/textures/dungeon.ceiling.png', 'demo.sprite.torch': '/assets/sprite/torch.1.png',
+  };
   const worldTransport = overflowActors ? WorldTransport.with_capacity(4096, 2, 128, 64) : new WorldTransport();
   window.__retroMageWorldTransport = worldTransport;
   window.__retroMageTeleport = (x, y, z) => engineState.set_camera(x, y, z, 0, 0);
@@ -96,19 +107,16 @@ async function main(): Promise<void> {
   });
 
   try {
-    for (const [path, setter, id] of [
-      ['/assets/textures/stone-wall.ktx2', renderer.tileRenderer?.setTexture, 1],
-      ['/assets/textures/stone-floor.ktx2', renderer.tileRenderer?.setTexture, 2],
-      ['/assets/textures/grass.ktx2', renderer.tileRenderer?.setTexture, 3],
-    ] as const) {
-      const response = await fetch(path);
-      if (response.ok && setter) setter.call(renderer.tileRenderer, id, (await loadKtx2Texture(gl, await response.arrayBuffer())).texture);
-    }
-    const tree = await fetch('/assets/sprites/tree-sprite.ktx2');
-    if (tree.ok && renderer.spriteRenderer) renderer.spriteRenderer.setTexture(1, (await loadKtx2Texture(gl, await tree.arrayBuffer())).texture);
-  } catch (err) {
-    console.error('Failed to load demo textures:', err);
-  }
+    const loadPng = async (key: string): Promise<WebGLTexture | undefined> => {
+      const response = await fetch(assetPaths[key]!); if (!response.ok) return undefined;
+      const image = await createImageBitmap(await response.blob()); const texture = gl.createTexture(); if (!texture) return undefined;
+      gl.bindTexture(gl.TEXTURE_2D, texture); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image); return texture;
+    };
+    const wallTexture = await loadPng('demo.dungeon.wall'); const floorTexture = await loadPng('demo.dungeon.floor'); const ceilingTexture = await loadPng('demo.dungeon.ceiling'); const torchTexture = await loadPng('demo.sprite.torch');
+    if (wallTexture) renderer.tileRenderer?.setTexture(1, wallTexture); if (floorTexture) renderer.tileRenderer?.setTexture(2, floorTexture); if (ceilingTexture) renderer.tileRenderer?.setTexture(3, ceilingTexture); if (torchTexture) renderer.spriteRenderer?.setTexture(2, torchTexture);
+    // LUT config app-owned; renderer owns upload/runtime sampling.
+    uploadLut(gl, dungeonLut); materials.resolve('mat_dungeon_stone');
+  } catch (err) { console.error('Failed to load demo dungeon assets:', err); }
   assetsReady = true;
 
   const inputSource = createInputSource(overlay, { touch: { lookSensitivity: 5 } });
