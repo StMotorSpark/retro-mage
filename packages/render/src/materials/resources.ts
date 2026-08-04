@@ -1,6 +1,6 @@
 import type { MaterialDescriptor } from './types.js';
 import { FALLBACK_DESCRIPTOR } from './types.js';
-import { loadKtx2Texture, type TextureLoadResult } from '../textures/index.js';
+import { loadTextureResource, type TextureLoadResult } from '../textures/index.js';
 
 export type AssetBytesResolver = (key: string) => Promise<ArrayBuffer | Uint8Array>;
 export interface MaterialDiagnostic { kind: 'missing-asset' | 'load-failure'; materialId: string; assetKey: string; message: string; }
@@ -15,7 +15,7 @@ export async function resolveMaterialResources(
   for (const key of descriptor.textureAssetKeys) {
     try {
       const bytes = await resolve(key);
-      const resource = await loadKtx2Texture(gl, bytes);
+      const resource = await loadTextureResource(gl, bytes);
       textures.set(key, resource);
     } catch (error) {
       const diagnostic: MaterialDiagnostic = { kind: 'load-failure', materialId: descriptor.id, assetKey: key, message: error instanceof Error ? error.message : String(error) };

@@ -9,6 +9,7 @@ export interface TextureLoadResult {
   mipLevels: number;
 }
 
+const PNG_MAGIC = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const KTX2_MAGIC = new Uint8Array([
   0xab, 0x4b, 0x54, 0x58, 0x20, 0x32, 0x30, 0xbb, 0x0d, 0x0a, 0x1a, 0x0a,
 ]);
@@ -20,6 +21,36 @@ const KTX2_MAGIC = new Uint8Array([
  * Explicitly probes `WEBGL_compressed_texture_astc` extension to select ASTC
  * compressed transcoding vs uncompressed RGBA32 transcoding.
  */
+export async function loadPngTexture(
+  gl: WebGL2RenderingContext,
+  bytes: ArrayBuffer | Uint8Array,
+): Promise<TextureLoadResult> {
+  const pngBytes = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  const blob = new Blob([pngBytes as unknown as BlobPart], { type: 'image/png' });
+  const image = await createImageBitmap(blob);
+  const texture = gl.createTexture();
+  if (!texture) throw new Error('Failed to create WebGLTexture for PNG');
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+  image.close();
+  return { texture, width: image.width, height: image.height, compressed: false, mipLevels: 1 };
+}
+
+export async function loadTextureResource(
+  gl: WebGL2RenderingContext,
+  bytes: ArrayBuffer | Uint8Array,
+): Promise<TextureLoadResult> {
+  const uint8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  if (uint8.length >= PNG_MAGIC.length && PNG_MAGIC.every((value, index) => uint8[index] === value)) {
+    return loadPngTexture(gl, bytes);
+  }
+  return loadKtx2Texture(gl, bytes);
+}
+
 export async function loadKtx2Texture(
   gl: WebGL2RenderingContext,
   bytes: ArrayBuffer | Uint8Array,

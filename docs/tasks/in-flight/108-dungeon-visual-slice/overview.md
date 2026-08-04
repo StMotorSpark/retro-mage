@@ -6,7 +6,7 @@ depends-on: ["106", "107", "114"]
 blocked-by: ""
 assigned-to: "agent"
 created: 2026-08-03
-outcome: "Repaired demo GPU ownership: main.ts now resolves app asset URLs/bytes through render.resolveMaterialResources; no direct WebGL texture creation/upload remains. Explicit torch/decor billboard metadata preserves asset keys; decorative material no longer uses empty texture keys. Checks pass: git diff --check, render 46 tests, render typecheck, demo build/typecheck. Browser proof via production path reached start pose (-3,0,4) in dungeon and route pose (8,0,4), with renderer diagnostics exposing PNG/KTX2 asset mismatch for every current dungeon asset. Task remains in-flight: supplied dungeon source files are absent/temporary placeholders (including explicitly temporary flat ceiling), so visual acceptance blocked until human-supplied runtime-compatible art arrives; no generated art used."
+outcome: "Added renderer-owned PNG resource path: asset resolver dispatches PNG by signature to createImageBitmap/WebGL upload; KTX2 remains explicit separate path; PNG is never treated as KTX2. Demo main unchanged in GPU ownership. Checks pass: git diff --check, render 46 tests, render typecheck, demo build/typecheck. Production asset URLs return PNG bytes without PNG/KTX2 mismatch diagnostics when WebGL context is available. Headless production proof hit SwiftShader WebGL context loss/Skybox compile failure before debug readiness, so route visual proof remains incomplete. Task stays in-flight: dungeon ceiling/decor art remains temporary/missing visual blocker; no generated art used."
 ---
 
 # Build Dungeon Visual Slice
