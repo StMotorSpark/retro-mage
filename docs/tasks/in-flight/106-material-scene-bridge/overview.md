@@ -1,12 +1,12 @@
 ---
 task: "106"
 slug: material-scene-bridge
-status: done
+status: in-flight
 depends-on: ["105"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-03
-outcome: "Added renderer-neutral material ID, UV mode/data, and render flags to engine world tile transport and TypeScript scene views, with legacy defaults. Preserved global transforms, atomic fixed-capacity publication, overflow diagnostics, app-owned descriptors, and GPU boundary. Verified Rust transport and render scene/reader tests."
+outcome: "Verified commit f5961e9: engine-core writes tile material_id, UV mode/data, and render_flags through typed WASM pointers; render transport refreshes views and scene submission consumes them. git diff --check passes; pnpm --filter engine-core test passes 116 unit + 5 integration; pnpm --filter render test -- --run passes 40 tests; pnpm --filter render typecheck passes. Legacy adapters default material 0, UV mode/data 0, render flags 5; descriptors/texture keys remain app-owned and no WebGL/GPU resource crosses bridge. Tile path proven; polygon/billboard material transport is not implemented, so task remains in-flight."
 ---
 
 # Add Material Data to Scene Transport
@@ -22,11 +22,11 @@ Carry material identity and required surface metadata from engine-owned world co
 
 ## Definition of Done
 
-- [ ] Bridge schema documents material fields and ownership.
+- [x] Bridge schema documents material fields and ownership.
 - [ ] World content can submit material-bound tile/polygon/billboard data.
-- [ ] Renderer receives material identity without receiving WebGL objects.
-- [ ] Old content remains compatible through explicit default/fallback behavior.
-- [ ] Rust and TypeScript boundary tests pass.
+- [x] Renderer receives material identity without receiving WebGL objects.
+- [x] Old content remains compatible through explicit default/fallback behavior.
+- [x] Rust and TypeScript boundary tests pass.
 
 ## Out of Scope
 
