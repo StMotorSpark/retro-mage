@@ -6,7 +6,7 @@ depends-on: []
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-03
-outcome: "Defined concrete polygon SoA transport, material/UV/flag encoding, global transform and identity rules, atomic publication, fixed capacities, validation diagnostics, compatibility defaults, and ownership boundaries. Updated polygon-scene-transport.md, wasm-bridge.md, scene-capacity.md; docs/_map.md summary remains accurate. Checks: git diff --check; bounded Markdown link/format check via Python script."
+outcome: "Verified design against docs/architecture/polygon-scene-transport.md, docs/architecture/wasm-bridge.md, and docs/architecture/scene-capacity.md. Updated docs/architecture/polygon-scene-transport.md, docs/architecture/wasm-bridge.md, and docs/architecture/scene-capacity.md; docs/_map.md summary remains accurate. No runtime implementation. Checks: git diff --check; bounded Markdown link/format check."
 ---
 
 # Design Polygon Scene Transport
@@ -23,13 +23,13 @@ Resolve the fixed-capacity renderer-neutral polygon scene boundary required by m
 
 ## Definition of Done
 
-- [ ] Polygon record and buffer fields are concrete and implementation-ready.
-- [ ] Capacity and atomic publication behavior are concrete.
-- [ ] Material/UV/render metadata encoding matches the shared material contract.
-- [ ] Engine/app/renderer ownership boundaries are explicit.
-- [ ] Legacy/default/error behavior is explicit.
-- [ ] Related docs and map are reconciled.
-- [ ] No runtime implementation is included.
+- [x] Polygon record and buffer fields are concrete and implementation-ready.
+- [x] Capacity and atomic publication behavior are concrete.
+- [x] Material/UV/render metadata encoding matches the shared material contract.
+- [x] Engine/app/renderer ownership boundaries are explicit.
+- [x] Legacy/default/error behavior is explicit.
+- [x] Related docs and map are reconciled.
+- [x] No runtime implementation is included.
 
 ## Out of Scope
 
