@@ -1,10 +1,10 @@
 ---
 task: "111"
 slug: stream-castle-exterior
-status: pending
+status: in-flight
 depends-on: ["110", "114"]
 blocked-by: ""
-assigned-to: ""
+assigned-to: "agent"
 created: 2026-08-03
 outcome: ""
 ---

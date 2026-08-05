@@ -71,6 +71,9 @@ async function main(): Promise<void> {
   const outdoorLut = { paletteColors: ['#18344f', '#315f75', '#6e9b8a', '#c6d69b'], intensityBandCount: 8, ambientLevel: 0.42, rgbLightColorMode: 'tint' as const, emissiveMapping: 'add' };
   materials.register({ id: 'mat_grass', textureAssetKeys: ['demo.outdoor.grass'], uvMode: 'tile-repeat', flags: ['opaque', 'lit'], lutConfig: outdoorLut });
   materials.register({ id: 'mat_road', textureAssetKeys: ['demo.outdoor.road'], uvMode: 'explicit', flags: ['opaque', 'lit'], lutConfig: outdoorLut });
+  materials.register({ id: 'mat_cobblestone', textureAssetKeys: ['demo.outdoor.cobblestone'], uvMode: 'explicit', flags: ['opaque', 'lit'], lutConfig: outdoorLut });
+  materials.register({ id: 'mat_water', textureAssetKeys: ['demo.outdoor.water'], uvMode: 'explicit', flags: ['opaque', 'lit', 'water'], lutConfig: outdoorLut });
+  materials.register({ id: 'mat_castle_exterior', textureAssetKeys: ['demo.castle.exterior'], uvMode: 'explicit', flags: ['opaque', 'lit'], lutConfig: outdoorLut });
   materials.register({ id: 'mat_sky', textureAssetKeys: ['demo.sky.background'], uvMode: 'explicit', flags: ['opaque', 'unlit', 'sky'] });
   materials.register({ id: 'mat_forest_tree', textureAssetKeys: ['demo.sprite.tree'], uvMode: 'billboard', flags: ['cutout', 'lit'], lutConfig: outdoorLut });
   materials.register({ id: 'mat_cloud', textureAssetKeys: ['demo.sky.cloud'], uvMode: 'billboard', flags: ['cutout', 'unlit'], lutConfig: outdoorLut });
@@ -78,7 +81,7 @@ async function main(): Promise<void> {
     'demo.dungeon.wall': '/assets/dungeon/textures/dungeon.wall.png', 'demo.dungeon.floor': '/assets/dungeon/textures/dungeon.floor.png',
     'demo.dungeon.ceiling': '/assets/dungeon/textures/dungeon.ceiling.png', 'demo.sprite.torch': '/assets/sprite/torch.1.png',
     'demo.sprite.dungeon_deco': '/assets/sprite/dungeon.deco.png',
-    'demo.outdoor.grass': '/assets/outdoor/textures/forest.floor.png', 'demo.outdoor.road': '/assets/outdoor/textures/road.png',
+    'demo.outdoor.grass': '/assets/outdoor/textures/forest.floor.png', 'demo.outdoor.road': '/assets/outdoor/textures/road.png', 'demo.outdoor.cobblestone': '/assets/outdoor/textures/cobblestone.png', 'demo.outdoor.water': '/assets/outdoor/textures/stream.water.png', 'demo.castle.exterior': '/assets/castle/textures/castle.exterior.wall.png',
     'demo.sky.background': '/assets/sky/textures/sky.background.png', 'demo.sprite.tree': '/assets/sprite/tree.1.png',
     'demo.sky.cloud': '/assets/sky/textures/cloud.1.png',
   };
@@ -184,7 +187,7 @@ async function main(): Promise<void> {
       if (!response.ok) throw new Error(`Asset fetch failed (${response.status}): ${key}`);
       return response.arrayBuffer();
     };
-    const descriptors = ['mat_dungeon_stone', 'mat_dungeon_ceiling', 'mat_emissive_torch', 'mat_dungeon_deco', 'mat_grass', 'mat_road', 'mat_sky', 'mat_forest_tree', 'mat_cloud'];
+    const descriptors = ['mat_dungeon_stone', 'mat_dungeon_ceiling', 'mat_emissive_torch', 'mat_dungeon_deco', 'mat_grass', 'mat_road', 'mat_cobblestone', 'mat_water', 'mat_castle_exterior', 'mat_sky', 'mat_forest_tree', 'mat_cloud'];
     const spriteIds: Record<string, number> = { mat_emissive_torch: 2, mat_dungeon_deco: 3, mat_forest_tree: 1, mat_cloud: 4 };
     for (const id of descriptors) {
       const resources = await resolveMaterialResources(gl, materials.resolve(id), resolveBytes,

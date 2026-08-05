@@ -122,7 +122,17 @@ function outdoorTiles(): DemoTile[] {
   const tiles: DemoTile[] = [];
   // Grass corridor; road begins in clearing beyond dense tree line.
   for (let x = 0; x <= 24; x += 1) for (let z = -8; z <= 16; z += 1) tiles.push(floor(x, z, 3, 3));
+  // Road continues through clearing toward stream and castle.
   for (let z = -1; z <= 16; z += 1) tiles.push(floor(12, z, 4, 5));
+  for (let z = 1; z <= 16; z += 2) { tiles.push(floor(2, z, 3, 3)); tiles.push(floor(22, z + 1, 3, 3)); }
+  // Opaque sloped stream band; center cobblestone remains traversable.
+  for (let x = 10; x <= 14; x += 1) tiles.push({ ...floor(x, 7, 7, 7), orientation: 1 });
+  tiles.push(floor(12, 7, 8, 6));
+  // Side barriers stop stream entry while leaving crossing open.
+  tiles.push(wall(10, 7, 9, 0)); tiles.push(wall(14, 7, 9, 0));
+  // Textured castle landmark; center entry remains open.
+  for (let x = 8; x <= 16; x += 1) { if (x !== 12) tiles.push(wall(x, 13, 10, 8)); tiles.push(wall(x, 15, 10, 8)); }
+  for (let z = 13; z <= 15; z += 1) { tiles.push(wall(8, z, 10, 8)); tiles.push(wall(16, z, 10, 8)); }
   // Authored trunk blockers. Rendered tile + solid collision keeps corridor navigable.
   for (const [x, z] of [[5, -7], [8, -5], [4, -2], [7, 0], [5, 12], [9, 15], [4, 16], [8, 14], [16, -7], [20, -5], [15, -2], [19, 0], [16, 12], [21, 15]] as const) {
     tiles.push(wall(x, z, 6, 3));
