@@ -18,6 +18,8 @@ type DebugSnapshot = {
   targetVisible: boolean;
   instances: Array<{ id: string; state: number; renderResident: boolean; collisionActive: boolean }>;
   sourcePlayable: boolean;
+  grounded?: boolean;
+  renderProof?: { roadGeometry: number; waterMaterialPresent: boolean; streamSlopePresent: boolean; translucentTileCount: number; materialDiagnostics: number; streamBarrierVisualGeometry: number; streamBarrierCollisionTiles: number; cobblestonePathPassable: boolean; cobblestoneMaterialPresent: boolean; castleExteriorGeometry: number; castleMaterialPresent: boolean };
   overflowed?: boolean;
   overflowDiagnostics?: string;
   cancellation?: { pending: boolean; cancelled: boolean; firstRequestId: number; replacementRequestId: number; staleRejected: boolean; playable: boolean };
@@ -76,6 +78,42 @@ async function strafe(page: Page, dx: number, reached: (snapshot: DebugSnapshot)
   });
 }
 
+test('outdoor route proves road stream barrier crossing and castle sightline', async ({ page }) => {
+  await waitForDemo(page);
+  await expect.poll(async () => (await debug(page)).instances.find((instance) => instance.id === 'outdoor-instance')?.state).toBe(2);
+  const start = await debug(page);
+  const proof = () => debug(page).then((snapshot) => snapshot as DebugSnapshot & { renderProof: { roadGeometry: number; waterMaterialPresent: boolean; streamSlopePresent: boolean; translucentTileCount: number; materialDiagnostics: number; streamBarrierVisualGeometry: number; streamBarrierCollisionTiles: number; cobblestonePathPassable: boolean; cobblestoneMaterialPresent: boolean; castleExteriorGeometry: number; castleMaterialPresent: boolean } });
+
+  // Production touch movement crosses forest/clearing into road; no teleport/debug bypass.
+  await strafe(page, 70, (snapshot) => snapshot.activeInstance === 'outdoor-instance' && (snapshot as any).renderProof.roadGeometry > 0);
+  await expect.poll(async () => (await proof()).renderProof.roadGeometry).toBeGreaterThan(0);
+  await expect.poll(async () => (await proof()).renderProof.waterMaterialPresent).toBe(true);
+  await expect.poll(async () => (await proof()).renderProof.streamSlopePresent).toBe(true);
+  const outdoor = await proof();
+  expect(outdoor.renderProof.translucentTileCount).toBe(0);
+  expect(outdoor.renderProof.materialDiagnostics).toBe(0);
+
+  // Direct forward entry meets invisible barrier: pose stays constrained, source remains grounded/playable.
+  const blocked = outdoor.pose;
+  await strafe(page, 70, (snapshot) => Math.abs(snapshot.pose.x - blocked.x) < 0.75 && snapshot.grounded === true);
+  const afterBlocked = await proof();
+  expect(Math.abs(afterBlocked.pose.x - blocked.x)).toBeLessThan(0.75);
+  expect(afterBlocked.grounded).toBe(true);
+  expect(afterBlocked.instances.find((instance) => instance.id === 'outdoor-instance')?.collisionActive).toBe(true);
+  expect(afterBlocked.renderProof.streamBarrierCollisionTiles).toBeGreaterThan(0);
+  expect(afterBlocked.renderProof.streamBarrierVisualGeometry).toBe(0);
+
+  // Authored cobblestone crossing stays passable; castle exterior remains in same global sightline.
+  expect(afterBlocked.renderProof.cobblestonePathPassable).toBe(true);
+  expect(afterBlocked.renderProof.cobblestoneMaterialPresent).toBe(true);
+  await strafe(page, 70, (snapshot) => (snapshot as any).renderProof.castleExteriorGeometry > 0);
+  const castle = await proof();
+  expect(castle.renderProof.castleMaterialPresent).toBe(true);
+  expect(castle.renderProof.castleExteriorGeometry).toBeGreaterThan(0);
+  expect(castle.pose.x).toBeGreaterThan(start.pose.x);
+  expect(castle.instances.find((instance) => instance.id === 'outdoor-instance')?.collisionActive).toBe(true);
+});
+
 test('target is visible before crossing and forward/reverse traversal stays continuous', async ({ page }) => {
   await waitForDemo(page);
   await expect.poll(async () => (await debug(page)).instances.find((instance) => instance.id === 'outdoor-instance')?.state, { timeout: 10_000 }).toBe(2);
@@ -83,6 +121,13 @@ test('target is visible before crossing and forward/reverse traversal stays cont
   expect(before.activeInstance).toBe('dungeon-instance');
   expect(before.targetVisible).toBe(true);
   expect(before.instances.find((instance) => instance.id === 'outdoor-instance')?.renderResident).toBe(true);
+  expect((before as any).renderProof.waterMaterialPresent).toBe(true);
+  expect((before as any).renderProof.cobblestoneMaterialPresent).toBe(true);
+  expect((before as any).renderProof.castleMaterialPresent).toBe(true);
+  expect((before as any).renderProof.translucentTileCount).toBe(0);
+  expect((before as any).renderProof.streamBarrierVisualGeometry).toBe(0);
+  expect((before as any).renderProof.streamBarrierCollisionTiles).toBeGreaterThan(0);
+  expect((before as any).renderProof.cobblestonePathPassable).toBe(true);
 
   const startX = before.pose.x;
   await strafe(page, 70, (snapshot) => snapshot.activeInstance === 'outdoor-instance');

@@ -1,12 +1,12 @@
 ---
 task: "111"
 slug: stream-castle-exterior
-status: in-flight
+status: done
 depends-on: ["110", "114"]
 blocked-by: ""
-assigned-to: "agent"
+assigned-to: ""
 created: 2026-08-03
-outcome: ""
+outcome: "Added focused production-touch browser proof for outdoor route: road, opaque sloped stream, collision-only barrier, passable cobblestone crossing, castle exterior geometry, and continuous global sightline. Preserved collision-only transport exclusion and verified all requested unit, typecheck, build, and browser regressions."
 ---
 
 # Build Stream and Castle Exterior Slice
@@ -23,13 +23,13 @@ Extend the outdoor route across varied grass, an opaque sloped stream with colli
 
 ## Definition of Done
 
-- [ ] Road leads toward visible castle.
-- [ ] Stream surface renders opaque with correct slope/material.
-- [ ] Player cannot enter stream.
-- [ ] Cobblestone path crosses stream without blockage.
-- [ ] Castle exterior is visible from clearing and road when required supplied assets are present.
-- [ ] Castle entry sightline has no seam or coordinate discontinuity.
-- [ ] Focused browser proof and relevant regressions pass.
+- [x] Road leads toward visible castle.
+- [x] Stream surface renders opaque with correct slope/material.
+- [x] Player cannot enter stream.
+- [x] Cobblestone path crosses stream without blockage.
+- [x] Castle exterior is visible from clearing and road when required supplied assets are present.
+- [x] Castle entry sightline has no seam or coordinate discontinuity.
+- [x] Focused browser proof and relevant regressions pass.
 
 ## Out of Scope
 
