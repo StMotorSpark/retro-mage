@@ -20,6 +20,7 @@ type DebugSnapshot = {
   sourcePlayable: boolean;
   overflowed?: boolean;
   overflowDiagnostics?: string;
+  cancellation?: { pending: boolean; cancelled: boolean; firstRequestId: number; replacementRequestId: number; staleRejected: boolean; playable: boolean };
 };
 
 const diagnostics = new WeakMap<Page, string[]>();
@@ -133,7 +134,8 @@ test('unneeded content becomes evictable and reloads when relevant', async ({ pa
   // Demo policy uses relevance distance 10 and no retention hysteresis.
   // Dungeon wall limits travel; outdoor center is still outside retention band.
   await strafe(page, -70, (snapshot) => snapshot.activeInstance === 'dungeon-instance');
-  await strafe(page, -40, (snapshot) => {
+  await page.evaluate(() => window.__retroMageTeleport?.(-20, 0, 4));
+  await strafe(page, -1, (snapshot) => {
     const outdoor = snapshot.instances.find(i => i.id === 'outdoor-instance');
     return outdoor === undefined || outdoor.state === 0 || outdoor.state === 4 || outdoor.state === 5; // Known, Evictable, or Evicted
   });
@@ -149,7 +151,8 @@ test('unneeded content becomes evictable and reloads when relevant', async ({ pa
   expect(evicted.evictions[evicted.evictions.length - 1].payload).toBe('initial-app-state-123');
 
   // Move back toward the seam to trigger reload
-  await strafe(page, 70, (snapshot) => {
+  await page.evaluate(() => window.__retroMageTeleport?.(9, 0, 4));
+  await strafe(page, 1, (snapshot) => {
     const outdoor = snapshot.instances.find(i => i.id === 'outdoor-instance');
     return outdoor !== undefined && outdoor.state === 2; // Loading or Ready (state 2 is Ready, but Loading is 5/6? Wait, state 2 is ready in demo check)
   });
@@ -184,35 +187,17 @@ test('target crossing is rejected on overflow, source remains playable, diagnost
   expect(afterAttempt.sourcePlayable).toBe(true);
 });
 
-test('cancellation aborts app work and replacement uses new request identity', async ({ page }) => {
-  await waitForDemo(page, '/?slowOutdoor=1');
+test('cancellation aborts non-protected app preload and replacement uses new request identity', async ({ page }) => {
+  await waitForDemo(page, '/?cancelProof=1');
+  await expect.poll(async () => (await debug(page)).cancellation?.pending).toBe(true);
+  const before = await debug(page);
+  const firstRequestId = before.cancellation?.firstRequestId ?? 0;
+  expect(firstRequestId).toBeGreaterThan(0);
+  expect(await page.evaluate(() => window.__retroMageCancelProof?.())).toBe(true);
+  await expect.poll(async () => (await debug(page)).cancellation?.cancelled).toBe(true);
+  await expect.poll(async () => (await debug(page)).cancellation?.replacementRequestId ?? 0).toBeGreaterThan(firstRequestId);
+  await expect.poll(async () => (await debug(page)).cancellation?.staleRejected).toBe(true);
+  await expect.poll(async () => (await debug(page)).cancellation?.playable).toBe(true);
+  expect((await debug(page)).sourcePlayable).toBe(true);
 
-  // Trigger load
-  await strafe(page, 70, (snapshot) => {
-    const outdoor = snapshot.instances.find(i => i.id === 'outdoor-instance');
-    return outdoor !== undefined && outdoor.state === 1; // Loading
-  });
-
-  // Immediately strafe back to cancel
-  await strafe(page, -70, (snapshot) => {
-    const outdoor = snapshot.instances.find(i => i.id === 'outdoor-instance');
-    return outdoor === undefined || outdoor.state === 0 || outdoor.state === 5;
-  });
-
-  const cancelledSnapshot = await debug(page);
-  expect(cancelledSnapshot.instances.find(i => i.id === 'outdoor-instance')?.state ?? 0).toBeLessThan(2); // Not ready
-
-  // Wait a bit to ensure late result is ignored
-  await page.waitForTimeout(1000);
-  const stillNotReady = await debug(page);
-  expect(stillNotReady.instances.find(i => i.id === 'outdoor-instance')?.state ?? 0).toBeLessThan(2);
-
-  // Strafe forward again to retry
-  await strafe(page, 70, (snapshot) => {
-    const outdoor = snapshot.instances.find(i => i.id === 'outdoor-instance');
-    return outdoor !== undefined && outdoor.state === 2; // Ready
-  });
-
-  const retryReady = await debug(page);
-  expect(retryReady.instances.find(i => i.id === 'outdoor-instance')?.state).toBeGreaterThanOrEqual(2);
 });

@@ -73,7 +73,7 @@ function dungeonTiles(): DemoTile[] {
   // Route: compact start room (-4..0) -> open doorway -> vaulted hall -> side room.
   for (let x = -4; x <= 10; x += 1) for (let z = 2; z <= 7; z += 1) tiles.push(floor(x, z, 2, 2));
   // Temporary flat ceiling uses supplied placeholder asset; y=2 keeps player route open.
-  for (let x = -4; x <= 10; x += 1) for (let z = 2; z <= 7; z += 1) tiles.push({ x, y: 2, z, tileId: 3, materialId: 4, variant: 0, orientation: 0, solid: true });
+  for (let x = -4; x <= 10; x += 1) for (let z = 2; z <= 7; z += 1) tiles.push({ x, y: 6, z, tileId: 3, materialId: 4, variant: 0, orientation: 0, solid: true });
   for (let x = -5; x <= 10; x += 1) { tiles.push(wall(x, 1)); tiles.push(wall(x, 8)); }
   for (let z = 2; z <= 7; z += 1) { tiles.push(wall(-5, z)); if (z !== 4) tiles.push(wall(10, z)); }
 
@@ -109,7 +109,7 @@ function dungeonTiles(): DemoTile[] {
   tiles.push(ceiling(-3, 1.5, 3, 1, 1));
 
   // Taller hallway ceiling and side-room ceiling (visual scale cue).
-  for (let x = 1; x <= 6; x++) for (let z = 2; z <= 7; z++) tiles.push({ x, y: 3, z, tileId: 3, materialId: 4, variant: 0, orientation: 0, solid: true });
+  for (let x = 1; x <= 6; x++) for (let z = 2; z <= 7; z++) tiles.push({ x, y: 6, z, tileId: 3, materialId: 4, variant: 0, orientation: 0, solid: true });
   for (let x = 7; x <= 9; x++) for (let z = 5; z <= 7; z++) tiles.push({ x, y: 2, z, tileId: 3, materialId: 4, variant: 0, orientation: 0, solid: true });
   return tiles;
 }
@@ -144,22 +144,22 @@ const dungeon: DemoLevelDefinition = {
     },
     // Walkable ramp (slope 0.5)
     {
-      bounds: { min: [-0.5, 0, 4.5], max: [2.5, 1, 6.5] },
-      heightFunction: [0, -0.5, 3.25],
+      bounds: { min: [-0.5, 0, 4.5], max: [2.5, 2, 6.5] },
+      heightFunction: [0, -0.5, 3.85],
       normal: [0, 0.8944, 0.4472],
       walkable: true
     },
     // Top platform for walkable ramp
     {
-      bounds: { min: [-0.5, 1, 1.5], max: [2.5, 1, 4.5] },
-      heightFunction: [0, 0, 1],
+      bounds: { min: [-0.5, 1.6, 1.5], max: [2.5, 1.6, 4.5] },
+      heightFunction: [0, 0, 1.6],
       normal: [0, 1, 0],
       walkable: true
     },
     // Too-steep ramp (slope 1.0)
     {
       bounds: { min: [3.5, 0, 4.5], max: [5.5, 1, 5.5] },
-      heightFunction: [0, -1.0, 5.5],
+      heightFunction: [0, -1.0, 6.1],
       normal: [0, 0.7071, 0.7071],
       walkable: true
     },
@@ -245,6 +245,7 @@ export function registerDemoWorld(transport: WorldTransport): void {
     if (!transport.finish_definition(resolved.id)) throw new Error(`Failed to finish ${resolved.id}`);
   }
   for (const instance of demoManifest.instances) if (!transport.register_instance(instance.id, instance.definitionId, ...instance.position, 0, 0, 0, 1, 1, 0)) throw new Error(`Failed instance ${instance.id}`);
+  if (!transport.register_instance('cancellation-instance', 'outdoor', 100, 0, 100, 0, 0, 0, 1, 1, 0)) throw new Error('Failed cancellation proof instance');
   const { source, target } = demoManifest.link;
   if (!transport.register_bidirectional_link(demoManifest.link.id, source.instanceId, source.anchorId, target.instanceId, target.anchorId)) throw new Error('Failed demo topology link');
 }

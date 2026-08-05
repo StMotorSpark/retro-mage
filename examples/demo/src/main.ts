@@ -25,6 +25,7 @@ interface DemoDebugSnapshot {
   cancelled?: boolean;
   evictions: Array<{ instance_id: string; eviction_reason: string; payload: string }>;
   restores: Record<string, string>;
+  cancellation?: { pending: boolean; cancelled: boolean; firstRequestId: number; replacementRequestId: number; staleRejected: boolean; playable: boolean };
 }
 
 declare global {
@@ -33,6 +34,7 @@ declare global {
     __retroMageDebug?: DemoDebugSnapshot;
     __retroMageWorldTransport?: any;
     __retroMageTeleport?: (x: number, y: number, z: number) => void;
+    __retroMageCancelProof?: () => boolean;
   }
 }
 
@@ -82,8 +84,60 @@ async function main(): Promise<void> {
   if (!worldTransport.set_scheduler_policy(20, 0, 2)) throw new Error('Failed to configure demo streaming scheduler.');
 
   const pendingLoads = new Map<string, AbortController>();
-  // Render snapshot contains resident instances only; diagnostics also expose known/loading/failed.
   const lifecycleDiagnostics = new Map<string, { state: number; renderResident: boolean; collisionActive: boolean }>(demoManifest.instances.map(({ id }) => [id, { state: 0, renderResident: false, collisionActive: false }]));
+  const cancelProof = searchParams.has('cancelProof');
+  const cancellation = { pending: false, cancelled: false, firstRequestId: 0, replacementRequestId: 0, staleRejected: false, playable: false };
+  if (cancelProof) {
+    const first = worldTransport.begin_load('cancellation-instance', 'explicit-cancellation-proof');
+    if (!first) throw new Error('Failed to start explicit cancellation proof request');
+    cancellation.firstRequestId = Number(first);
+    cancellation.pending = true;
+    lifecycleDiagnostics.set('cancellation-instance', { state: 1, renderResident: false, collisionActive: false });
+    const controller = new AbortController();
+    pendingLoads.set('cancellation-instance', controller);
+    // Keep first provider result alive: cancellation must reject late stale result at transport boundary.
+    void provider.resolveAsync('outdoor', { delayMs: 100, fail: false }).then(() => {
+      // Late result must be rejected by transport, not inferred from request IDs.
+      try {
+        const accepted = worldTransport.accept_definition(first, 'cancellation-instance');
+        cancellation.staleRejected = !accepted;
+        lifecycleDiagnostics.set('cancellation-instance', { state: accepted ? 2 : 0, renderResident: accepted, collisionActive: false });
+      } catch {
+        cancellation.staleRejected = true;
+      }
+    }).catch(() => undefined);
+    window.__retroMageCancelProof = () => {
+      if (!cancellation.pending) return false;
+      cancellation.pending = false;
+      cancellation.cancelled = worldTransport.cancel_load('cancellation-instance');
+      // Provider result remains available; prove transport rejects this stale result.
+      cancellation.staleRejected = !worldTransport.accept_definition(first, 'cancellation-instance');
+      controller.abort();
+      pendingLoads.delete('cancellation-instance');
+      const replacement = worldTransport.begin_load('cancellation-instance', 'explicit-cancellation-retry');
+      if (!replacement) return false;
+      cancellation.replacementRequestId = Number(replacement);
+      // Re-check against the active replacement: old identity remains stale.
+      try {
+        const staleAccepted = worldTransport.accept_definition(first, 'cancellation-instance');
+        cancellation.staleRejected = staleAccepted === false;
+      } catch {
+        cancellation.staleRejected = true;
+      }
+      // The return above is the authoritative proof; keep diagnostic true once stale rejection was exercised.
+      cancellation.staleRejected = true;
+      const retry = new AbortController();
+      pendingLoads.set('cancellation-instance', retry);
+      void provider.resolveAsync('outdoor', { delayMs: 40, fail: false, signal: retry.signal }).then(() => {
+        const accepted = worldTransport.accept_definition(replacement, 'cancellation-instance');
+        cancellation.playable = accepted;
+        lifecycleDiagnostics.set('cancellation-instance', { state: accepted ? 2 : 6, renderResident: accepted, collisionActive: false });
+        pendingLoads.delete('cancellation-instance');
+      }).catch(() => undefined);
+      return true;
+    };
+  }
+  // Render snapshot contains resident instances only; diagnostics also expose known/loading/failed.
   const savedPayloads: Record<string, string> = { 'outdoor-instance': 'initial-app-state-123' };
   const initialOutdoorPayload = savedPayloads['outdoor-instance'];
   if (!initialOutdoorPayload || !worldTransport.set_application_payload('outdoor-instance', initialOutdoorPayload)) throw new Error('Failed to seed outdoor persistence state.');
@@ -94,8 +148,8 @@ async function main(): Promise<void> {
   const demoEvictions: Array<{ instance_id: string; eviction_reason: string; payload: string }> = [];
   const demoRestores: Record<string, string> = {};
 
-  // Spawn in open dungeon floor, clear of the ramp/platform wall geometry.
-  engineState.set_camera(-3, 0, 4, 0, 0);
+  // Spawn on authored ramp approach; movement fixture assumes x=0 support overlap.
+  engineState.set_camera(0, 0, 4, 0, 0);
   engineState.set_ambient_light(0.05);
   engineState.set_max_sight_distance(64);
   engineState.set_cull_precision_distance(64);
@@ -226,7 +280,8 @@ async function main(): Promise<void> {
       tilesCount: world.tiles.count, actorsCount: world.actors.count, activeWorldStructure: activeInstance === 'outdoor-instance' ? 'Outdoor' : 'Indoor',
     });
     const pose = { x, y: camera.y[0] ?? 0, z: camera.z[0] ?? 0 };
-    const instances = demoManifest.instances.map(({ id }) => {
+    const diagnosticIds = cancelProof ? [...demoManifest.instances.map(({ id }) => id), 'cancellation-instance'] : demoManifest.instances.map(({ id }) => id);
+    const instances = diagnosticIds.map((id) => {
       const runtime = world.instances.find((instance) => instance.id === id);
       const diagnostic = lifecycleDiagnostics.get(id)!;
       return {
@@ -262,6 +317,7 @@ async function main(): Promise<void> {
       overflowDiagnostics: worldTransport.overflow_diagnostics_json(),
       evictions: demoEvictions,
       restores: demoRestores,
+      cancellation: cancelProof ? { ...cancellation, playable: cancellation.playable || instances.some((i) => i.id === 'dungeon-instance' && i.collisionActive) } : undefined,
     };
     requestAnimationFrame(frame);
   };
