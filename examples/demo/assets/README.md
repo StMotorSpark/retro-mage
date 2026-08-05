@@ -17,7 +17,9 @@ This directory contains application-owned visual assets for the Retro Mage showc
 | `demo.outdoor.mountain` | `outdoor/textures/mountain.rock.png` |
 | `demo.outdoor.water` | `outdoor/textures/stream.water.png` |
 | `demo.sprite.torch` | `sprite/torch.1.png` |
+| `demo.sprite.tree` | `sprite/tree.1.png` |
 | `demo.sky.background` | `sky/textures/sky.background.png` |
+| `demo.sky.cloud` | `sky/textures/cloud.1.png` |
 
 ## Temporary Placeholders
 

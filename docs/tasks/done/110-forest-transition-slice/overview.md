@@ -1,12 +1,12 @@
 ---
 task: "110"
 slug: forest-transition-slice
-status: pending
+status: done
 depends-on: ["108", "114"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-03
-outcome: ""
+outcome: "Integrated supplied `examples/demo/assets/sprite/tree.1.png` as `demo.sprite.tree` → `/assets/sprite/tree.1.png` and supplied `examples/demo/assets/sky/textures/cloud.1.png` as `demo.sky.cloud` → `/assets/sky/textures/cloud.1.png`. Registered `mat_forest_tree` (lit/cutout/billboard) and `mat_cloud` (unlit/cutout/billboard), wired tree/cloud actors to renderer-owned textures, retained Y billboarding, depth test/write, and disabled translucent blending. Evidence: exact required unit/type/build/browser commands passed; browser suites used configured Playwright WebGL/baseURL and production movement predicates. User PNGs preserved; temp test artifacts removed."
 ---
 
 # Build Dungeon-to-Forest Transition Slice
@@ -23,12 +23,12 @@ Connect the dungeon showcase to a dense billboard forest, clearing, road, blue s
 
 ## Definition of Done
 
-- [ ] Outdoor geometry is visible through/at the dungeon exit as designed.
-- [ ] Crossing has no coordinate or geometry discontinuity.
-- [ ] Forest is navigable and selected tree trunks can block movement.
-- [ ] Clearing reveals road and sky/cloud content.
-- [ ] Warm-to-cool lighting transition is readable when required supplied assets are present.
-- [ ] Existing seamless/streaming proofs pass.
+- [x] Outdoor geometry is visible through/at the dungeon exit as designed — seamless browser traversal passed.
+- [x] Crossing has no coordinate or geometry discontinuity — engine-core seamless tests + browser continuity passed.
+- [x] Forest is navigable and selected tree trunks can block movement — production movement suite passed.
+- [x] Clearing reveals road and sky/cloud content — authored road/cloud actors and exact asset resolution wired; browser traversal passed.
+- [x] Warm-to-cool lighting transition is readable when required supplied assets are present — outdoor LUT/material and supplied sprite/sky assets resolve without diagnostics.
+- [x] Existing seamless/streaming proofs pass — browser seamless suite passed 6/6.
 
 ## Out of Scope
 

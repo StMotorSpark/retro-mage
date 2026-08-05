@@ -120,7 +120,13 @@ function dungeonTiles(): DemoTile[] {
 
 function outdoorTiles(): DemoTile[] {
   const tiles: DemoTile[] = [];
+  // Grass corridor; road begins in clearing beyond dense tree line.
   for (let x = 0; x <= 24; x += 1) for (let z = -8; z <= 16; z += 1) tiles.push(floor(x, z, 3, 3));
+  for (let z = -1; z <= 16; z += 1) tiles.push(floor(12, z, 4, 5));
+  // Authored trunk blockers. Rendered tile + solid collision keeps corridor navigable.
+  for (const [x, z] of [[5, -7], [8, -5], [4, -2], [7, 0], [5, 12], [9, 15], [4, 16], [8, 14], [16, -7], [20, -5], [15, -2], [19, 0], [16, 12], [21, 15]] as const) {
+    tiles.push(wall(x, z, 6, 3));
+  }
   return tiles;
 }
 
@@ -181,7 +187,12 @@ const dungeon: DemoLevelDefinition = {
 const outdoor: DemoLevelDefinition = {
   id: 'outdoor', version: '1', bounds: { min: [0, 0, -9], max: [25, 4, 17] },
   tiles: outdoorTiles(),
-  actors: ([[15, -4], [22, -2], [12, 4], [20, 7], [8, 12], [18, 11]] as const).map(([x, z], index) => ({ x, y: 0, z, actorId: `tree-${index}`, spriteId: 1, facing: 0, active: true, spawn: true })),
+  actors: [
+    ...([[5, -7], [8, -5], [4, -2], [7, 0], [5, 12], [9, 15], [4, 16], [8, 14], [16, -7], [20, -5], [15, -2], [19, 0], [16, 12], [21, 15]] as const).map(([x, z], index) => ({ x, y: 0, z, actorId: `tree-${index}`, spriteId: 1, facing: 0, active: true, spawn: true })),
+    { x: 10, y: 7, z: 1, actorId: 'cloud-clearing-0', spriteId: 4, facing: 0, active: true, spawn: true },
+    { x: 18, y: 6, z: 8, actorId: 'cloud-clearing-1', spriteId: 4, facing: 0, active: true, spawn: true },
+  ],
+  // Cool ambient separates outdoor shading from torch-lit dungeon.
   lights: [{ x: 12, y: 3, z: 4, color: [0.8, 0.9, 1], intensity: 1, active: true }],
   anchors: [anchor('dungeon-gate', 0, 0, 'both', -Math.PI / 2)],
   surfaces: [

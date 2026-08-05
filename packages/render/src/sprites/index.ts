@@ -167,8 +167,8 @@ export function createSpriteRenderer(gl: WebGL2RenderingContext): SpriteRenderer
       gl.useProgram(program);
       gl.bindVertexArray(vao);
 
-      gl.enable(gl.BLEND);
-      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      // Cutout sprites stay in opaque depth pipeline: no translucent blending.
+      if (typeof gl.disable === 'function') gl.disable(gl.BLEND);
       gl.enable(gl.DEPTH_TEST);
       gl.depthMask(true);
 
