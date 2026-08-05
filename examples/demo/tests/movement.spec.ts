@@ -101,6 +101,16 @@ test('vertical movement demo', async () => {
   state = await getDebug();
   console.log('Pos after ascending ramp:', state.pose);
   expect(state.pose.y).toBeGreaterThan(0.9);
+  // Balcony proof: authored rail blocks boundary crossing while upper pose remains grounded.
+  await page.evaluate(() => (window as any).__retroMageTeleport?.(2.0, 1.6, 3.0));
+  await expect.poll(async () => (await getDebug()).grounded, { timeout: 5000 }).toBe(true);
+  await dispatchMove(page, 30, 0);
+  await page.waitForTimeout(700);
+  await stopMove(page);
+  state = await getDebug();
+  expect(state.pose.x).toBeLessThan(2.8);
+  expect(state.pose.y).toBeGreaterThan(0.9);
+  expect(state.debugMovement.pitch).toBeGreaterThanOrEqual(-Math.PI / 2);
 
   // 2.1 Descend the ramp (walk +Z)
   await dispatchMove(page, 0, 10);

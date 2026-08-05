@@ -81,8 +81,12 @@ function dungeonTiles(): DemoTile[] {
   const elevatedFloor = (x: number, y: number, z: number, tileId: number, materialId: number, orientation = 0): DemoTile => ({ x, y, z, tileId, materialId, variant: 0, orientation, solid: false });
   const ceiling = (x: number, y: number, z: number, tileId: number, materialId: number): DemoTile => ({ x, y, z, tileId, materialId, variant: 0, orientation: 0, solid: true });
 
-  // Platform at top of walkable ramp
-  for (let x = 0; x <= 2; x++) for (let z = 2; z <= 4; z++) tiles.push(elevatedFloor(x, 1, z, 2, 2));
+  // Upper balcony floor, same dungeon material as lower room. Vertical openings preserve look-down visibility.
+  for (let x = 0; x <= 2; x++) for (let z = 2; z <= 4; z++) tiles.push({ ...elevatedFloor(x, 1, z, 2, 2), openings: { vertical: true } });
+  // Authored guard geometry: side rails and back rail leave ramp approach open.
+  // Right boundary plus back rail; left edge remains open for the authored ledge/fall proof.
+  for (let z = 2; z <= 3; z++) tiles.push(ceiling(3, 1, z, 1, 1));
+  for (let x = 0; x <= 2; x++) tiles.push(ceiling(x, 1, 2, 1, 1));
 
   // Walkable ramp visuals
   tiles.push(elevatedFloor(0, 0.25, 5.5, 2, 2));

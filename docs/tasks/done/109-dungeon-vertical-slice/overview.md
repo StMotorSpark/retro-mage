@@ -1,12 +1,12 @@
 ---
 task: "109"
 slug: dungeon-vertical-slice
-status: pending
+status: done
 depends-on: ["108"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-03
-outcome: ""
+outcome: "Added authored dungeon ramp visuals, upper balcony floor with vertical sight opening, guard geometry, and browser proof for supported ascent, balcony boundary collision, grounded elevation, and camera pitch. Preserved existing world-aware collision/render contracts and regression coverage."
 ---
 
 # Build Dungeon Vertical Slice

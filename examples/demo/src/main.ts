@@ -14,7 +14,7 @@ interface DemoDebugSnapshot {
   targetVisible: boolean;
   instances: Array<{ id: string; state: number; renderResident: boolean; collisionActive: boolean; restoreStatus: number; restoreAttempts: number; stateVersion: string; restoreFailureReason: string; handoffStatus: number }>;
   sourcePlayable: boolean;
-  debugMovement?: { x: number; z: number; yaw: number };
+  debugMovement?: { x: number; z: number; yaw: number; pitch: number };
   grounded?: boolean;
   verticalVelocity?: number;
   queueDepth: number;
@@ -307,7 +307,7 @@ async function main(): Promise<void> {
       targetVisible: world.scene.instanceIds.includes('outdoor-instance'),
       instances,
       sourcePlayable: instances.some((instance) => instance.id === 'dungeon-instance' && instance.collisionActive),
-      debugMovement: { x: movementX, z: movementZ, yaw: camera.yaw[0] ?? 0 },
+      debugMovement: { x: movementX, z: movementZ, yaw: camera.yaw[0] ?? 0, pitch: camera.pitch[0] ?? 0 },
       grounded: engineState.is_grounded(),
       verticalVelocity: engineState.player_velocity_y,
       queueDepth: worldTransport.scheduler_queue_depth(),
