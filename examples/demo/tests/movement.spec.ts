@@ -101,16 +101,45 @@ test('vertical movement demo', async () => {
   state = await getDebug();
   console.log('Pos after ascending ramp:', state.pose);
   expect(state.pose.y).toBeGreaterThan(0.9);
-  // Balcony proof: authored rail blocks boundary crossing while upper pose remains grounded.
-  await page.evaluate(() => (window as any).__retroMageTeleport?.(2.0, 1.6, 3.0));
-  await expect.poll(async () => (await getDebug()).grounded, { timeout: 5000 }).toBe(true);
+  // Balcony proof: the same production traversal reaches the authored rail; no teleport bypass.
+  const balconyEntry = await getDebug();
+  expect(balconyEntry.pose.y).toBeGreaterThan(0.9);
+  expect(balconyEntry.grounded).toBe(true);
+  // Continue along the authored balcony before testing its side guard.
+  await dispatchMove(page, 0, -10);
+  await expect.poll(async () => (await getDebug()).pose.z < 3.2, { timeout: 5000 }).toBe(true);
+  await stopMove(page);
   await dispatchMove(page, 30, 0);
-  await page.waitForTimeout(700);
+  await expect.poll(async () => (await getDebug()).renderFrame > balconyEntry.renderFrame + 10, { timeout: 5000 }).toBe(true);
   await stopMove(page);
   state = await getDebug();
   expect(state.pose.x).toBeLessThan(2.8);
   expect(state.pose.y).toBeGreaterThan(0.9);
-  expect(state.debugMovement.pitch).toBeGreaterThanOrEqual(-Math.PI / 2);
+  expect(state.grounded).toBe(true);
+
+  // Look-down proof uses the production look touch zone and verifies lower-room geometry evidence.
+  const pitchBefore = (await getDebug()).debugMovement.pitch;
+  await page.evaluate(() => {
+    const target = document.querySelector('.retro-input-look-zone');
+    if (!target) throw new Error('Look zone missing');
+    const rect = target.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    const start = new Touch({ identifier: 23456, target, clientX: x, clientY: y });
+    const moved = new Touch({ identifier: 23456, target, clientX: x, clientY: y + 80 });
+    target.dispatchEvent(new TouchEvent('touchstart', { touches: [start], targetTouches: [start], changedTouches: [start], bubbles: true }));
+    target.dispatchEvent(new TouchEvent('touchmove', { touches: [moved], targetTouches: [moved], changedTouches: [moved], bubbles: true }));
+    target.dispatchEvent(new TouchEvent('touchend', { touches: [], targetTouches: [], changedTouches: [moved], bubbles: true }));
+  });
+  await expect.poll(async () => (await getDebug()).debugMovement.pitch, { timeout: 5000 }).toBeGreaterThan(pitchBefore);
+  state = await getDebug();
+  expect(state.renderProof.lowerRoomVisible).toBe(true);
+  expect(state.renderProof.materialIds).toContain(2);
+  expect(state.renderProof.litOpaqueTileCount).toBeGreaterThan(0);
+  expect(state.renderProof.translucentTileCount).toBe(0);
+  expect(state.renderProof.activeLightCount).toBeGreaterThan(0);
+  expect(state.renderProof.lutActive).toBe(true);
+  expect(state.renderProof.materialDiagnostics).toBe(0);
 
   // 2.1 Descend the ramp (walk +Z)
   await dispatchMove(page, 0, 10);

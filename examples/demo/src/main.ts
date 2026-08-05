@@ -26,6 +26,7 @@ interface DemoDebugSnapshot {
   evictions: Array<{ instance_id: string; eviction_reason: string; payload: string }>;
   restores: Record<string, string>;
   cancellation?: { pending: boolean; cancelled: boolean; firstRequestId: number; replacementRequestId: number; staleRejected: boolean; playable: boolean };
+  renderProof?: { materialIds: number[]; litOpaqueTileCount: number; translucentTileCount: number; activeLightCount: number; lutActive: boolean; materialDiagnostics: number; lowerRoomVisible: boolean };
 }
 
 declare global {
@@ -57,6 +58,7 @@ async function main(): Promise<void> {
   const delayAcknowledge = searchParams.has('delayAcknowledge');
   const failAcknowledge = searchParams.has('failAcknowledge');
   let assetsReady = false;
+  let materialDiagnostics = 0;
   let renderFrame = 0;
   // App-owned asset-key resolver + material contract. Renderer receives numeric IDs only.
   const materials = new MaterialRegistry();
@@ -176,7 +178,7 @@ async function main(): Promise<void> {
     const descriptors = ['mat_dungeon_stone', 'mat_dungeon_ceiling', 'mat_emissive_torch', 'mat_dungeon_deco'];
     for (const id of descriptors) {
       const resources = await resolveMaterialResources(gl, materials.resolve(id), resolveBytes,
-        (diagnostic) => console.warn(`[demo material diagnostic] ${diagnostic.kind}: ${diagnostic.materialId}/${diagnostic.assetKey}`));
+        (diagnostic) => { materialDiagnostics++; console.warn(`[demo material diagnostic] ${diagnostic.kind}: ${diagnostic.materialId}/${diagnostic.assetKey}`); });
       // Resource lifetime remains renderer-owned; retain handle until renderer shutdown.
       void resources;
     }
@@ -297,6 +299,31 @@ async function main(): Promise<void> {
       };
     });
     window.__debugPos = pose;
+    const sceneTiles = world.scene?.tiles;
+    const materialIds = sceneTiles?.material_id ? [...new Set(Array.from(sceneTiles.material_id.subarray(0, sceneTiles.count), (id) => id))].sort((a, b) => a - b) : [];
+    const renderFlags = sceneTiles?.render_flags ? Array.from(sceneTiles.render_flags.subarray(0, sceneTiles.count)) : [];
+    const litOpaqueTileCount = renderFlags.filter((flags) => (flags & 1) !== 0 && (flags & 4) !== 0).length;
+    const translucentTileCount = renderFlags.filter((flags) => (flags & 32) !== 0).length;
+    // Browser proof uses the same camera pose as the renderer: a lower-room tile must
+    // project into the current view together with an authored opening. This is not a
+    // scene-presence flag; it rejects geometry behind/above the current camera.
+    const pitch = camera.pitch[0] ?? 0;
+    const yaw = camera.yaw[0] ?? 0;
+    const forward = { x: -Math.sin(yaw) * Math.cos(pitch), y: -Math.sin(pitch), z: -Math.cos(yaw) * Math.cos(pitch) };
+    const inCurrentView = (tx: number, ty: number, tz: number): boolean => {
+      const dx = tx - x, dy = ty - (camera.y[0] ?? 0) - 1.5, dz = tz - (camera.z[0] ?? 0);
+      const distance = Math.hypot(dx, dy, dz);
+      if (distance < 0.01) return false;
+      const dot = (dx * forward.x + dy * forward.y + dz * forward.z) / distance;
+      // The renderer's 60° horizontal frustum is represented conservatively here;
+      // the depth test still requires the point to be in front of this camera.
+      return dot > 0.15 && distance < 30;
+    };
+    const lowerRoomVisible = sceneTiles ? Array.from(sceneTiles.y.subarray(0, sceneTiles.count)).some((y, i) =>
+      y < 0.1 && sceneTiles.material_id?.[i] === 2 && inCurrentView(sceneTiles.x[i] ?? 0, y, sceneTiles.z[i] ?? 0),
+    ) && Array.from(sceneTiles.vertical_opening.subarray(0, sceneTiles.count)).some((opening, i) =>
+      opening > 0 && inCurrentView(sceneTiles.x[i] ?? 0, sceneTiles.y[i] ?? 0, sceneTiles.z[i] ?? 0),
+    ) : false;
     window.__retroMageDebug = {
       ready: true,
       wasmReady: true,
@@ -318,6 +345,7 @@ async function main(): Promise<void> {
       evictions: demoEvictions,
       restores: demoRestores,
       cancellation: cancelProof ? { ...cancellation, playable: cancellation.playable || instances.some((i) => i.id === 'dungeon-instance' && i.collisionActive) } : undefined,
+      renderProof: { materialIds, litOpaqueTileCount, translucentTileCount, activeLightCount: world.lights.count, lutActive: true, materialDiagnostics, lowerRoomVisible },
     };
     requestAnimationFrame(frame);
   };

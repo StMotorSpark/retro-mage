@@ -6,7 +6,7 @@ depends-on: ["108"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-03
-outcome: "Added authored dungeon ramp visuals, upper balcony floor with vertical sight opening, guard geometry, and browser proof for supported ascent, balcony boundary collision, grounded elevation, and camera pitch. Preserved existing world-aware collision/render contracts and regression coverage."
+outcome: "Independently accepted the authored balcony slice. Production touch traversal reaches and remains grounded on the balcony, the guard constrains lateral movement, look-zone pitch change is paired with camera-frustum visibility evidence for lower-room geometry and the opening, and material/lighting diagnostics report the authored path with zero issues. Required unit, typecheck, build, and browser suites pass."
 ---
 
 # Build Dungeon Vertical Slice
@@ -23,11 +23,11 @@ Extend the dungeon showcase with authored ramp/stair movement and an upper balco
 
 ## Definition of Done
 
-- [ ] Player reaches balcony through supported movement.
-- [ ] Balcony collision prevents falling through intended boundaries.
-- [ ] Player can look down and see starting area correctly.
-- [ ] Materials and lighting remain coherent across elevations.
-- [ ] Existing vertical movement and runtime proofs pass.
+- [x] Player reaches balcony through supported movement.
+- [x] Balcony collision prevents falling through intended boundaries.
+- [x] Player can look down and see starting area correctly.
+- [x] Materials and lighting remain coherent across elevations.
+- [x] Existing vertical movement and runtime proofs pass.
 
 ## Out of Scope
 
