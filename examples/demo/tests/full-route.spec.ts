@@ -96,7 +96,7 @@ test('production touch completes dungeon-to-throne route with collision and vert
   expect(start.renderProof.materialDiagnostics).toBe(0);
   expect(start.renderProof.assetKeys).toEqual([
     'demo.castle.exterior', 'demo.castle.interior', 'demo.dungeon.ceiling', 'demo.dungeon.floor', 'demo.dungeon.wall',
-    'demo.outdoor.cobblestone', 'demo.outdoor.grass', 'demo.outdoor.road', 'demo.outdoor.water',
+    'demo.outdoor.cobblestone', 'demo.outdoor.grass', 'demo.outdoor.mountain', 'demo.outdoor.road', 'demo.outdoor.water',
     'demo.sky.background', 'demo.sky.cloud', 'demo.sprite.dungeon_deco', 'demo.sprite.statue', 'demo.sprite.torch', 'demo.sprite.tree',
   ]);
 

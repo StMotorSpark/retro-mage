@@ -26,7 +26,7 @@ interface DemoDebugSnapshot {
   evictions: Array<{ instance_id: string; eviction_reason: string; payload: string }>;
   restores: Record<string, string>;
   cancellation?: { pending: boolean; cancelled: boolean; firstRequestId: number; replacementRequestId: number; staleRejected: boolean; playable: boolean };
-  renderProof?: { materialIds: number[]; assetKeys: string[]; litOpaqueTileCount: number; translucentTileCount: number; activeLightCount: number; lutActive: boolean; materialDiagnostics: number; lowerRoomVisible: boolean; castleLowerVisible: boolean; waterMaterialPresent: boolean; cobblestoneMaterialPresent: boolean; castleMaterialPresent: boolean; streamBarrierVisualGeometry: number; streamBarrierCollisionTiles: number; cobblestonePathPassable: boolean; roadGeometry: number; streamSlopePresent: boolean; castleExteriorGeometry: number; castleInteriorGeometry: number; castleColumnGeometry: number; castleBalconyGeometry: number; };
+  renderProof?: { materialIds: number[]; assetKeys: string[]; litOpaqueTileCount: number; translucentTileCount: number; activeLightCount: number; lutActive: boolean; materialDiagnostics: number; lowerRoomVisible: boolean; castleLowerVisible: boolean; waterMaterialPresent: boolean; cobblestoneMaterialPresent: boolean; castleMaterialPresent: boolean; streamBarrierVisualGeometry: number; streamBarrierCollisionTiles: number; cobblestonePathPassable: boolean; roadGeometry: number; streamSlopePresent: boolean; castleExteriorGeometry: number; castleInteriorGeometry: number; castleColumnGeometry: number; castleBalconyGeometry: number; mountainMaterial: { id: string; assetKey: string; materialId: number }; mountainGeometry: number; mountainCollisionTiles: number; mountainVisible: boolean; castleSightlineVisible: boolean; };
 }
 
 declare global {
@@ -72,6 +72,7 @@ async function main(): Promise<void> {
   materials.register({ id: 'mat_grass', textureAssetKeys: ['demo.outdoor.grass'], uvMode: 'tile-repeat', flags: ['opaque', 'lit'], lutConfig: outdoorLut });
   materials.register({ id: 'mat_road', textureAssetKeys: ['demo.outdoor.road'], uvMode: 'explicit', flags: ['opaque', 'lit'], lutConfig: outdoorLut });
   materials.register({ id: 'mat_cobblestone', textureAssetKeys: ['demo.outdoor.cobblestone'], uvMode: 'explicit', flags: ['opaque', 'lit'], lutConfig: outdoorLut });
+  materials.register({ id: 'mat_mountain_rock', textureAssetKeys: ['demo.outdoor.mountain'], uvMode: 'explicit', flags: ['opaque', 'lit'], lutConfig: outdoorLut });
   materials.register({ id: 'mat_water', textureAssetKeys: ['demo.outdoor.water'], uvMode: 'explicit', flags: ['opaque', 'lit', 'water'], lutConfig: outdoorLut });
   materials.register({ id: 'mat_castle_exterior', textureAssetKeys: ['demo.castle.exterior'], uvMode: 'explicit', flags: ['opaque', 'lit'], lutConfig: outdoorLut });
   materials.register({ id: 'mat_castle_interior', textureAssetKeys: ['demo.castle.interior'], uvMode: 'tile-repeat', flags: ['opaque', 'lit'], lutConfig: outdoorLut });
@@ -83,7 +84,7 @@ async function main(): Promise<void> {
     'demo.dungeon.wall': '/assets/dungeon/textures/dungeon.wall.png', 'demo.dungeon.floor': '/assets/dungeon/textures/dungeon.floor.png',
     'demo.dungeon.ceiling': '/assets/dungeon/textures/dungeon.ceiling.png', 'demo.sprite.torch': '/assets/sprite/torch.1.png',
     'demo.sprite.dungeon_deco': '/assets/sprite/dungeon.deco.png',
-    'demo.outdoor.grass': '/assets/outdoor/textures/forest.floor.png', 'demo.outdoor.road': '/assets/outdoor/textures/road.png', 'demo.outdoor.cobblestone': '/assets/outdoor/textures/cobblestone.png', 'demo.outdoor.water': '/assets/outdoor/textures/stream.water.png', 'demo.castle.exterior': '/assets/castle/textures/castle.exterior.wall.png',
+    'demo.outdoor.grass': '/assets/outdoor/textures/forest.floor.png', 'demo.outdoor.road': '/assets/outdoor/textures/road.png', 'demo.outdoor.cobblestone': '/assets/outdoor/textures/cobblestone.png', 'demo.outdoor.mountain': '/assets/outdoor/textures/mountain.rock.png', 'demo.outdoor.water': '/assets/outdoor/textures/stream.water.png', 'demo.castle.exterior': '/assets/castle/textures/castle.exterior.wall.png',
     'demo.castle.interior': '/assets/castle/textures/castle.interior.floor.png', 'demo.sprite.statue': '/assets/sprite/statue.1.png',
     'demo.sky.background': '/assets/sky/textures/sky.background.png', 'demo.sprite.tree': '/assets/sprite/tree.1.png',
     'demo.sky.cloud': '/assets/sky/textures/cloud.1.png',
@@ -190,14 +191,16 @@ async function main(): Promise<void> {
       if (!response.ok) throw new Error(`Asset fetch failed (${response.status}): ${key}`);
       return response.arrayBuffer();
     };
-    const descriptors = ['mat_dungeon_stone', 'mat_dungeon_ceiling', 'mat_emissive_torch', 'mat_dungeon_deco', 'mat_grass', 'mat_road', 'mat_cobblestone', 'mat_water', 'mat_castle_exterior', 'mat_castle_interior', 'mat_castle_statue', 'mat_sky', 'mat_forest_tree', 'mat_cloud'];
+    const descriptors = ['mat_dungeon_stone', 'mat_dungeon_ceiling', 'mat_emissive_torch', 'mat_dungeon_deco', 'mat_grass', 'mat_road', 'mat_cobblestone', 'mat_mountain_rock', 'mat_water', 'mat_castle_exterior', 'mat_castle_interior', 'mat_castle_statue', 'mat_sky', 'mat_forest_tree', 'mat_cloud'];
     const spriteIds: Record<string, number> = { mat_emissive_torch: 2, mat_dungeon_deco: 3, mat_castle_statue: 5, mat_forest_tree: 1, mat_cloud: 4 };
     for (const id of descriptors) {
       const resources = await resolveMaterialResources(gl, materials.resolve(id), resolveBytes,
         (diagnostic) => { materialDiagnostics++; console.warn(`[demo material diagnostic] ${diagnostic.kind}: ${diagnostic.materialId}/${diagnostic.assetKey}`); });
       const spriteId = spriteIds[id];
-      const texture = spriteId === undefined ? undefined : resources.textures.values().next().value?.texture;
+      const texture = resources.textures.values().next().value?.texture;
       if (spriteId !== undefined && texture) renderer.spriteRenderer?.setTexture(spriteId, texture);
+      // Mountain uses authored tile 16; bind resolved app asset to its renderer-owned texture.
+      if (id === 'mat_mountain_rock' && texture) renderer.tileRenderer?.setTexture(16, texture);
       // Resource lifetime remains renderer-owned; retain handle until renderer shutdown.
       void resources;
     }
@@ -359,6 +362,14 @@ async function main(): Promise<void> {
     const castleInteriorGeometry = sceneTiles ? Array.from(sceneTiles.tile_id.subarray(0, sceneTiles.count)).filter((id) => id >= 11 && id <= 15).length : 0;
     const castleColumnGeometry = sceneTiles ? Array.from(sceneTiles.tile_id.subarray(0, sceneTiles.count)).filter((id) => id === 15).length : 0;
     const castleBalconyGeometry = sceneTiles ? Array.from(sceneTiles.tile_id.subarray(0, sceneTiles.count)).filter((id) => id === 14).length : 0;
+    const mountainGeometry = sceneTiles ? Array.from(sceneTiles.tile_id.subarray(0, sceneTiles.count)).filter((id) => id === 16).length : 0;
+    const mountainCollisionTiles = outdoorDefinition?.tiles.filter((tile) => tile.tileId === 16 && tile.solid).length ?? 0;
+    const mountainVisible = sceneTiles ? Array.from(sceneTiles.material_id?.subarray(0, sceneTiles.count) ?? []).some((materialId, i) =>
+      materialId === 10 && inCurrentView(sceneTiles.x[i] ?? 0, sceneTiles.y[i] ?? 0, sceneTiles.z[i] ?? 0),
+    ) : false;
+    const castleSightlineVisible = sceneTiles ? Array.from(sceneTiles.tile_id.subarray(0, sceneTiles.count)).some((tileId, i) =>
+      tileId === 10 && inCurrentView(sceneTiles.x[i] ?? 0, sceneTiles.y[i] ?? 0, sceneTiles.z[i] ?? 0),
+    ) : false;
     const waterMaterialPresent = materialIds.includes(7);
     const cobblestoneMaterialPresent = materialIds.includes(6);
     const castleMaterialPresent = materialIds.includes(8);
@@ -386,7 +397,7 @@ async function main(): Promise<void> {
       evictions: demoEvictions,
       restores: demoRestores,
       cancellation: cancelProof ? { ...cancellation, playable: cancellation.playable || instances.some((i) => i.id === 'dungeon-instance' && i.collisionActive) } : undefined,
-      renderProof: { materialIds, assetKeys: Object.keys(assetPaths).sort(), litOpaqueTileCount, translucentTileCount, activeLightCount: world.lights.count, lutActive: true, materialDiagnostics, lowerRoomVisible, castleLowerVisible, waterMaterialPresent, cobblestoneMaterialPresent, castleMaterialPresent, streamBarrierVisualGeometry, streamBarrierCollisionTiles, cobblestonePathPassable, roadGeometry, streamSlopePresent, castleExteriorGeometry, castleInteriorGeometry, castleColumnGeometry, castleBalconyGeometry },
+      renderProof: { materialIds, assetKeys: Object.keys(assetPaths).sort(), litOpaqueTileCount, translucentTileCount, activeLightCount: world.lights.count, lutActive: true, materialDiagnostics, lowerRoomVisible, castleLowerVisible, waterMaterialPresent, cobblestoneMaterialPresent, castleMaterialPresent, streamBarrierVisualGeometry, streamBarrierCollisionTiles, cobblestonePathPassable, roadGeometry, streamSlopePresent, castleExteriorGeometry, castleInteriorGeometry, castleColumnGeometry, castleBalconyGeometry, mountainMaterial: { id: 'mat_mountain_rock', assetKey: 'demo.outdoor.mountain', materialId: 10 }, mountainGeometry, mountainCollisionTiles, mountainVisible, castleSightlineVisible },
     };
     requestAnimationFrame(frame);
   };

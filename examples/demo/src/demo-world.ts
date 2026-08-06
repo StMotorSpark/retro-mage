@@ -149,6 +149,18 @@ function outdoorTiles(): DemoTile[] {
   for (const [x, z] of [[5, -7], [8, -5], [4, -2], [7, 0], [5, 12], [9, 15], [4, 16], [8, 14], [16, -7], [20, -5], [15, -2], [19, 0], [16, 12], [21, 15]] as const) {
     tiles.push(wall(x, z, 6, 3));
   }
+  // Mountain rock encloses authored outdoor extent. These solid, textured slopes use
+  // existing definition-tile transport, so render and collision consume same global
+  // outdoor instance transform. Route coordinates remain intentionally untouched.
+  for (let z = -9; z <= 26; z++) {
+    // Dungeon gate aligns at local z=0; opening preserves spatial transition.
+    if (z < -1 || z > 1) tiles.push(wall(-1, z, 16, 10));
+    tiles.push(wall(25, z, 16, 10));
+  }
+  for (let x = 0; x <= 24; x++) {
+    tiles.push(wall(x, -9, 16, 10));
+    tiles.push(wall(x, 26, 16, 10));
+  }
   return tiles;
 }
 
@@ -207,7 +219,7 @@ const dungeon: DemoLevelDefinition = {
 };
 
 const outdoor: DemoLevelDefinition = {
-  id: 'outdoor', version: '1', bounds: { min: [0, 0, -9], max: [25, 4, 25] },
+  id: 'outdoor', version: '1', bounds: { min: [-1, 0, -9], max: [25, 4, 26] },
   tiles: outdoorTiles(),
   actors: [
     ...([[9, 17], [15, 17], [9, 21], [15, 21]] as const).map(([x, z], index) => ({ x, y: 1, z, actorId: `castle-statue-${index}`, spriteId: 5, facing: 0, active: true, spawn: true })),
@@ -278,7 +290,11 @@ export function createDemoLevelProvider(): DemoLevelProvider { return new DemoLe
 export function registerDemoWorld(transport: WorldTransport): void {
   for (const resolved of demoManifest.definitions) {
     if (!transport.begin_definition(resolved.id, resolved.version, ...resolved.bounds.min, ...resolved.bounds.max)) throw new Error(`Failed to begin ${resolved.id}`);
-    for (const tile of resolved.tiles) if (!transport.definition_tile(resolved.id, tile.x, tile.y, tile.z, tile.tileId, tile.materialId, tile.variant, tile.orientation, tile.solid, tile.openings?.north ?? false, tile.openings?.east ?? false, tile.openings?.south ?? false, tile.openings?.west ?? false, tile.openings?.vertical ?? false)) throw new Error(`Failed tile in ${resolved.id}`);
+    for (const [tileIndex, tile] of resolved.tiles.entries()) {
+      if (!transport.definition_tile(resolved.id, tile.x, tile.y, tile.z, tile.tileId, tile.materialId, tile.variant, tile.orientation, tile.solid, tile.openings?.north ?? false, tile.openings?.east ?? false, tile.openings?.south ?? false, tile.openings?.west ?? false, tile.openings?.vertical ?? false)) throw new Error(`Failed tile in ${resolved.id}`);
+      // Asset map requires explicit polygon-style UV semantics for authored mountain rock.
+      if (tile.tileId === 16 && !transport.definition_tile_surface?.(resolved.id, tileIndex, 1, tile.x, tile.z, 5)) throw new Error(`Failed mountain surface in ${resolved.id}`);
+    }
     for (const [actorIndex, actor] of resolved.actors.entries()) {
       if (!transport.definition_actor(resolved.id, actor.x, actor.y, actor.z, actor.actorId, actor.spriteId, actor.facing, actor.active, actor.spawn)) throw new Error(`Failed actor in ${resolved.id}`);
       if (actor.spriteId === 5 && !transport.definition_actor_surface?.(resolved.id, actorIndex, 9, 2, 0, 0, 6)) throw new Error(`Failed statue material in ${resolved.id}`);
