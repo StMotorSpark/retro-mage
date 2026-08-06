@@ -50,7 +50,8 @@ void main() {
 `;
 
 export interface TileRenderer {
-  setTexture(tileId: number, texture: WebGLTexture): void;
+  /** Registers a texture under a stable scene material ID. */
+  setTexture(materialId: number, texture: WebGLTexture): void;
   render(
     tiles: TilesView,
     viewMatrix: Float32Array,
@@ -165,8 +166,8 @@ export function createTileRenderer(gl: WebGL2RenderingContext): TileRenderer {
   const WALL_HEIGHT = 3.0;
 
   return {
-    setTexture(tileId: number, texture: WebGLTexture): void {
-      textures.set(tileId, texture);
+    setTexture(materialId: number, texture: WebGLTexture): void {
+      textures.set(materialId, texture);
     },
     render(
       tiles: TilesView,
@@ -192,6 +193,10 @@ export function createTileRenderer(gl: WebGL2RenderingContext): TileRenderer {
         const y = tiles.y[i] ?? 0;
         const z = tiles.z[i] ?? 0;
         const tileId = tiles.tile_id[i] ?? 0;
+        // Scene transport carries material identity separately from authored tile
+        // shape. Legacy tile views do not have material_id, so retain tile-ID
+        // lookup for them only.
+        const textureKey = tiles.material_id ? (tiles.material_id[i] ?? 0) : tileId;
         const solid = tiles.solid[i] ?? 0;
         const dir = tiles.direction ? (tiles.direction[i] ?? 0) : 0;
 
@@ -204,9 +209,9 @@ export function createTileRenderer(gl: WebGL2RenderingContext): TileRenderer {
           gl.uniform1f(uDirection, dir);
         }
 
-        if (tileId !== currentTexTileId) {
-          currentTexTileId = tileId;
-          const tex = textures.get(tileId);
+        if (textureKey !== currentTexTileId) {
+          currentTexTileId = textureKey;
+          const tex = textures.get(textureKey);
           if (tex) {
             gl.activeTexture(gl.TEXTURE0);
             gl.bindTexture(gl.TEXTURE_2D, tex);

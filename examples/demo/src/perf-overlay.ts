@@ -6,6 +6,8 @@ export interface VisibilityStats {
   tilesCount: number;
   actorsCount: number;
   activeWorldStructure?: string;
+  /** Immutable revision or distinct local-build timestamp supplied by Vite. */
+  buildId?: string;
   currentRoomId?: number;
   residentRoomsCount?: number;
   residentChunksCount?: number;
@@ -194,6 +196,9 @@ export class PerfOverlay {
         text += `\nMax Sight: ${stats.maxSightDistance.toFixed(1)} | Cull Prec: ${stats.cullPrecisionDistance.toFixed(1)}`;
         text += `\nAmbient Light: ${stats.ambientLight.toFixed(2)}`;
         text += `\nRendered Tiles: ${stats.tilesCount} | Actors: ${stats.actorsCount}`;
+        if (stats.buildId !== undefined) {
+          text += `\nBuild: ${stats.buildId}`;
+        }
         if (stats.activeWorldStructure !== undefined) {
           text += `\nWorld Structure: ${stats.activeWorldStructure}`;
         }

@@ -4,7 +4,10 @@ import { createInputSource, FACE1 } from 'input';
 import { PerfOverlay } from './perf-overlay.js';
 import { createDemoLevelProvider, demoManifest, registerDemoWorld, type DemoLevelId } from './demo-world.js';
 
+declare const __RETRO_MAGE_BUILD_ID__: string;
+
 interface DemoDebugSnapshot {
+  buildId: string;
   ready: boolean;
   wasmReady: boolean;
   assetsReady: boolean;
@@ -88,6 +91,14 @@ async function main(): Promise<void> {
     'demo.castle.interior': '/assets/castle/textures/castle.interior.floor.png', 'demo.sprite.statue': '/assets/sprite/statue.1.png',
     'demo.sky.background': '/assets/sky/textures/sky.background.png', 'demo.sprite.tree': '/assets/sprite/tree.1.png',
     'demo.sky.cloud': '/assets/sky/textures/cloud.1.png',
+  };
+  // Scene transport material IDs identify visual surfaces independently from
+  // tile-shape IDs. Map every surface ID to the exact app-owned asset it uses.
+  const tileMaterialAssetKeys: Record<number, string> = {
+    1: 'demo.dungeon.wall', 2: 'demo.dungeon.floor', 3: 'demo.outdoor.grass',
+    4: 'demo.dungeon.ceiling', 5: 'demo.outdoor.road', 6: 'demo.outdoor.cobblestone',
+    7: 'demo.outdoor.water', 8: 'demo.castle.exterior', 9: 'demo.castle.interior',
+    10: 'demo.outdoor.mountain',
   };
   const worldTransport = overflowActors ? WorldTransport.with_capacity(4096, 3, 128, 64) : new WorldTransport();
   window.__retroMageWorldTransport = worldTransport;
@@ -199,8 +210,10 @@ async function main(): Promise<void> {
       const spriteId = spriteIds[id];
       const texture = resources.textures.values().next().value?.texture;
       if (spriteId !== undefined && texture) renderer.spriteRenderer?.setTexture(spriteId, texture);
-      // Mountain uses authored tile 16; bind resolved app asset to its renderer-owned texture.
-      if (id === 'mat_mountain_rock' && texture) renderer.tileRenderer?.setTexture(16, texture);
+      for (const [materialId, assetKey] of Object.entries(tileMaterialAssetKeys)) {
+        const surfaceTexture = resources.textures.get(assetKey)?.texture;
+        if (surfaceTexture) renderer.tileRenderer?.setTexture(Number(materialId), surfaceTexture);
+      }
       // Resource lifetime remains renderer-owned; retain handle until renderer shutdown.
       void resources;
     }
@@ -301,7 +314,8 @@ async function main(): Promise<void> {
     perfOverlay.update(dtMs, time, {
       sightRadius: engineState.sight_radius(), maxSightDistance: engineState.max_sight_distance(),
       cullPrecisionDistance: engineState.cull_precision_distance(), ambientLight: engineState.ambient_light(),
-      tilesCount: world.tiles.count, actorsCount: world.actors.count, activeWorldStructure: activeInstance === 'outdoor-instance' ? 'Outdoor' : 'Indoor',
+      tilesCount: world.tiles.count, actorsCount: world.actors.count, buildId: __RETRO_MAGE_BUILD_ID__,
+      activeWorldStructure: activeInstance === 'outdoor-instance' ? 'Outdoor' : 'Indoor',
     });
     const pose = { x, y: camera.y[0] ?? 0, z: camera.z[0] ?? 0 };
     const diagnosticIds = cancelProof ? [...demoManifest.instances.map(({ id }) => id), 'cancellation-instance'] : demoManifest.instances.map(({ id }) => id);
@@ -377,6 +391,7 @@ async function main(): Promise<void> {
     const streamBarrierCollisionTiles = barrierTiles.filter((tile) => tile.solid).length;
     const cobblestonePathPassable = crossingTiles.length > 0 && crossingTiles.every((tile) => !tile.solid);
     window.__retroMageDebug = {
+      buildId: __RETRO_MAGE_BUILD_ID__,
       ready: true,
       wasmReady: true,
       assetsReady,
@@ -407,5 +422,14 @@ async function main(): Promise<void> {
 main().catch((err) => console.error('Demo failed to start:', err));
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch((err) => console.error('Service worker registration failed:', err)));
+  window.addEventListener('load', () => {
+    let reloadedForControllerChange = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloadedForControllerChange) return;
+      reloadedForControllerChange = true;
+      window.location.reload();
+    });
+    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
+      .catch((err) => console.error('Service worker registration failed:', err));
+  });
 }
