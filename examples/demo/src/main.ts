@@ -29,7 +29,7 @@ interface DemoDebugSnapshot {
   evictions: Array<{ instance_id: string; eviction_reason: string; payload: string }>;
   restores: Record<string, string>;
   cancellation?: { pending: boolean; cancelled: boolean; firstRequestId: number; replacementRequestId: number; staleRejected: boolean; playable: boolean };
-  renderProof?: { materialIds: number[]; assetKeys: string[]; litOpaqueTileCount: number; translucentTileCount: number; activeLightCount: number; lutActive: boolean; materialDiagnostics: number; lowerRoomVisible: boolean; castleLowerVisible: boolean; waterMaterialPresent: boolean; cobblestoneMaterialPresent: boolean; castleMaterialPresent: boolean; streamBarrierVisualGeometry: number; streamBarrierCollisionTiles: number; cobblestonePathPassable: boolean; roadGeometry: number; streamSlopePresent: boolean; castleExteriorGeometry: number; castleInteriorGeometry: number; castleColumnGeometry: number; castleBalconyGeometry: number; mountainMaterial: { id: string; assetKey: string; materialId: number }; mountainGeometry: number; mountainCollisionTiles: number; mountainVisible: boolean; castleSightlineVisible: boolean; };
+  renderProof?: { materialIds: number[]; assetKeys: string[]; litOpaqueTileCount: number; translucentTileCount: number; activeLightCount: number; lutActive: boolean; materialDiagnostics: number; textureBindings: Array<{ materialId: number; assetKey: string }>; billboardTextureBindings: Array<{ spriteId: number; assetKey: string }>; skyTextureStatus: 'procedural-gradient-gap'; lowerRoomVisible: boolean; castleLowerVisible: boolean; waterMaterialPresent: boolean; cobblestoneMaterialPresent: boolean; castleMaterialPresent: boolean; streamBarrierVisualGeometry: number; streamBarrierCollisionTiles: number; cobblestonePathPassable: boolean; roadGeometry: number; streamSlopePresent: boolean; castleExteriorGeometry: number; castleInteriorGeometry: number; castleColumnGeometry: number; castleBalconyGeometry: number; mountainMaterial: { id: string; assetKey: string; materialId: number }; mountainGeometry: number; mountainCollisionTiles: number; mountainVisible: boolean; castleSightlineVisible: boolean; };
 }
 
 declare global {
@@ -63,6 +63,10 @@ async function main(): Promise<void> {
   let assetsReady = false;
   let materialDiagnostics = 0;
   let renderFrame = 0;
+  // Observable app-to-renderer bindings. These only record a successful GPU resource
+  // registration, so browser proof distinguishes authored textures from fallback paths.
+  const textureBindings = new Map<number, string>();
+  const billboardTextureBindings = new Map<number, string>();
   // App-owned asset-key resolver + material contract. Renderer receives numeric IDs only.
   const materials = new MaterialRegistry();
   const dungeonLut = { paletteColors: ['#241713', '#6b3b22', '#c56b32', '#f1bd65'], intensityBandCount: 8, ambientLevel: 0.05, rgbLightColorMode: 'tint' as const, emissiveMapping: 'add' };
@@ -209,10 +213,16 @@ async function main(): Promise<void> {
         (diagnostic) => { materialDiagnostics++; console.warn(`[demo material diagnostic] ${diagnostic.kind}: ${diagnostic.materialId}/${diagnostic.assetKey}`); });
       const spriteId = spriteIds[id];
       const texture = resources.textures.values().next().value?.texture;
-      if (spriteId !== undefined && texture) renderer.spriteRenderer?.setTexture(spriteId, texture);
+      if (spriteId !== undefined && texture) {
+        renderer.spriteRenderer?.setTexture(spriteId, texture);
+        billboardTextureBindings.set(spriteId, materials.resolve(id).textureAssetKeys[0]!);
+      }
       for (const [materialId, assetKey] of Object.entries(tileMaterialAssetKeys)) {
         const surfaceTexture = resources.textures.get(assetKey)?.texture;
-        if (surfaceTexture) renderer.tileRenderer?.setTexture(Number(materialId), surfaceTexture);
+        if (surfaceTexture) {
+          renderer.tileRenderer?.setTexture(Number(materialId), surfaceTexture);
+          textureBindings.set(Number(materialId), assetKey);
+        }
       }
       // Resource lifetime remains renderer-owned; retain handle until renderer shutdown.
       void resources;
@@ -412,7 +422,7 @@ async function main(): Promise<void> {
       evictions: demoEvictions,
       restores: demoRestores,
       cancellation: cancelProof ? { ...cancellation, playable: cancellation.playable || instances.some((i) => i.id === 'dungeon-instance' && i.collisionActive) } : undefined,
-      renderProof: { materialIds, assetKeys: Object.keys(assetPaths).sort(), litOpaqueTileCount, translucentTileCount, activeLightCount: world.lights.count, lutActive: true, materialDiagnostics, lowerRoomVisible, castleLowerVisible, waterMaterialPresent, cobblestoneMaterialPresent, castleMaterialPresent, streamBarrierVisualGeometry, streamBarrierCollisionTiles, cobblestonePathPassable, roadGeometry, streamSlopePresent, castleExteriorGeometry, castleInteriorGeometry, castleColumnGeometry, castleBalconyGeometry, mountainMaterial: { id: 'mat_mountain_rock', assetKey: 'demo.outdoor.mountain', materialId: 10 }, mountainGeometry, mountainCollisionTiles, mountainVisible, castleSightlineVisible },
+      renderProof: { materialIds, assetKeys: Object.keys(assetPaths).sort(), litOpaqueTileCount, translucentTileCount, activeLightCount: world.lights.count, lutActive: true, materialDiagnostics, textureBindings: [...textureBindings].map(([materialId, assetKey]) => ({ materialId, assetKey })).sort((a, b) => a.materialId - b.materialId), billboardTextureBindings: [...billboardTextureBindings].map(([spriteId, assetKey]) => ({ spriteId, assetKey })).sort((a, b) => a.spriteId - b.spriteId), skyTextureStatus: 'procedural-gradient-gap', lowerRoomVisible, castleLowerVisible, waterMaterialPresent, cobblestoneMaterialPresent, castleMaterialPresent, streamBarrierVisualGeometry, streamBarrierCollisionTiles, cobblestonePathPassable, roadGeometry, streamSlopePresent, castleExteriorGeometry, castleInteriorGeometry, castleColumnGeometry, castleBalconyGeometry, mountainMaterial: { id: 'mat_mountain_rock', assetKey: 'demo.outdoor.mountain', materialId: 10 }, mountainGeometry, mountainCollisionTiles, mountainVisible, castleSightlineVisible },
     };
     requestAnimationFrame(frame);
   };
