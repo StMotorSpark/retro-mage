@@ -133,6 +133,18 @@ function outdoorTiles(): DemoTile[] {
   // Textured castle landmark; center entry remains open.
   for (let x = 8; x <= 16; x += 1) { if (x !== 12) tiles.push(wall(x, 13, 10, 8)); tiles.push(wall(x, 15, 10, 8)); }
   for (let z = 13; z <= 15; z += 1) { tiles.push(wall(8, z, 10, 8)); tiles.push(wall(16, z, 10, 8)); }
+  // Castle entry hall: open south doorway, three elevations, opaque columns, shells, and throne approach.
+  for (let x = 9; x <= 15; x++) for (let z = 16; z <= 22; z++) tiles.push(floor(x, z, 11, 9));
+  // Flanking room shells and throne-room approach walls; center route stays open.
+  for (let z = 17; z <= 21; z++) { tiles.push(wall(8, z, 12, 9)); tiles.push(wall(16, z, 12, 9)); }
+  for (let x = 9; x <= 15; x++) { tiles.push(wall(x, 22, 12, 9)); if (x !== 12) tiles.push(wall(x, 16, 12, 9)); }
+  // Grand stair visual ramp reaches balcony ring at y=1; matching support surface below.
+  for (let x = 11; x <= 13; x++) for (let z = 16; z <= 19; z++) tiles.push({ ...floor(x, z, 13, 9), y: (19 - z) * 0.25 });
+  for (let x = 9; x <= 15; x++) for (let z = 19; z <= 21; z++) tiles.push({ ...floor(x, z, 14, 9), y: 1, openings: { vertical: true } });
+  // Opaque columns, never translucent billboard substitutes.
+  for (const [x, z] of [[9, 17], [15, 17], [9, 21], [15, 21]] as const) tiles.push(wall(x, z, 15, 9));
+  // Upper throne approach, with second stair cue.
+  for (let x = 11; x <= 13; x++) for (let z = 22; z <= 24; z++) tiles.push({ ...floor(x, z, 13, 9), y: 1 + (z - 21) * 0.25 });
   // Authored trunk blockers. Rendered tile + solid collision keeps corridor navigable.
   for (const [x, z] of [[5, -7], [8, -5], [4, -2], [7, 0], [5, 12], [9, 15], [4, 16], [8, 14], [16, -7], [20, -5], [15, -2], [19, 0], [16, 12], [21, 15]] as const) {
     tiles.push(wall(x, z, 6, 3));
@@ -195,15 +207,16 @@ const dungeon: DemoLevelDefinition = {
 };
 
 const outdoor: DemoLevelDefinition = {
-  id: 'outdoor', version: '1', bounds: { min: [0, 0, -9], max: [25, 4, 17] },
+  id: 'outdoor', version: '1', bounds: { min: [0, 0, -9], max: [25, 4, 25] },
   tiles: outdoorTiles(),
   actors: [
+    ...([[9, 17], [15, 17], [9, 21], [15, 21]] as const).map(([x, z], index) => ({ x, y: 1, z, actorId: `castle-statue-${index}`, spriteId: 5, facing: 0, active: true, spawn: true })),
     ...([[5, -7], [8, -5], [4, -2], [7, 0], [5, 12], [9, 15], [4, 16], [8, 14], [16, -7], [20, -5], [15, -2], [19, 0], [16, 12], [21, 15]] as const).map(([x, z], index) => ({ x, y: 0, z, actorId: `tree-${index}`, spriteId: 1, facing: 0, active: true, spawn: true })),
     { x: 10, y: 7, z: 1, actorId: 'cloud-clearing-0', spriteId: 4, facing: 0, active: true, spawn: true },
     { x: 18, y: 6, z: 8, actorId: 'cloud-clearing-1', spriteId: 4, facing: 0, active: true, spawn: true },
   ],
-  // Cool ambient separates outdoor shading from torch-lit dungeon.
-  lights: [{ x: 12, y: 3, z: 4, color: [0.8, 0.9, 1], intensity: 1, active: true }],
+  // Cool ambient separates outdoor shading from torch-lit dungeon; castle broad-falloff light.
+  lights: [{ x: 12, y: 3, z: 4, color: [0.8, 0.9, 1], intensity: 1, active: true }, { x: 12, y: 3, z: 18, color: [0.65, 0.8, 1], intensity: 7, active: true }],
   anchors: [anchor('dungeon-gate', 0, 0, 'both', -Math.PI / 2)],
   surfaces: [
     {
@@ -211,9 +224,11 @@ const outdoor: DemoLevelDefinition = {
       heightFunction: [0, 0, 0],
       normal: [0, 1, 0],
       walkable: true
-    }
+    },
+    { bounds: { min: [8, 1, 16], max: [16, 1, 22] }, heightFunction: [0, 0, 1], normal: [0, 1, 0], walkable: true },
+    { bounds: { min: [11, 0, 16], max: [13, 1, 19] }, heightFunction: [0, -0.25, 5.75], normal: [0, 0.9701, 0.2425], walkable: true },
   ],
-  providerMetadata: { kind: 'authored-outdoor' },
+  providerMetadata: { kind: 'authored-outdoor-castle' },
 };
 
 export const demoDefinitions: readonly DemoLevelDefinition[] = [dungeon, outdoor];
@@ -261,7 +276,10 @@ export function registerDemoWorld(transport: WorldTransport): void {
   for (const resolved of demoManifest.definitions) {
     if (!transport.begin_definition(resolved.id, resolved.version, ...resolved.bounds.min, ...resolved.bounds.max)) throw new Error(`Failed to begin ${resolved.id}`);
     for (const tile of resolved.tiles) if (!transport.definition_tile(resolved.id, tile.x, tile.y, tile.z, tile.tileId, tile.materialId, tile.variant, tile.orientation, tile.solid, tile.openings?.north ?? false, tile.openings?.east ?? false, tile.openings?.south ?? false, tile.openings?.west ?? false, tile.openings?.vertical ?? false)) throw new Error(`Failed tile in ${resolved.id}`);
-    for (const actor of resolved.actors) if (!transport.definition_actor(resolved.id, actor.x, actor.y, actor.z, actor.actorId, actor.spriteId, actor.facing, actor.active, actor.spawn)) throw new Error(`Failed actor in ${resolved.id}`);
+    for (const [actorIndex, actor] of resolved.actors.entries()) {
+      if (!transport.definition_actor(resolved.id, actor.x, actor.y, actor.z, actor.actorId, actor.spriteId, actor.facing, actor.active, actor.spawn)) throw new Error(`Failed actor in ${resolved.id}`);
+      if (actor.spriteId === 5 && !transport.definition_actor_surface?.(resolved.id, actorIndex, 9, 2, 0, 0, 6)) throw new Error(`Failed statue material in ${resolved.id}`);
+    }
     for (const light of resolved.lights) if (!transport.definition_light(resolved.id, light.x, light.y, light.z, ...light.color, light.intensity, light.active)) throw new Error(`Failed light in ${resolved.id}`);
     for (const a of resolved.anchors) if (!transport.definition_anchor_oriented(resolved.id, a.id, a.x, a.y, a.z, a.yaw, ...a.volume.min, ...a.volume.max, a.direction === 'in' ? 0 : a.direction === 'out' ? 1 : 2)) throw new Error(`Failed anchor in ${resolved.id}`);
     if (resolved.surfaces) {

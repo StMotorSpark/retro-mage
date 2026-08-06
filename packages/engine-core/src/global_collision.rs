@@ -18,7 +18,11 @@ impl SolidAabb {
         if y >= self.max.y || y + height <= self.min.y { return false; }
         let cx = x.clamp(self.min.x, self.max.x);
         let cz = z.clamp(self.min.z, self.max.z);
-        (x - cx).powi(2) + (z - cz).powi(2) < radius * radius
+        // Contact is blocking, not free space. A tiny skin makes that rule
+        // stable in f32: without it, a nominally tangent substep can round
+        // outside the strict boundary and settle one full touch step late.
+        let contact_radius = radius + 0.0001;
+        (x - cx).powi(2) + (z - cz).powi(2) <= contact_radius * contact_radius
     }
 }
 
@@ -272,6 +276,28 @@ mod tests {
         definition.tiles[0].openings.vertical = true;
         let world_instance = CollisionInstance::from_level(&instance, &definition);
         assert!(world_instance.solids.is_empty());
+    }
+
+    #[test]
+    fn contact_blocks_before_a_full_touch_step_enters_a_stream_bank() {
+        let mut world = GlobalCollisionWorld::new();
+        // This is the global projection of the authored tile-9 stream bank:
+        // a collision-only tile centered at x=20, with its west face at 19.5.
+        world.add_solid("stream-bank", SolidAabb {
+            min: Vec3 { x: 19.5, y: 0.0, z: 10.5 },
+            max: Vec3 { x: 20.5, y: 1.0, z: 11.5 },
+        }, true);
+        let mut config = crate::collision::CollisionConfig::default();
+        config.gravity = 0.0;
+        let start = Transform { translation: Vec3 { x: 18.4, y: 0.0, z: 11.0 }, ..Transform::IDENTITY };
+        let (blocked, _) = world.resolve_movement(start, 0.8, 0.0, 0.0, &config, 0.1);
+        assert!(blocked.translation.x - start.translation.x < 0.75, "blocked displacement was {}", blocked.translation.x - start.translation.x);
+
+        // The authored cobblestone opening is a non-solid tile at x=22, so
+        // traversal through that gap remains unblocked by collision-only banks.
+        let crossing = Transform { translation: Vec3 { x: 22.0, y: 0.0, z: 10.0 }, ..Transform::IDENTITY };
+        let (passed, _) = world.resolve_movement(crossing, 0.0, 2.0, 0.0, &config, 0.1);
+        assert!(passed.translation.z > 11.9, "cobblestone crossing was blocked at z={}", passed.translation.z);
     }
 
     #[test]

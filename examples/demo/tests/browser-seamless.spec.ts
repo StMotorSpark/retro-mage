@@ -57,8 +57,8 @@ async function debug(page: Page): Promise<DebugSnapshot> {
   return snapshot;
 }
 
-async function strafe(page: Page, dx: number, reached: (snapshot: DebugSnapshot) => boolean, timeout = 10_000) {
-  await page.evaluate(({ dx }) => {
+async function move(page: Page, dx: number, dy: number, reached: (snapshot: DebugSnapshot) => boolean, timeout = 10_000, intervals?: number[]) {
+  await page.evaluate(({ dx, dy }) => {
     const target = document.querySelector('.retro-input-move-zone');
     if (!target) throw new Error('Move zone missing');
     const rect = target.getBoundingClientRect();
@@ -66,17 +66,25 @@ async function strafe(page: Page, dx: number, reached: (snapshot: DebugSnapshot)
     const y = rect.top + rect.height / 2;
     const touch = new Touch({ identifier: 17, target, clientX: x, clientY: y });
     target.dispatchEvent(new TouchEvent('touchstart', { touches: [touch], targetTouches: [touch], changedTouches: [touch], bubbles: true }));
-    const moved = new Touch({ identifier: 17, target, clientX: x + dx, clientY: y });
+    const moved = new Touch({ identifier: 17, target, clientX: x + dx, clientY: y + dy });
     target.dispatchEvent(new TouchEvent('touchmove', { touches: [moved], targetTouches: [moved], changedTouches: [moved], bubbles: true }));
     (window as unknown as { __testTouch?: Touch }).__testTouch = moved;
-  }, { dx });
-  await expect.poll(async () => reached(await debug(page)), { timeout }).toBe(true);
+  }, { dx, dy });
+  let last: DebugSnapshot | undefined;
+  await expect.poll(async () => {
+    last = await debug(page);
+    return reached(last);
+  }, { timeout, ...(intervals ? { intervals } : {}) }).toBe(true);
   await page.evaluate(() => {
     const target = document.querySelector('.retro-input-move-zone');
     const touch = (window as unknown as { __testTouch?: Touch }).__testTouch;
     if (target && touch) target.dispatchEvent(new TouchEvent('touchend', { touches: [], targetTouches: [], changedTouches: [touch], bubbles: true }));
   });
 }
+
+const strafe = (page: Page, dx: number, reached: (snapshot: DebugSnapshot) => boolean, timeout?: number) => move(page, dx, 0, reached, timeout);
+const preciseStrafe = (page: Page, dx: number, reached: (snapshot: DebugSnapshot) => boolean, timeout?: number) => move(page, dx, 0, reached, timeout, [20]);
+const forward = (page: Page, dy: number, reached: (snapshot: DebugSnapshot) => boolean, timeout?: number) => move(page, 0, dy, reached, timeout, [20]);
 
 test('outdoor route proves road stream barrier crossing and castle sightline', async ({ page }) => {
   await waitForDemo(page);
@@ -93,23 +101,51 @@ test('outdoor route proves road stream barrier crossing and castle sightline', a
   expect(outdoor.renderProof.translucentTileCount).toBe(0);
   expect(outdoor.renderProof.materialDiagnostics).toBe(0);
 
-  // Direct forward entry meets invisible barrier: pose stays constrained, source remains grounded/playable.
-  const blocked = outdoor.pose;
-  await strafe(page, 70, (snapshot) => Math.abs(snapshot.pose.x - blocked.x) < 0.75 && snapshot.grounded === true);
+  // Follow the production route to the stream's south-west approach. The tile-9 bank
+  // occupies global x=[19.5,20.5], z=[10.5,11.5]; do not assert before reaching it.
+  await forward(page, 70, (snapshot) => snapshot.pose.z >= 10.0 && snapshot.pose.z < 10.5);
+  await preciseStrafe(page, 5, (snapshot) => snapshot.pose.x >= 18.6 && snapshot.pose.x < 19.0);
+  await forward(page, 70, (snapshot) => snapshot.pose.z >= 10.5 && snapshot.pose.z < 11.5);
+  const approach = await proof();
+  // Explicit precondition: active global route is adjacent to the real stream bank,
+  // whose collision-only geometry and water material are present before direct entry.
+  expect(approach.activeInstance).toBe('outdoor-instance');
+  expect(approach.pose.z).toBeGreaterThanOrEqual(10.5);
+  expect(approach.pose.z).toBeLessThanOrEqual(11.75);
+  expect(approach.pose.x).toBeGreaterThanOrEqual(18.6);
+  expect(19.5 - approach.pose.x).toBeLessThanOrEqual(0.9);
+  expect(approach.renderProof.waterMaterialPresent).toBe(true);
+  expect(approach.renderProof.streamBarrierCollisionTiles).toBeGreaterThan(0);
+  expect(approach.renderProof.streamBarrierVisualGeometry).toBe(0);
+
+  // Only after the approach precondition, enter the actual bank with normal touch input.
+  const blocked = approach.pose;
+  await strafe(page, 70, (snapshot) => snapshot.grounded === true && snapshot.pose.x >= 19.0 && snapshot.pose.x < 19.5);
   const afterBlocked = await proof();
   expect(Math.abs(afterBlocked.pose.x - blocked.x)).toBeLessThan(0.75);
   expect(afterBlocked.grounded).toBe(true);
   expect(afterBlocked.instances.find((instance) => instance.id === 'outdoor-instance')?.collisionActive).toBe(true);
-  expect(afterBlocked.renderProof.streamBarrierCollisionTiles).toBeGreaterThan(0);
-  expect(afterBlocked.renderProof.streamBarrierVisualGeometry).toBe(0);
 
-  // Authored cobblestone crossing stays passable; castle exterior remains in same global sightline.
-  expect(afterBlocked.renderProof.cobblestonePathPassable).toBe(true);
-  expect(afterBlocked.renderProof.cobblestoneMaterialPresent).toBe(true);
-  await strafe(page, 70, (snapshot) => (snapshot as any).renderProof.castleExteriorGeometry > 0);
+  // Separately use the authored cobblestone gap: approach at x=22 and cross +Z.
+  await forward(page, -70, (snapshot) => snapshot.pose.z < 10.0);
+  await preciseStrafe(page, 5, (snapshot) => snapshot.pose.x >= 21.7 && snapshot.pose.x < 22.4);
+  await forward(page, 70, (snapshot) => snapshot.pose.z > 11.8);
+  const crossing = await proof();
+  expect(crossing.renderProof.cobblestonePathPassable).toBe(true);
+  expect(crossing.renderProof.cobblestoneMaterialPresent).toBe(true);
+  expect(crossing.pose.z).toBeGreaterThan(11.8);
+
+  // Castle exterior remains in the same global sightline.
+  await forward(page, 70, (snapshot) => (snapshot as any).renderProof.castleExteriorGeometry > 0);
   const castle = await proof();
   expect(castle.renderProof.castleMaterialPresent).toBe(true);
   expect(castle.renderProof.castleExteriorGeometry).toBeGreaterThan(0);
+  const castleProof = castle.renderProof as typeof castle.renderProof & { castleInteriorGeometry: number; castleColumnGeometry: number; castleBalconyGeometry: number };
+  expect(castleProof.castleInteriorGeometry).toBeGreaterThan(0);
+  expect(castleProof.castleColumnGeometry).toBe(4);
+  expect(castleProof.castleBalconyGeometry).toBeGreaterThan(0);
+  expect(castleProof.materialIds).toContain(9);
+  expect(castleProof.activeLightCount).toBeGreaterThanOrEqual(2);
   expect(castle.pose.x).toBeGreaterThan(start.pose.x);
   expect(castle.instances.find((instance) => instance.id === 'outdoor-instance')?.collisionActive).toBe(true);
 });
