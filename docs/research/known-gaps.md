@@ -53,6 +53,7 @@ This doc records unresolved implementation details and deliberately deferred cap
 - Parallel Playwright workers intermittently destroy the browser execution context during the seamless proof; CI enforces one worker for deterministic proof execution. Parallel hardening remains deferred until suite size justifies the investigation.
 
 - Consuming-game texture and level source folder conventions remain application-owned.
+- Supplied `demo.outdoor.mountain` is present at `examples/demo/assets/outdoor/textures/mountain.rock.png` but absent from the demo material resolver and route geometry. The serial full-route proof validates the supplied assets used by the route with zero material diagnostics; mountain render/collision boundary coverage remains content work.
 - Audio, animated sprites, additional biomes, and structured content authoring lack feature docs.
 - PWA installability, service-worker caching, and offline demo behavior remain app integration work that requires revalidation on the reset demo.
 - Advanced cache invalidation, background sync, and install UX are not engine requirements.

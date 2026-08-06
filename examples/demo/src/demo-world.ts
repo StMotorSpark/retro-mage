@@ -131,20 +131,20 @@ function outdoorTiles(): DemoTile[] {
   // Side barriers stop stream entry while leaving crossing open.
   tiles.push(wall(10, 7, 9, 0)); tiles.push(wall(14, 7, 9, 0));
   // Textured castle landmark; center entry remains open.
-  for (let x = 8; x <= 16; x += 1) { if (x !== 12) tiles.push(wall(x, 13, 10, 8)); tiles.push(wall(x, 15, 10, 8)); }
+  for (let x = 8; x <= 16; x += 1) { if (x < 11 || x > 13) { tiles.push(wall(x, 13, 10, 8)); tiles.push(wall(x, 15, 10, 8)); } }
   for (let z = 13; z <= 15; z += 1) { tiles.push(wall(8, z, 10, 8)); tiles.push(wall(16, z, 10, 8)); }
   // Castle entry hall: open south doorway, three elevations, opaque columns, shells, and throne approach.
   for (let x = 9; x <= 15; x++) for (let z = 16; z <= 22; z++) tiles.push(floor(x, z, 11, 9));
   // Flanking room shells and throne-room approach walls; center route stays open.
   for (let z = 17; z <= 21; z++) { tiles.push(wall(8, z, 12, 9)); tiles.push(wall(16, z, 12, 9)); }
-  for (let x = 9; x <= 15; x++) { tiles.push(wall(x, 22, 12, 9)); if (x !== 12) tiles.push(wall(x, 16, 12, 9)); }
+  for (let x = 9; x <= 15; x++) { if (x < 11 || x > 13) { tiles.push(wall(x, 22, 12, 9)); tiles.push(wall(x, 16, 12, 9)); } }
   // Grand stair visual ramp reaches balcony ring at y=1; matching support surface below.
-  for (let x = 11; x <= 13; x++) for (let z = 16; z <= 19; z++) tiles.push({ ...floor(x, z, 13, 9), y: (19 - z) * 0.25 });
-  for (let x = 9; x <= 15; x++) for (let z = 19; z <= 21; z++) tiles.push({ ...floor(x, z, 14, 9), y: 1, openings: { vertical: true } });
+  for (let x = 11; x <= 13; x++) for (let z = 16; z <= 19; z++) tiles.push({ ...floor(x, z, 13, 9), y: (z - 16) * 0.25 });
+  for (let x = 9; x <= 15; x++) for (let z = 20; z <= 22; z++) tiles.push({ ...floor(x, z, 14, 9), y: 1, openings: { vertical: true } });
   // Opaque columns, never translucent billboard substitutes.
   for (const [x, z] of [[9, 17], [15, 17], [9, 21], [15, 21]] as const) tiles.push(wall(x, z, 15, 9));
-  // Upper throne approach, with second stair cue.
-  for (let x = 11; x <= 13; x++) for (let z = 22; z <= 24; z++) tiles.push({ ...floor(x, z, 13, 9), y: 1 + (z - 21) * 0.25 });
+  // Upper throne approach, with second stair cue and matching support surface.
+  for (let x = 11; x <= 13; x++) for (let z = 22; z <= 25; z++) tiles.push({ ...floor(x, z, 13, 9), y: 1 + (z - 22) * 0.25 });
   // Authored trunk blockers. Rendered tile + solid collision keeps corridor navigable.
   for (const [x, z] of [[5, -7], [8, -5], [4, -2], [7, 0], [5, 12], [9, 15], [4, 16], [8, 14], [16, -7], [20, -5], [15, -2], [19, 0], [16, 12], [21, 15]] as const) {
     tiles.push(wall(x, z, 6, 3));
@@ -220,13 +220,16 @@ const outdoor: DemoLevelDefinition = {
   anchors: [anchor('dungeon-gate', 0, 0, 'both', -Math.PI / 2)],
   surfaces: [
     {
-      bounds: { min: [0, 0, -9], max: [25, 0, 17] },
+      bounds: { min: [0, 0, -9], max: [25, 0, 16] },
       heightFunction: [0, 0, 0],
       normal: [0, 1, 0],
       walkable: true
     },
-    { bounds: { min: [8, 1, 16], max: [16, 1, 22] }, heightFunction: [0, 0, 1], normal: [0, 1, 0], walkable: true },
-    { bounds: { min: [11, 0, 16], max: [13, 1, 19] }, heightFunction: [0, -0.25, 5.75], normal: [0, 0.9701, 0.2425], walkable: true },
+    // Castle ground, grand stair, balcony, and throne stair form one continuous route.
+    { bounds: { min: [8, 0, 16], max: [16, 0, 17] }, heightFunction: [0, 0, 0], normal: [0, 1, 0], walkable: true },
+    { bounds: { min: [11, 0, 16], max: [13, 1, 20] }, heightFunction: [0, 0.25, -4], normal: [0, 0.9701, -0.2425], walkable: true },
+    { bounds: { min: [8, 1, 20], max: [16, 1, 22] }, heightFunction: [0, 0, 1], normal: [0, 1, 0], walkable: true },
+    { bounds: { min: [11, 1, 22], max: [13, 1.75, 25] }, heightFunction: [0, 0.25, -4.5], normal: [0, 0.9701, -0.2425], walkable: true },
   ],
   providerMetadata: { kind: 'authored-outdoor-castle' },
 };

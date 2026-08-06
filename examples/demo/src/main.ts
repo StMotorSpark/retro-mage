@@ -26,7 +26,7 @@ interface DemoDebugSnapshot {
   evictions: Array<{ instance_id: string; eviction_reason: string; payload: string }>;
   restores: Record<string, string>;
   cancellation?: { pending: boolean; cancelled: boolean; firstRequestId: number; replacementRequestId: number; staleRejected: boolean; playable: boolean };
-  renderProof?: { materialIds: number[]; litOpaqueTileCount: number; translucentTileCount: number; activeLightCount: number; lutActive: boolean; materialDiagnostics: number; lowerRoomVisible: boolean; waterMaterialPresent: boolean; cobblestoneMaterialPresent: boolean; castleMaterialPresent: boolean; streamBarrierVisualGeometry: number; streamBarrierCollisionTiles: number; cobblestonePathPassable: boolean; roadGeometry: number; streamSlopePresent: boolean; castleExteriorGeometry: number; castleInteriorGeometry: number; castleColumnGeometry: number; castleBalconyGeometry: number; };
+  renderProof?: { materialIds: number[]; assetKeys: string[]; litOpaqueTileCount: number; translucentTileCount: number; activeLightCount: number; lutActive: boolean; materialDiagnostics: number; lowerRoomVisible: boolean; castleLowerVisible: boolean; waterMaterialPresent: boolean; cobblestoneMaterialPresent: boolean; castleMaterialPresent: boolean; streamBarrierVisualGeometry: number; streamBarrierCollisionTiles: number; cobblestonePathPassable: boolean; roadGeometry: number; streamSlopePresent: boolean; castleExteriorGeometry: number; castleInteriorGeometry: number; castleColumnGeometry: number; castleBalconyGeometry: number; };
 }
 
 declare global {
@@ -343,6 +343,11 @@ async function main(): Promise<void> {
     ) && Array.from(sceneTiles.vertical_opening.subarray(0, sceneTiles.count)).some((opening, i) =>
       opening > 0 && inCurrentView(sceneTiles.x[i] ?? 0, sceneTiles.y[i] ?? 0, sceneTiles.z[i] ?? 0),
     ) : false;
+    const castleLowerVisible = sceneTiles ? Array.from(sceneTiles.y.subarray(0, sceneTiles.count)).some((y, i) =>
+      y < 0.1 && sceneTiles.material_id?.[i] === 9 && (sceneTiles.x[i] ?? 0) >= 18 && inCurrentView(sceneTiles.x[i] ?? 0, y, sceneTiles.z[i] ?? 0),
+    ) && Array.from(sceneTiles.vertical_opening.subarray(0, sceneTiles.count)).some((opening, i) =>
+      opening > 0 && sceneTiles.material_id?.[i] === 9 && (sceneTiles.x[i] ?? 0) >= 18 && inCurrentView(sceneTiles.x[i] ?? 0, sceneTiles.y[i] ?? 0, sceneTiles.z[i] ?? 0),
+    ) : false;
     const outdoorDefinition = demoManifest.definitions.find((definition) => definition.id === 'outdoor');
     const streamTiles = outdoorDefinition?.tiles.filter((tile) => tile.tileId === 7) ?? [];
     const crossingTiles = outdoorDefinition?.tiles.filter((tile) => tile.tileId === 8) ?? [];
@@ -381,7 +386,7 @@ async function main(): Promise<void> {
       evictions: demoEvictions,
       restores: demoRestores,
       cancellation: cancelProof ? { ...cancellation, playable: cancellation.playable || instances.some((i) => i.id === 'dungeon-instance' && i.collisionActive) } : undefined,
-      renderProof: { materialIds, litOpaqueTileCount, translucentTileCount, activeLightCount: world.lights.count, lutActive: true, materialDiagnostics, lowerRoomVisible, waterMaterialPresent, cobblestoneMaterialPresent, castleMaterialPresent, streamBarrierVisualGeometry, streamBarrierCollisionTiles, cobblestonePathPassable, roadGeometry, streamSlopePresent, castleExteriorGeometry, castleInteriorGeometry, castleColumnGeometry, castleBalconyGeometry },
+      renderProof: { materialIds, assetKeys: Object.keys(assetPaths).sort(), litOpaqueTileCount, translucentTileCount, activeLightCount: world.lights.count, lutActive: true, materialDiagnostics, lowerRoomVisible, castleLowerVisible, waterMaterialPresent, cobblestoneMaterialPresent, castleMaterialPresent, streamBarrierVisualGeometry, streamBarrierCollisionTiles, cobblestonePathPassable, roadGeometry, streamSlopePresent, castleExteriorGeometry, castleInteriorGeometry, castleColumnGeometry, castleBalconyGeometry },
     };
     requestAnimationFrame(frame);
   };
