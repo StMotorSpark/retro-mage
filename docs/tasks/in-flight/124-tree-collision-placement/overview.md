@@ -1,12 +1,12 @@
 ---
 task: "124"
 slug: tree-collision-placement
-status: done
+status: in-flight
 depends-on: []
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-07
-outcome: "Separated tree billboards from offset collision-only trunk footprints; preserved balcony guard collision. Passed `pnpm --filter demo typecheck`, `cargo test --manifest-path packages/engine-core/Cargo.toml world_transport --lib` (8), full-route Playwright (1), and focused seamless route Playwright (1) with SwiftShader."
+outcome: "Verification rejected: independent full-route Playwright run fails balcony guard collision (`x=26.43`, expected `<25.5`). Tree placement work remains in-flight until documented route collision is repaired and exact passing evidence is recorded."
 ---
 
 # Separate Tree Visual Placement From Collision
@@ -54,3 +54,17 @@ Forest trees render at their authored locations without billboard art intersecti
 - `examples/demo/src/main.ts`
 - `examples/demo/tests/full-route.spec.ts`
 - `examples/demo/tests/browser-seamless.spec.ts`
+
+
+## Verification Failure
+
+Independent verification on 2026-08-07 rejected completion:
+
+```text
+pnpm --filter demo typecheck                              PASS
+cargo test --manifest-path packages/engine-core/Cargo.toml PASS (124 tests)
+pnpm exec playwright test -c playwright.config.ts examples/demo/tests/full-route.spec.ts
+FAIL: balcony guard expected x < 25.5; received x = 26.433883666992188
+```
+
+The added collision-only balcony guard does not preserve the existing upper-route lateral blocking behavior. Diagnose and repair this regression without weakening the assertion, then rerun focused browser proof before completion.
