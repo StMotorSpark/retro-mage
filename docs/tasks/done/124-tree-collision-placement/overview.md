@@ -1,12 +1,12 @@
 ---
 task: "124"
 slug: tree-collision-placement
-status: pending
+status: done
 depends-on: []
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-07
-outcome: ""
+outcome: "Separated tree billboards from offset collision-only trunk footprints; preserved balcony guard collision. Passed `pnpm --filter demo typecheck`, `cargo test --manifest-path packages/engine-core/Cargo.toml world_transport --lib` (8), full-route Playwright (1), and focused seamless route Playwright (1) with SwiftShader."
 ---
 
 # Separate Tree Visual Placement From Collision

@@ -68,6 +68,12 @@ const floor = (x: number, z: number, tileId: number, materialId: number): DemoTi
 const wall = (x: number, z: number, tileId = 1, materialId = 1): DemoTile => ({ x, y: 0, z, tileId, materialId, variant: 0, orientation: 0, solid: true });
 const anchor = (id: string, x: number, z: number, direction: AnchorDirection, yaw: number): DemoAnchor => ({ id, x, y: 0, z, yaw, volume: { min: [-0.5, 0, -0.5], max: [0.5, 2, 0.5] }, direction });
 
+// Billboard centers and invisible collision footprints are authored independently.
+// A slight Z offset keeps any future visible trunk geometry out of billboard pixels.
+const forestTrees = [[5, -7], [8, -5], [4, -2], [7, 0], [5, 12], [9, 15], [4, 16], [8, 14], [16, -7], [20, -5], [15, -2], [19, 0], [16, 12], [21, 15]] as const;
+const treeBlockers = forestTrees.map(([x, z]) => [x, z + 0.25] as const);
+const treeCollisionTileId = 17;
+
 function dungeonTiles(): DemoTile[] {
   const tiles: DemoTile[] = [];
   // Route: compact start room (-4..0) -> open doorway -> vaulted hall -> side room.
@@ -141,14 +147,14 @@ function outdoorTiles(): DemoTile[] {
   // Grand stair visual ramp reaches balcony ring at y=1; matching support surface below.
   for (let x = 11; x <= 13; x++) for (let z = 16; z <= 19; z++) tiles.push({ ...floor(x, z, 13, 9), y: (z - 16) * 0.25 });
   for (let x = 9; x <= 15; x++) for (let z = 20; z <= 22; z++) tiles.push({ ...floor(x, z, 14, 9), y: 1, openings: { vertical: true } });
+  // Upper balcony guard retains its authored lateral collision boundary at balcony height.
+  tiles.push({ ...wall(16, 20, treeCollisionTileId, 0), y: 1 });
   // Opaque columns, never translucent billboard substitutes.
   for (const [x, z] of [[9, 17], [15, 17], [9, 21], [15, 21]] as const) tiles.push(wall(x, z, 15, 9));
   // Upper throne approach, with second stair cue and matching support surface.
   for (let x = 11; x <= 13; x++) for (let z = 22; z <= 25; z++) tiles.push({ ...floor(x, z, 13, 9), y: 1 + (z - 22) * 0.25 });
-  // Authored trunk blockers. Rendered tile + solid collision keeps corridor navigable.
-  for (const [x, z] of [[5, -7], [8, -5], [4, -2], [7, 0], [5, 12], [9, 15], [4, 16], [8, 14], [16, -7], [20, -5], [15, -2], [19, 0], [16, 12], [21, 15]] as const) {
-    tiles.push(wall(x, z, 6, 3));
-  }
+  // Collision-only tree footprints leave billboards free of opaque trunk pillars.
+  for (const [x, z] of treeBlockers) tiles.push(wall(x, z, treeCollisionTileId, 0));
   // Mountain rock encloses authored outdoor extent. These solid, textured slopes use
   // existing definition-tile transport, so render and collision consume same global
   // outdoor instance transform. Route coordinates remain intentionally untouched.
@@ -223,7 +229,7 @@ const outdoor: DemoLevelDefinition = {
   tiles: outdoorTiles(),
   actors: [
     ...([[9, 17], [15, 17], [9, 21], [15, 21]] as const).map(([x, z], index) => ({ x, y: 1, z, actorId: `castle-statue-${index}`, spriteId: 5, facing: 0, active: true, spawn: true })),
-    ...([[5, -7], [8, -5], [4, -2], [7, 0], [5, 12], [9, 15], [4, 16], [8, 14], [16, -7], [20, -5], [15, -2], [19, 0], [16, 12], [21, 15]] as const).map(([x, z], index) => ({ x, y: 0, z, actorId: `tree-${index}`, spriteId: 1, facing: 0, active: true, spawn: true })),
+    ...forestTrees.map(([x, z], index) => ({ x, y: 0, z, actorId: `tree-${index}`, spriteId: 1, facing: 0, active: true, spawn: true })),
     { x: 10, y: 7, z: 1, actorId: 'cloud-clearing-0', spriteId: 4, facing: 0, active: true, spawn: true },
     { x: 18, y: 6, z: 8, actorId: 'cloud-clearing-1', spriteId: 4, facing: 0, active: true, spawn: true },
   ],

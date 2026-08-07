@@ -14,6 +14,8 @@ type Debug = {
     streamBarrierCollisionTiles: number; cobblestonePathPassable: boolean; castleExteriorGeometry: number;
     castleInteriorGeometry: number; castleColumnGeometry: number; castleBalconyGeometry: number;
     castleLowerVisible: boolean;
+    treeBillboardCount: number; treeCollisionBlockerCount: number; resolvedTreeCollisionBlockerCount: number;
+    treeBillboardBlockerCenterOverlaps: number; treeCollisionVisualGeometry: number;
   };
 };
 
@@ -94,6 +96,13 @@ test('production touch completes dungeon-to-throne route with collision and vert
   const start = await debug(page);
   expect(start.activeInstance).toBe('dungeon-instance');
   expect(start.renderProof.materialDiagnostics).toBe(0);
+  // Resolved global scene keeps cutout trees separate from collision-only footprints:
+  // no opaque tile reaches the render pass at a tree billboard center.
+  expect(start.renderProof.treeBillboardCount).toBe(14);
+  expect(start.renderProof.treeCollisionBlockerCount).toBe(14);
+  expect(start.renderProof.resolvedTreeCollisionBlockerCount).toBe(14);
+  expect(start.renderProof.treeBillboardBlockerCenterOverlaps).toBe(0);
+  expect(start.renderProof.treeCollisionVisualGeometry).toBe(0);
   expect(start.renderProof.assetKeys).toEqual([
     'demo.castle.exterior', 'demo.castle.interior', 'demo.dungeon.ceiling', 'demo.dungeon.floor', 'demo.dungeon.wall',
     'demo.outdoor.cobblestone', 'demo.outdoor.grass', 'demo.outdoor.mountain', 'demo.outdoor.road', 'demo.outdoor.water',
