@@ -72,7 +72,9 @@ const anchor = (id: string, x: number, z: number, direction: AnchorDirection, ya
 // A slight Z offset keeps any future visible trunk geometry out of billboard pixels.
 const forestTrees = [[5, -7], [8, -5], [4, -2], [7, 0], [5, 12], [9, 15], [4, 16], [8, 14], [16, -7], [20, -5], [15, -2], [19, 0], [16, 12], [21, 15]] as const;
 const treeBlockers = forestTrees.map(([x, z]) => [x, z + 0.25] as const);
-const treeCollisionTileId = 17;
+// Tile 9 is existing collision-only authored geometry (also used by stream banks).
+// Tree footprints share that transport rule; no new engine tile category is needed.
+const treeCollisionTileId = 9;
 
 function dungeonTiles(): DemoTile[] {
   const tiles: DemoTile[] = [];
@@ -147,8 +149,9 @@ function outdoorTiles(): DemoTile[] {
   // Grand stair visual ramp reaches balcony ring at y=1; matching support surface below.
   for (let x = 11; x <= 13; x++) for (let z = 16; z <= 19; z++) tiles.push({ ...floor(x, z, 13, 9), y: (z - 16) * 0.25 });
   for (let x = 9; x <= 15; x++) for (let z = 20; z <= 22; z++) tiles.push({ ...floor(x, z, 14, 9), y: 1, openings: { vertical: true } });
-  // Upper balcony guard retains its authored lateral collision boundary at balcony height.
-  tiles.push({ ...wall(16, 20, treeCollisionTileId, 0), y: 1 });
+  // Elevated opaque rail spans balcony's lateral edge at player height.
+  // It preserves production route blocking across the full balcony depth.
+  for (let z = 20; z <= 22; z++) tiles.push({ ...wall(16, z, 12, 9), y: 1 });
   // Opaque columns, never translucent billboard substitutes.
   for (const [x, z] of [[9, 17], [15, 17], [9, 21], [15, 21]] as const) tiles.push(wall(x, z, 15, 9));
   // Upper throne approach, with second stair cue and matching support surface.

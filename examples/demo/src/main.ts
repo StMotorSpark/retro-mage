@@ -377,7 +377,8 @@ async function main(): Promise<void> {
     ) : false;
     const outdoorDefinition = demoManifest.definitions.find((definition) => definition.id === 'outdoor');
     const streamTiles = outdoorDefinition?.tiles.filter((tile) => tile.tileId === 7) ?? [];
-    const treeCollisionTiles = outdoorDefinition?.tiles.filter((tile) => tile.tileId === 17 && tile.y === 0) ?? [];
+    const treeActors = outdoorDefinition?.actors.filter((actor) => actor.spriteId === 1) ?? [];
+    const treeCollisionTiles = outdoorDefinition?.tiles.filter((tile) => tile.tileId === 9 && tile.y === 0 && treeActors.some((tree) => tree.x === tile.x && tree.z + 0.25 === tile.z)) ?? [];
     const resolvedTreeActors = Array.from({ length: world.actors.count }, (_, i) => ({
       x: world.actors.x[i] ?? 0, z: world.actors.z[i] ?? 0, spriteId: world.actors.sprite_id[i] ?? 0,
     })).filter((actor) => actor.spriteId === 1);
@@ -385,7 +386,7 @@ async function main(): Promise<void> {
     const resolvedTreeBlockers = treeCollisionTiles.filter((tile) => tile.solid).map((tile) => ({ x: tile.x + outdoorOrigin[0], z: tile.z + outdoorOrigin[2] }));
     const treeBillboardBlockerCenterOverlaps = resolvedTreeActors.reduce((count, actor) => count + resolvedTreeBlockers.filter((blocker) => blocker.x === actor.x && blocker.z === actor.z).length, 0);
     const crossingTiles = outdoorDefinition?.tiles.filter((tile) => tile.tileId === 8) ?? [];
-    const barrierTiles = outdoorDefinition?.tiles.filter((tile) => tile.tileId === 9) ?? [];
+    const barrierTiles = outdoorDefinition?.tiles.filter((tile) => tile.tileId === 9 && tile.z === 7) ?? [];
     const castleTiles = outdoorDefinition?.tiles.filter((tile) => tile.tileId === 10) ?? [];
     const roadGeometry = sceneTiles ? Array.from(sceneTiles.tile_id.subarray(0, sceneTiles.count)).filter((id) => id === 4).length : 0;
     const streamSlopePresent = streamTiles.length > 0 && streamTiles.every((tile) => tile.orientation === 1);

@@ -1,12 +1,12 @@
 ---
 task: "124"
 slug: tree-collision-placement
-status: in-flight
+status: done
 depends-on: []
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-07
-outcome: "Verification rejected: independent full-route Playwright run fails balcony guard collision (`x=26.43`, expected `<25.5`). Tree placement work remains in-flight until documented route collision is repaired and exact passing evidence is recorded."
+outcome: "Tree blockers use existing collision-only tile 9 at offset footprints; opaque balcony rail spans full elevated edge, restoring lateral guard. PASS: pnpm --filter demo typecheck; cargo test --manifest-path packages/engine-core/Cargo.toml (124 tests); pnpm exec playwright test -c playwright.config.ts examples/demo/tests/full-route.spec.ts (1); pnpm exec playwright test -c playwright.config.ts examples/demo/tests/browser-seamless.spec.ts (6)."
 ---
 
 # Separate Tree Visual Placement From Collision
