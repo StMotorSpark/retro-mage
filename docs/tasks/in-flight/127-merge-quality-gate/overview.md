@@ -1,12 +1,12 @@
 ---
 task: "127"
 slug: merge-quality-gate
-status: done
+status: in-flight
 depends-on: ["124", "125", "126"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-07
-outcome: "Removed stale empty in-flight Task 114 directory; removed generated Playwright results/traces and Vite caches (none tracked/remain). Verified serially from clean state: pnpm lint (PASS); pnpm typecheck (PASS); pnpm test (PASS: engine-core 119 unit + 5 integration, input 6, KTX2 2, render 48); pnpm test:demo:e2e (PASS: 12 tests, 1 worker). Final git status --short is clean after this task lifecycle/fix commit."
+outcome: "Verification rejected: root demo E2E fails in serial 12-test run. Full-route test times out during first dungeon-to-outdoor move at pose x=16.166 y=0 z=29.166. Task remains in-flight until clean-suite failure is diagnosed and all required gates pass."
 ---
 
 # Reconcile Demo Branch Merge Quality Gate
@@ -63,3 +63,21 @@ The branch has clean repository state and passing required automated checks afte
 - `docs/tasks/in-flight/114-demo-asset-manifest/`
 - `test-results/`
 - `examples/demo/tests/`
+
+
+## Verification Failure
+
+Independent root-gate verification on 2026-08-07 rejected completion:
+
+```text
+pnpm lint                                      PASS
+pnpm typecheck                                 PASS
+pnpm test                                      PASS
+pnpm test:demo:e2e                             FAIL (11 passed, 1 failed)
+
+full-route.spec.ts: production touch completes dungeon-to-throne route
+first dungeon-to-outdoor movement predicate timed out after 15s
+last pose: x=16.1660099029541, y=0, z=29.16624641418457
+```
+
+The isolated route tests pass but the configured serial complete E2E suite fails. Reproduce from a clean Vite cache, identify the cross-suite/runtime cause, repair without retrying or weakening assertions, and rerun all four required root gates.
