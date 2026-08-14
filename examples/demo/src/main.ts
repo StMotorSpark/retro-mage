@@ -1,5 +1,5 @@
 import init, { EngineState, WorldTransport } from 'engine-core';
-import { createRenderer, MaterialRegistry, resolveMaterialResources, uploadLut, WorldStateReader, WorldTransportReader } from 'render';
+import { createRenderer, createSpriteRenderer, loadPngTexture, mat4Create, mat4Perspective, MaterialRegistry, resolveMaterialResources, uploadLut, WorldStateReader, WorldTransportReader } from 'render';
 import { createInputSource, FACE1 } from 'input';
 import { PerfOverlay } from './perf-overlay.js';
 import { createDemoLevelProvider, demoManifest, registerDemoWorld, type DemoLevelId } from './demo-world.js';
@@ -42,6 +42,31 @@ declare global {
   }
 }
 
+/** Test-only direct billboard path: decoded PNG → WebGL upload → production SpriteRenderer → visible canvas pixels. */
+async function renderSpriteAlphaProof(kind: 'tree' | 'torch'): Promise<void> {
+  const canvas = document.createElement('canvas');
+  canvas.id = 'sprite-alpha-proof';
+  canvas.width = 256;
+  canvas.height = 256;
+  canvas.style.cssText = 'position:fixed;inset:0;width:256px;height:256px;z-index:2';
+  document.body.append(canvas);
+  const gl = canvas.getContext('webgl2', { preserveDrawingBuffer: true });
+  if (!gl) throw new Error('WebGL2 context unavailable for sprite alpha proof.');
+  const source = kind === 'tree' ? '/assets/sprite/tree.1.png' : '/assets/sprite/torch.1.png';
+  const texture = await loadPngTexture(gl, await (await fetch(source)).arrayBuffer());
+  const renderer = createSpriteRenderer(gl);
+  renderer.setTexture(1, texture.texture);
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.clearColor(0.02, 0.03, 0.07, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  const projection = mat4Create();
+  mat4Perspective(projection, Math.PI / 3, 1, 0.1, 100);
+  renderer.render({
+    x: new Float32Array([0]), y: new Float32Array([-1.2]), z: new Float32Array([-3]),
+    facing: new Float32Array([0]), sprite_id: new Float32Array([1]), active: new Float32Array([1]), count: 1,
+  }, mat4Create(), projection);
+}
+
 /** Demo proof: authored instances share one global scene, collision, and traversal path. */
 async function main(): Promise<void> {
   const canvas = document.querySelector<HTMLCanvasElement>('#scene');
@@ -49,6 +74,8 @@ async function main(): Promise<void> {
   if (!canvas || !overlay) throw new Error('Expected #scene canvas and #input-overlay elements in index.html.');
   const gl = canvas.getContext('webgl2');
   if (!gl) throw new Error('WebGL2 context not supported.');
+  const spriteAlphaProof = new URLSearchParams(window.location.search).get('spriteAlphaProof');
+  if (spriteAlphaProof === 'tree' || spriteAlphaProof === 'torch') await renderSpriteAlphaProof(spriteAlphaProof);
 
   const wasmOutput = await init();
   const engineState = new EngineState();

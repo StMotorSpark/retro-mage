@@ -1,12 +1,12 @@
 ---
 task: "125"
 slug: sprite-alpha-visual-proof
-status: pending
+status: done
 depends-on: []
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-07
-outcome: ""
+outcome: "Synced supplied cutout PNGs into runtime public assets and added browser source/decode/GPU billboard proof. SwiftShader proof checks all five decoded assets and rejects opaque matte or fallback pixels for tree and torch."
 ---
 
 # Prove Sprite Alpha Cutouts End to End
@@ -55,3 +55,12 @@ Every authored demo cutout sprite preserves source alpha through decode, WebGL u
 - `packages/render/src/materials/resources.ts`
 - `examples/demo/assets/sprite/`
 - `examples/demo/tests/texture-coverage.spec.ts`
+
+## Completion Evidence
+
+- Synced supplied sprite and cloud PNGs from `examples/demo/assets/` to runtime-loaded `examples/demo/public/assets/` without changing dimensions.
+- `sprite-alpha.spec.ts` fetches every runtime asset, decodes it with `createImageBitmap`, and verifies both `alpha < 0.1` cutout pixels and opaque visible pixels. It creates a deterministic production `SpriteRenderer` canvas for tree and torch, captures an in-memory Playwright screenshot, and asserts a source-transparent texel remains the clear color after GPU upload/shader discard while a source-opaque texel is visible. An opaque rectangle or fallback paints the transparent sample and fails.
+- `pnpm --filter render test` — 11 files / 48 tests passed.
+- `pnpm --filter demo typecheck` — passed.
+- `pnpm exec playwright test -c playwright.config.ts examples/demo/tests/sprite-alpha.spec.ts` — 2 passed with SwiftShader.
+- `pnpm exec playwright test -c playwright.config.ts examples/demo/tests/texture-coverage.spec.ts` — 1 passed with SwiftShader.
