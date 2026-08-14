@@ -1,12 +1,12 @@
 ---
 task: "127"
 slug: merge-quality-gate
-status: pending
+status: done
 depends-on: ["124", "125", "126"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-07
-outcome: ""
+outcome: "Removed stale empty in-flight Task 114 directory; removed generated Playwright results/traces and Vite caches (none tracked/remain). Verified serially from clean state: pnpm lint (PASS); pnpm typecheck (PASS); pnpm test (PASS: engine-core 119 unit + 5 integration, input 6, KTX2 2, render 48); pnpm test:demo:e2e (PASS: 12 tests, 1 worker). Final git status --short is clean after this task lifecycle/fix commit."
 ---
 
 # Reconcile Demo Branch Merge Quality Gate

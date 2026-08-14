@@ -1,5 +1,30 @@
 import { test, expect, chromium, Page } from '@playwright/test';
 
+type DemoDebug = {
+  assetsReady: boolean;
+  pose: { x: number; y: number; z: number };
+  grounded: boolean;
+  verticalVelocity: number;
+  renderFrame: number;
+  debugMovement: { pitch: number };
+  renderProof: {
+    lowerRoomVisible: boolean;
+    materialIds: number[];
+    litOpaqueTileCount: number;
+    translucentTileCount: number;
+    activeLightCount: number;
+    lutActive: boolean;
+    materialDiagnostics: number;
+  };
+};
+
+declare global {
+  interface Window {
+    __retroMageDebug?: DemoDebug;
+    __retroMageTeleport?: (x: number, y: number, z: number) => void;
+  }
+}
+
 async function dispatchMove(page: Page, dx: number, dy: number) {
   await page.evaluate(({ selector, dx, dy }) => {
     const target = document.querySelector(selector);
@@ -51,12 +76,16 @@ test('vertical movement demo', async () => {
   await page.goto('http://localhost:5173');
   await page.waitForSelector('canvas', { state: 'attached', timeout: 15000 });
 
-  const getDebug = async () => await page.evaluate(() => (window as any).__retroMageDebug);
+  const getDebug = async (): Promise<DemoDebug> => {
+    const debug = await page.evaluate(() => window.__retroMageDebug);
+    if (!debug) throw new Error('Demo debug state missing');
+    return debug;
+  };
 
-  await expect.poll(async () => {
-    const debug = await getDebug();
-    return debug && debug.assetsReady && debug.pose;
-  }, { timeout: 15000 }).toBeTruthy();
+  await expect.poll(
+    () => page.evaluate(() => window.__retroMageDebug?.assetsReady === true),
+    { timeout: 15000 },
+  ).toBe(true);
 
   let state = await getDebug();
   console.log('Initial pos:', state.pose);
@@ -204,7 +233,7 @@ test('vertical movement demo', async () => {
 
   // 4. Test steep ramp (blocks movement)
   // Teleport directly in front of the steep ramp at x=4.5, z=6.5
-  await page.evaluate(() => (window as any).__retroMageTeleport?.(4.5, 0, 6.5));
+  await page.evaluate(() => window.__retroMageTeleport?.(4.5, 0, 6.5));
   // Wait for gravity to settle if needed
   await expect.poll(async () => (await getDebug()).grounded, { timeout: 5000 }).toBe(true);
 
@@ -212,7 +241,6 @@ test('vertical movement demo', async () => {
   await dispatchMove(page, 0, -30);
 
   // Give it 1 second to try and climb
-  let zBeforeSteep = (await getDebug()).pose.z;
   await page.waitForTimeout(1000);
   await stopMove(page);
 
@@ -224,7 +252,7 @@ test('vertical movement demo', async () => {
 
   // 5. Test low ceiling
   // Teleport directly in front of the low ceiling at x=-2, z=4.5
-  await page.evaluate(() => (window as any).__retroMageTeleport?.(-2.0, 0, 4.5));
+  await page.evaluate(() => window.__retroMageTeleport?.(-2.0, 0, 4.5));
   // Wait for gravity to settle if needed
   await expect.poll(async () => (await getDebug()).grounded, { timeout: 5000 }).toBe(true);
 

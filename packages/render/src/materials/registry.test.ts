@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { MaterialRegistry } from './registry.js';
-import { FALLBACK_MATERIAL_ID, FALLBACK_DESCRIPTOR, MaterialDescriptor } from './types.js';
+import { FALLBACK_DESCRIPTOR, MaterialDescriptor } from './types.js';
 
 describe('MaterialRegistry', () => {
   it('resolves fallback for unknown material ID', () => {
@@ -34,8 +34,7 @@ describe('MaterialRegistry', () => {
     const registry = new MaterialRegistry();
     const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    // @ts-ignore - intentional bad data for testing
-    registry.register({ id: 'bad-uv', textureAssetKeys: [] });
+    registry.register({ id: 'bad-uv', textureAssetKeys: [] } as unknown as MaterialDescriptor);
 
     const resolved = registry.resolve('bad-uv');
     expect(resolved.uvMode).toBe('explicit'); // fallback applied by validation
@@ -55,11 +54,9 @@ describe('MaterialRegistry', () => {
       textureAssetKeys: [],
       uvMode: 'tile-repeat',
       flags: [],
-      // @ts-ignore - intentional bad data
       lutConfig: { paletteColors: 'not-an-array', intensityBandCount: 'not-a-number' },
-      // @ts-ignore
       emissiveConfig: { color: 123, intensity: 'high' }
-    });
+    } as unknown as MaterialDescriptor);
 
     expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('invalid lutConfig.paletteColors'));
     expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('invalid lutConfig.intensityBandCount'));

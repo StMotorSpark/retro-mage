@@ -20,7 +20,7 @@ type DebugSnapshot = {
   sourcePlayable: boolean;
   grounded?: boolean;
   debugMovement?: { x: number; z: number; yaw: number; pitch: number };
-  renderProof?: { roadGeometry: number; waterMaterialPresent: boolean; streamSlopePresent: boolean; translucentTileCount: number; materialDiagnostics: number; streamBarrierVisualGeometry: number; streamBarrierCollisionTiles: number; cobblestonePathPassable: boolean; cobblestoneMaterialPresent: boolean; castleExteriorGeometry: number; castleMaterialPresent: boolean };
+  renderProof?: { roadGeometry: number; waterMaterialPresent: boolean; streamSlopePresent: boolean; translucentTileCount: number; materialDiagnostics: number; streamBarrierVisualGeometry: number; streamBarrierCollisionTiles: number; cobblestonePathPassable: boolean; cobblestoneMaterialPresent: boolean; castleExteriorGeometry: number; castleMaterialPresent: boolean; castleInteriorGeometry: number; castleColumnGeometry: number; castleBalconyGeometry: number; materialIds: number[]; activeLightCount: number };
   overflowed?: boolean;
   overflowDiagnostics?: string;
   cancellation?: { pending: boolean; cancelled: boolean; firstRequestId: number; replacementRequestId: number; staleRejected: boolean; playable: boolean };
@@ -98,7 +98,7 @@ test('outdoor route proves road stream barrier crossing and castle sightline', a
   const proof = () => debug(page).then((snapshot) => snapshot as DebugSnapshot & { renderProof: { roadGeometry: number; waterMaterialPresent: boolean; streamSlopePresent: boolean; translucentTileCount: number; materialDiagnostics: number; streamBarrierVisualGeometry: number; streamBarrierCollisionTiles: number; cobblestonePathPassable: boolean; cobblestoneMaterialPresent: boolean; castleExteriorGeometry: number; castleMaterialPresent: boolean } });
 
   // Production touch movement crosses forest/clearing into road; no teleport/debug bypass.
-  await strafe(page, 70, (snapshot) => snapshot.activeInstance === 'outdoor-instance' && (snapshot as any).renderProof.roadGeometry > 0);
+  await strafe(page, 70, (snapshot) => snapshot.activeInstance === 'outdoor-instance' && (snapshot.renderProof?.roadGeometry ?? 0) > 0);
   await expect.poll(async () => (await proof()).renderProof.roadGeometry).toBeGreaterThan(0);
   await expect.poll(async () => (await proof()).renderProof.waterMaterialPresent).toBe(true);
   await expect.poll(async () => (await proof()).renderProof.streamSlopePresent).toBe(true);
@@ -143,7 +143,7 @@ test('outdoor route proves road stream barrier crossing and castle sightline', a
   expect(crossing.pose.z).toBeGreaterThan(11.8);
 
   // Castle exterior remains in the same global sightline.
-  await forward(page, 70, (snapshot) => (snapshot as any).renderProof.castleExteriorGeometry > 0);
+  await forward(page, 70, (snapshot) => (snapshot.renderProof?.castleExteriorGeometry ?? 0) > 0);
   const castle = await proof();
   expect(castle.renderProof.castleMaterialPresent).toBe(true);
   expect(castle.renderProof.castleExteriorGeometry).toBeGreaterThan(0);
@@ -164,13 +164,15 @@ test('target is visible before crossing and forward/reverse traversal stays cont
   expect(before.activeInstance).toBe('dungeon-instance');
   expect(before.targetVisible).toBe(true);
   expect(before.instances.find((instance) => instance.id === 'outdoor-instance')?.renderResident).toBe(true);
-  expect((before as any).renderProof.waterMaterialPresent).toBe(true);
-  expect((before as any).renderProof.cobblestoneMaterialPresent).toBe(true);
-  expect((before as any).renderProof.castleMaterialPresent).toBe(true);
-  expect((before as any).renderProof.translucentTileCount).toBe(0);
-  expect((before as any).renderProof.streamBarrierVisualGeometry).toBe(0);
-  expect((before as any).renderProof.streamBarrierCollisionTiles).toBeGreaterThan(0);
-  expect((before as any).renderProof.cobblestonePathPassable).toBe(true);
+  const beforeProof = before.renderProof;
+  expect(beforeProof).toBeDefined();
+  expect(beforeProof!.waterMaterialPresent).toBe(true);
+  expect(beforeProof!.cobblestoneMaterialPresent).toBe(true);
+  expect(beforeProof!.castleMaterialPresent).toBe(true);
+  expect(beforeProof!.translucentTileCount).toBe(0);
+  expect(beforeProof!.streamBarrierVisualGeometry).toBe(0);
+  expect(beforeProof!.streamBarrierCollisionTiles).toBeGreaterThan(0);
+  expect(beforeProof!.cobblestonePathPassable).toBe(true);
 
   const startX = before.pose.x;
   await strafe(page, 70, (snapshot) => snapshot.activeInstance === 'outdoor-instance');

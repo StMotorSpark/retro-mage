@@ -5,6 +5,18 @@ test.use({ launchOptions: { args: webglArgs } });
 
 type TextureBinding = { materialId: number; assetKey: string };
 type BillboardBinding = { spriteId: number; assetKey: string };
+type RenderProof = {
+  materialDiagnostics: number;
+  textureBindings: TextureBinding[];
+  billboardTextureBindings: BillboardBinding[];
+  skyTextureStatus: string;
+};
+
+declare global {
+  interface Window {
+    __retroMageDebug?: { renderProof?: RenderProof };
+  }
+}
 
 test('registers every authored surface and billboard texture without fallback diagnostics', async ({ page }) => {
   const errors: string[] = [];
@@ -15,7 +27,7 @@ test('registers every authored surface and billboard texture without fallback di
 
   await page.goto('/');
   await page.waitForSelector('canvas#scene', { state: 'attached', timeout: 15_000 });
-  const proof = await expect.poll(async () => page.evaluate(() => (window as any).__retroMageDebug?.renderProof), { timeout: 15_000 });
+  const proof = await expect.poll(async () => page.evaluate(() => window.__retroMageDebug?.renderProof), { timeout: 15_000 });
   await proof.toMatchObject({
     materialDiagnostics: 0,
     textureBindings: [

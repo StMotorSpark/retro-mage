@@ -36,7 +36,7 @@ declare global {
   interface Window {
     __debugPos?: { x: number; y: number; z: number };
     __retroMageDebug?: DemoDebugSnapshot;
-    __retroMageWorldTransport?: any;
+    __retroMageWorldTransport?: WorldTransport;
     __retroMageTeleport?: (x: number, y: number, z: number) => void;
     __retroMageCancelProof?: () => boolean;
   }
@@ -414,7 +414,6 @@ async function main(): Promise<void> {
     const treeBillboardBlockerCenterOverlaps = resolvedTreeActors.reduce((count, actor) => count + resolvedTreeBlockers.filter((blocker) => blocker.x === actor.x && blocker.z === actor.z).length, 0);
     const crossingTiles = outdoorDefinition?.tiles.filter((tile) => tile.tileId === 8) ?? [];
     const barrierTiles = outdoorDefinition?.tiles.filter((tile) => tile.tileId === 9 && tile.z === 7) ?? [];
-    const castleTiles = outdoorDefinition?.tiles.filter((tile) => tile.tileId === 10) ?? [];
     const roadGeometry = sceneTiles ? Array.from(sceneTiles.tile_id.subarray(0, sceneTiles.count)).filter((id) => id === 4).length : 0;
     const streamSlopePresent = streamTiles.length > 0 && streamTiles.every((tile) => tile.orientation === 1);
     const castleExteriorGeometry = sceneTiles ? Array.from(sceneTiles.tile_id.subarray(0, sceneTiles.count)).filter((id) => id === 10).length : 0;

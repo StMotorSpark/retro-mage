@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { WorldTransportReader, WorldTransportEngine } from './transport.js';
 
 describe('WorldTransportReader', () => {

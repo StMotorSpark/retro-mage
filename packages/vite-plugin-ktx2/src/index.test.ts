@@ -55,7 +55,7 @@ describe('vitePluginKtx2', () => {
     }
 
     if (typeof plugin.buildStart === 'function') {
-      await plugin.buildStart.call(mockContext as any, {} as any);
+      await plugin.buildStart.call(mockContext as never, {} as never);
     }
 
     expect(emittedFiles.length).toBe(1);

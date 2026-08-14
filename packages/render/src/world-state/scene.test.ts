@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GlobalSceneSubmission, SceneCapacityError } from './scene.js';
+import { GlobalSceneSubmission } from './scene.js';
 
 describe('GlobalSceneSubmission', () => {
   it('submits multiple already-transformed instances through one global buffer', () => {
