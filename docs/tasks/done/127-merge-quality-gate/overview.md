@@ -1,12 +1,12 @@
 ---
 task: "127"
 slug: merge-quality-gate
-status: in-flight
+status: done
 depends-on: ["124", "125", "126"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-07
-outcome: "Verification rejected: fresh E2E run 1 passed 12/12 but fresh E2E run 2 failed movement vertical-ramp assertion (`y=0.1238`, expected `<0.1`). Task remains in-flight until browser proofs have deterministic semantic synchronization and all gates pass repeatedly."
+outcome: "Movement proof now polls documented grounded support, zero vertical velocity, and exact expected support height after route predicates; touchend cleanup runs in finally. Fresh cache-cleared `pnpm test:demo:e2e` passed 12/12 three times. `pnpm lint`, `pnpm typecheck`, and `pnpm test` passed; generated E2E artifacts and Vite cache were removed."
 ---
 
 # Reconcile Demo Branch Merge Quality Gate
