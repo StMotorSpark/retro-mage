@@ -61,12 +61,14 @@ async function move(page: Page, dx: number, dy: number, reached: (state: Debug) 
     }, { timeout, intervals: [20] }).toBe(true);
   } catch (error) {
     throw new Error(`Move predicate failed at ${JSON.stringify(last?.pose)}: ${String(error)}`);
+  } finally {
+    await page.evaluate(() => {
+      const target = document.querySelector('.retro-input-move-zone');
+      const touch = (window as unknown as { __fullRouteTouch?: Touch }).__fullRouteTouch;
+      if (target && touch) target.dispatchEvent(new TouchEvent('touchend', { touches: [], targetTouches: [], changedTouches: [touch], bubbles: true }));
+      delete (window as unknown as { __fullRouteTouch?: Touch }).__fullRouteTouch;
+    });
   }
-  await page.evaluate(() => {
-    const target = document.querySelector('.retro-input-move-zone');
-    const touch = (window as unknown as { __fullRouteTouch?: Touch }).__fullRouteTouch;
-    if (target && touch) target.dispatchEvent(new TouchEvent('touchend', { touches: [], targetTouches: [], changedTouches: [touch], bubbles: true }));
-  });
 }
 
 async function lookDown(page: Page): Promise<void> {
@@ -116,10 +118,10 @@ test('production touch completes dungeon-to-throne route with collision and vert
   expect(trunk.instances.find(instance => instance.id === 'outdoor-instance')?.collisionActive).toBe(true);
 
   // Forest detour → clearing/road. Stream bank blocks entry before cobblestone route.
-  await move(page, 0, 70, state => state.pose.z >= 10 && state.pose.z < 10.5);
+  await move(page, 0, 20, state => state.pose.z >= 10 && state.pose.z < 10.5);
   await move(page, 5, 0, state => state.pose.x >= 18.6 && state.pose.x < 19);
   const bank = await debug(page);
-  await move(page, 0, 70, state => state.pose.z >= 10.5 && state.pose.z < 11.5);
+  await move(page, 0, 20, state => state.pose.z >= 10.5 && state.pose.z < 11.5);
   const blocked = await debug(page);
   expect(blocked.pose.z - bank.pose.z).toBeLessThan(1.25);
   expect(blocked.renderProof.streamBarrierCollisionTiles).toBe(2);

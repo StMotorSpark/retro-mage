@@ -1,12 +1,12 @@
 ---
 task: "127"
 slug: merge-quality-gate
-status: in-flight
+status: done
 depends-on: ["124", "125", "126"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-07
-outcome: "Verification rejected: root demo E2E fails in serial 12-test run. Full-route test times out during first dungeon-to-outdoor move at pose x=16.166 y=0 z=29.166. Task remains in-flight until clean-suite failure is diagnosed and all required gates pass."
+outcome: "Made production-touch release deterministic on success and failure, retained current-source Vite/WASM startup, and reduced stream-approach deflections. Fresh-cache root E2E passed twice, 12/12 serial each; lint, typecheck, and unit gates passed."
 ---
 
 # Reconcile Demo Branch Merge Quality Gate

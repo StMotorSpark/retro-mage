@@ -65,9 +65,9 @@ async function move(page: Page, dx: number, dy: number, reached: (snapshot: Debu
     const rect = target.getBoundingClientRect();
     const x = rect.left + rect.width / 2;
     const y = rect.top + rect.height / 2;
-    const touch = new Touch({ identifier: 17, target, clientX: x, clientY: y });
-    target.dispatchEvent(new TouchEvent('touchstart', { touches: [touch], targetTouches: [touch], changedTouches: [touch], bubbles: true }));
+    const start = new Touch({ identifier: 17, target, clientX: x, clientY: y });
     const moved = new Touch({ identifier: 17, target, clientX: x + dx, clientY: y + dy });
+    target.dispatchEvent(new TouchEvent('touchstart', { touches: [start], targetTouches: [start], changedTouches: [start], bubbles: true }));
     target.dispatchEvent(new TouchEvent('touchmove', { touches: [moved], targetTouches: [moved], changedTouches: [moved], bubbles: true }));
     (window as unknown as { __testTouch?: Touch }).__testTouch = moved;
   }, { dx, dy });
@@ -79,12 +79,14 @@ async function move(page: Page, dx: number, dy: number, reached: (snapshot: Debu
     }, { timeout, ...(intervals ? { intervals } : {}) }).toBe(true);
   } catch (error) {
     throw new Error(`Move predicate failed at ${JSON.stringify({ pose: last?.pose, activeInstance: last?.activeInstance, grounded: last?.grounded, debugMovement: last?.debugMovement, instances: last?.instances })}: ${String(error)}`);
+  } finally {
+    await page.evaluate(() => {
+      const target = document.querySelector('.retro-input-move-zone');
+      const touch = (window as unknown as { __testTouch?: Touch }).__testTouch;
+      if (target && touch) target.dispatchEvent(new TouchEvent('touchend', { touches: [], targetTouches: [], changedTouches: [touch], bubbles: true }));
+      delete (window as unknown as { __testTouch?: Touch }).__testTouch;
+    });
   }
-  await page.evaluate(() => {
-    const target = document.querySelector('.retro-input-move-zone');
-    const touch = (window as unknown as { __testTouch?: Touch }).__testTouch;
-    if (target && touch) target.dispatchEvent(new TouchEvent('touchend', { touches: [], targetTouches: [], changedTouches: [touch], bubbles: true }));
-  });
 }
 
 const strafe = (page: Page, dx: number, reached: (snapshot: DebugSnapshot) => boolean, timeout?: number) => move(page, dx, 0, reached, timeout);

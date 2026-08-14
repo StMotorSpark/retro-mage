@@ -57,12 +57,14 @@ async function move(page: Page, dx: number, dy: number, reached: (state: Debug) 
     }, { timeout: 15_000, intervals: [20] }).toBe(true);
   } catch (error) {
     throw new Error(`Move predicate failed at ${JSON.stringify(last?.pose)}: ${String(error)}`);
+  } finally {
+    await page.evaluate(() => {
+      const target = document.querySelector('.retro-input-move-zone');
+      const touch = (window as unknown as { __mountainTouch?: Touch }).__mountainTouch;
+      if (target && touch) target.dispatchEvent(new TouchEvent('touchend', { touches: [], targetTouches: [], changedTouches: [touch], bubbles: true }));
+      delete (window as unknown as { __mountainTouch?: Touch }).__mountainTouch;
+    });
   }
-  await page.evaluate(() => {
-    const target = document.querySelector('.retro-input-move-zone');
-    const touch = (window as unknown as { __mountainTouch?: Touch }).__mountainTouch;
-    if (target && touch) target.dispatchEvent(new TouchEvent('touchend', { touches: [], targetTouches: [], changedTouches: [touch], bubbles: true }));
-  });
 }
 
 async function lookTowardCastle(page: Page): Promise<void> {
@@ -117,7 +119,7 @@ test('production touch proves supplied mountain boundary and outdoor route', asy
   expect(blocked.grounded).toBe(true);
 
   // Return to authored road/cobblestone gap and enter castle without coordinate bypass.
-  await move(page, 0, 70, state => state.pose.z >= 10 && state.pose.z < 10.5);
+  await move(page, 0, 20, state => state.pose.z >= 10 && state.pose.z < 10.5);
   await move(page, 5, 0, state => state.pose.x >= 18.6 && state.pose.x < 19);
   await move(page, 0, -70, state => state.pose.z < 10);
   await move(page, 5, 0, state => state.pose.x >= 21.7 && state.pose.x < 22.4);
