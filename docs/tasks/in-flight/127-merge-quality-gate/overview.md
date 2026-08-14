@@ -1,12 +1,12 @@
 ---
 task: "127"
 slug: merge-quality-gate
-status: done
+status: in-flight
 depends-on: ["124", "125", "126"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-07
-outcome: "Made production-touch release deterministic on success and failure, retained current-source Vite/WASM startup, and reduced stream-approach deflections. Fresh-cache root E2E passed twice, 12/12 serial each; lint, typecheck, and unit gates passed."
+outcome: "Verification rejected: fresh root demo E2E fails 11/12 because full-route cannot initialize WebGL (`Skybox VS compile error: null`) after earlier serial specs. Task remains in-flight until clean-suite WebGL startup is deterministic and all gates pass."
 ---
 
 # Reconcile Demo Branch Merge Quality Gate
@@ -81,3 +81,20 @@ last pose: x=16.1660099029541, y=0, z=29.16624641418457
 ```
 
 The isolated route tests pass but the configured serial complete E2E suite fails. Reproduce from a clean Vite cache, identify the cross-suite/runtime cause, repair without retrying or weakening assertions, and rerun all four required root gates.
+
+
+## Verification Failure: WebGL Context Startup
+
+Independent verification on 2026-08-07 rejected completion:
+
+```text
+rm -rf test-results playwright-report examples/demo/node_modules/.vite
+pnpm test:demo:e2e
+FAIL: 11 passed, 1 failed
+
+full-route.spec.ts failed before demo readiness:
+Demo failed to start: Error: Skybox VS compile error: null
+createSkyboxRenderer → createLoop → createRenderer → main
+```
+
+The configured serial suite passes earlier specs but intermittently cannot compile the skybox vertex shader for the full-route page. Diagnose browser/context/resource lifecycle or test startup isolation. Do not add retries, weaken readiness assertions, or suppress shader errors.
