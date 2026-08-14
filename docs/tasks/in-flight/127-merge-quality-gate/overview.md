@@ -1,12 +1,12 @@
 ---
 task: "127"
 slug: merge-quality-gate
-status: done
+status: in-flight
 depends-on: ["124", "125", "126"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-07
-outcome: "Verified clean root gates. After `rm -rf test-results playwright-report examples/demo/node_modules/.vite`, `pnpm test:demo:e2e` passed 12/12 twice, serially, with current source/WASM and `reuseExistingServer: false`; then `pnpm lint`, `pnpm typecheck`, and `pnpm test` passed. The reported intermittent Skybox startup failure did not reproduce in either fresh suite; no renderer or test behavior changed without causal evidence. Generated Playwright/Vite artifacts were removed."
+outcome: "Verification rejected: fresh E2E run 1 passed 12/12 but fresh E2E run 2 failed movement vertical-ramp assertion (`y=0.1238`, expected `<0.1`). Task remains in-flight until browser proofs have deterministic semantic synchronization and all gates pass repeatedly."
 ---
 
 # Reconcile Demo Branch Merge Quality Gate
@@ -98,3 +98,19 @@ createSkyboxRenderer → createLoop → createRenderer → main
 ```
 
 The configured serial suite passes earlier specs but intermittently cannot compile the skybox vertex shader for the full-route page. Diagnose browser/context/resource lifecycle or test startup isolation. Do not add retries, weaken readiness assertions, or suppress shader errors.
+
+
+## Verification Failure: Vertical Movement Timing
+
+Independent verification on 2026-08-07 rejected completion after the first fresh E2E pass:
+
+```text
+fresh E2E run 1: PASS 12/12
+fresh E2E run 2: FAIL 11/12
+
+movement.spec.ts vertical movement demo
+position after moving past ramp bottom: y = 0.12380145490169525
+assertion: expected y < 0.1
+```
+
+The test observes a legitimate in-flight settling frame after its movement predicate completes. Synchronize on documented grounded/support state rather than a scheduler-dependent frame. Preserve test intent and do not weaken physics assertions, add retries, or use fixed sleeps.
