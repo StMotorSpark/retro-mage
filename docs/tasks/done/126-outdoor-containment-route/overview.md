@@ -1,12 +1,12 @@
 ---
 task: "126"
 slug: outdoor-containment-route
-status: pending
+status: done
 depends-on: ["124"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-07
-outcome: ""
+outcome: "Fixed outdoor flat support through local z=26 (global z=30 after outdoor transform), eliminating former production-touch fall trace pose x=16.133216857910156 y=-152.8507537841797 z=63.96565246582031 after support ended at global z=20. Kept higher castle supports authoritative; tightened seamless stream approach touch deflection without relaxing bounds and added failure pose/grounded/active-instance/collision diagnostics. PASS: pnpm --filter demo typecheck; cargo test --manifest-path packages/engine-core/Cargo.toml (124 tests); pnpm exec playwright test -c playwright.config.ts examples/demo/tests/mountain-boundary.spec.ts (1); pnpm exec playwright test -c playwright.config.ts examples/demo/tests/full-route.spec.ts (1); pnpm exec playwright test -c playwright.config.ts examples/demo/tests/browser-seamless.spec.ts (6)."
 ---
 
 # Restore Outdoor Containment and Route Proof

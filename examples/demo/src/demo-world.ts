@@ -241,7 +241,9 @@ const outdoor: DemoLevelDefinition = {
   anchors: [anchor('dungeon-gate', 0, 0, 'both', -Math.PI / 2)],
   surfaces: [
     {
-      bounds: { min: [0, 0, -9], max: [25, 0, 16] },
+      // Ground reaches every outer mountain wall. Castle supports overlap this
+      // plane and win by height, while its exterior remains grounded.
+      bounds: { min: [0, 0, -9], max: [25, 0, 26] },
       heightFunction: [0, 0, 0],
       normal: [0, 1, 0],
       walkable: true

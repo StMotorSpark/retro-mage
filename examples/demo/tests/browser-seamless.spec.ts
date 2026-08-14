@@ -19,6 +19,7 @@ type DebugSnapshot = {
   instances: Array<{ id: string; state: number; renderResident: boolean; collisionActive: boolean }>;
   sourcePlayable: boolean;
   grounded?: boolean;
+  debugMovement?: { x: number; z: number; yaw: number; pitch: number };
   renderProof?: { roadGeometry: number; waterMaterialPresent: boolean; streamSlopePresent: boolean; translucentTileCount: number; materialDiagnostics: number; streamBarrierVisualGeometry: number; streamBarrierCollisionTiles: number; cobblestonePathPassable: boolean; cobblestoneMaterialPresent: boolean; castleExteriorGeometry: number; castleMaterialPresent: boolean };
   overflowed?: boolean;
   overflowDiagnostics?: string;
@@ -71,10 +72,14 @@ async function move(page: Page, dx: number, dy: number, reached: (snapshot: Debu
     (window as unknown as { __testTouch?: Touch }).__testTouch = moved;
   }, { dx, dy });
   let last: DebugSnapshot | undefined;
-  await expect.poll(async () => {
-    last = await debug(page);
-    return reached(last);
-  }, { timeout, ...(intervals ? { intervals } : {}) }).toBe(true);
+  try {
+    await expect.poll(async () => {
+      last = await debug(page);
+      return reached(last);
+    }, { timeout, ...(intervals ? { intervals } : {}) }).toBe(true);
+  } catch (error) {
+    throw new Error(`Move predicate failed at ${JSON.stringify({ pose: last?.pose, activeInstance: last?.activeInstance, grounded: last?.grounded, debugMovement: last?.debugMovement, instances: last?.instances })}: ${String(error)}`);
+  }
   await page.evaluate(() => {
     const target = document.querySelector('.retro-input-move-zone');
     const touch = (window as unknown as { __testTouch?: Touch }).__testTouch;
@@ -103,9 +108,11 @@ test('outdoor route proves road stream barrier crossing and castle sightline', a
 
   // Follow the production route to the stream's south-west approach. The tile-9 bank
   // occupies global x=[19.5,20.5], z=[10.5,11.5]; do not assert before reaching it.
-  await forward(page, 70, (snapshot) => snapshot.pose.z >= 10.0 && snapshot.pose.z < 10.5);
+  // Partial touch deflection keeps post-poll input release inside this narrow
+  // physical approach band; no route bound is relaxed.
+  await forward(page, 20, (snapshot) => snapshot.pose.z >= 10.0 && snapshot.pose.z < 10.5);
   await preciseStrafe(page, 5, (snapshot) => snapshot.pose.x >= 18.6 && snapshot.pose.x < 19.0);
-  await forward(page, 70, (snapshot) => snapshot.pose.z >= 10.5 && snapshot.pose.z < 11.5);
+  await forward(page, 20, (snapshot) => snapshot.pose.z >= 10.5 && snapshot.pose.z < 11.5);
   const approach = await proof();
   // Explicit precondition: active global route is adjacent to the real stream bank,
   // whose collision-only geometry and water material are present before direct entry.
