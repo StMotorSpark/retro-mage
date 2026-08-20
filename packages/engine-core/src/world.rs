@@ -40,7 +40,7 @@ impl Quaternion {
             && (self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w) > f32::EPSILON
     }
 
-    fn normalized(self) -> Self {
+    pub(crate) fn normalized(self) -> Self {
         let length = (self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w).sqrt();
         Self { x: self.x / length, y: self.y / length, z: self.z / length, w: self.w / length }
     }
@@ -58,7 +58,7 @@ impl Quaternion {
         }
     }
 
-    fn rotate(self, point: Vec3) -> Vec3 {
+    pub(crate) fn rotate(self, point: Vec3) -> Vec3 {
         let q = self;
         let uv = Vec3 {
             x: q.y * point.z - q.z * point.y,
@@ -232,6 +232,12 @@ pub struct LevelTile {
     pub position: Vec3,
     pub tile_id: u32,
     pub material_id: u32,
+    /// Renderer-neutral UV mode/data and material contract flags.
+    /// Defaults: tile-repeat, (0, 0), opaque|lit (0b0101).
+    pub uv_mode: u8,
+    pub uv_u: f32,
+    pub uv_v: f32,
+    pub render_flags: u32,
     pub variant: u16,
     pub orientation: u8,
     pub solid: bool,
@@ -247,6 +253,12 @@ pub struct LevelActor {
     pub facing: f32,
     pub active: bool,
     pub spawn: bool,
+    /// Renderer-neutral billboard material metadata. Legacy actors use defaults.
+    pub material_id: u32,
+    pub uv_mode: u8,
+    pub uv_u: f32,
+    pub uv_v: f32,
+    pub render_flags: u32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -260,7 +272,12 @@ pub struct LevelLight {
 #[derive(Debug, Clone, PartialEq)]
 pub struct LevelPolygon {
     pub vertices: Vec<Vec3>,
+    pub normals: Vec<Vec3>,
+    pub uvs: Vec<(f32, f32)>,
     pub material_id: u32,
+    pub uv_mode: u8,
+    pub render_flags: u32,
+    pub source_id: u32,
     pub solid: bool,
 }
 
@@ -331,7 +348,7 @@ impl LevelDefinition {
         for tile in &self.tiles { if !tile.position.is_finite() { return Err(WorldContractError::NonFinite("tile position")); } }
         for actor in &self.actors { validate_id(&actor.actor_id, "actor")?; if !actor.position.is_finite() { return Err(WorldContractError::NonFinite("actor position")); } }
         for light in &self.lights { if !light.position.is_finite() || light.color.iter().any(|value| !value.is_finite()) || !light.intensity.is_finite() { return Err(WorldContractError::NonFinite("light")); } }
-        for polygon in &self.polygons { if polygon.vertices.len() < 3 || polygon.vertices.iter().any(|point| !point.is_finite()) { return Err(WorldContractError::InvalidPolygon); } }
+        for polygon in &self.polygons { if polygon.vertices.len() < 3 || polygon.vertices.iter().any(|point| !point.is_finite()) || polygon.normals.len() != polygon.vertices.len() || polygon.normals.iter().any(|normal| !normal.is_finite()) || polygon.uvs.len() != polygon.vertices.len() || polygon.uvs.iter().any(|(u, v)| !u.is_finite() || !v.is_finite()) || polygon.uv_mode > 2 { return Err(WorldContractError::InvalidPolygon); } }
         for surface in &self.surfaces { surface.validate()?; }
         let mut ids = std::collections::HashSet::new();
         for anchor in &self.anchors {

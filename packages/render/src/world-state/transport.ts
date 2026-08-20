@@ -1,5 +1,5 @@
 import type { ActorsView, LightsView, TilesView } from './types.js';
-import type { GlobalSceneOverflowDiagnostic, GlobalSceneView } from './scene.js';
+import type { GlobalSceneOverflowDiagnostic, GlobalSceneView, GlobalScenePolygonsView } from './scene.js';
 
 export interface WorldTransportEngine {
   tiles_x_ptr(): number;
@@ -7,6 +7,10 @@ export interface WorldTransportEngine {
   tiles_z_ptr(): number;
   tiles_tile_id_ptr(): number;
   tiles_material_id_ptr(): number;
+  tiles_uv_mode_ptr?(): number;
+  tiles_uv_u_ptr?(): number;
+  tiles_uv_v_ptr?(): number;
+  tiles_render_flags_ptr?(): number;
   tiles_variant_ptr(): number;
   tiles_north_ptr(): number;
   tiles_east_ptr(): number;
@@ -21,6 +25,11 @@ export interface WorldTransportEngine {
   actors_facing_ptr(): number;
   actors_sprite_id_ptr(): number;
   actors_active_ptr(): number;
+  actors_material_id_ptr?(): number;
+  actors_uv_mode_ptr?(): number;
+  actors_uv_u_ptr?(): number;
+  actors_uv_v_ptr?(): number;
+  actors_render_flags_ptr?(): number;
   lights_x_ptr(): number;
   lights_y_ptr(): number;
   lights_z_ptr(): number;
@@ -50,6 +59,8 @@ export interface WorldTransportEngine {
   overflow_diagnostics_json?: () => string;
   skipped_instances_json?: () => string;
   definition_surface?(definition_id: string, min_x: number, min_y: number, min_z: number, max_x: number, max_y: number, max_z: number, h_x: number, h_y: number, h_c: number, nx: number, ny: number, nz: number, walkable: boolean): boolean;
+  polygon_count?(): number; polygon_vertex_count?(): number; polygon_index_count?(): number;
+  polygons_instance_ptr?(): number; polygons_source_ptr?(): number; polygons_vertex_start_ptr?(): number; polygons_vertex_count_ptr?(): number; polygons_index_start_ptr?(): number; polygons_index_count_ptr?(): number; polygons_material_id_ptr?(): number; polygons_uv_mode_ptr?(): number; polygons_render_flags_ptr?(): number; polygons_placement_ptr?(): number; polygon_vertices_ptr?(): number; polygon_indices_ptr?(): number;
 }
 
 export interface WorldTransportViews {
@@ -122,6 +133,10 @@ export class WorldTransportReader {
         tc,
         old?.tiles.material_id,
       ),
+      uv_mode: this.engine.tiles_uv_mode_ptr ? f32(this.memory, this.engine.tiles_uv_mode_ptr(), tc, old?.tiles.uv_mode) : new Float32Array(tc),
+      uv_u: this.engine.tiles_uv_u_ptr ? f32(this.memory, this.engine.tiles_uv_u_ptr(), tc, old?.tiles.uv_u) : new Float32Array(tc),
+      uv_v: this.engine.tiles_uv_v_ptr ? f32(this.memory, this.engine.tiles_uv_v_ptr(), tc, old?.tiles.uv_v) : new Float32Array(tc),
+      render_flags: this.engine.tiles_render_flags_ptr ? f32(this.memory, this.engine.tiles_render_flags_ptr(), tc, old?.tiles.render_flags) : new Float32Array(tc).fill(5),
       variant: f32(this.memory, this.engine.tiles_variant_ptr(), tc, old?.tiles.variant),
       orientation: f32(
         this.memory,
@@ -150,6 +165,11 @@ export class WorldTransportReader {
       facing: f32(this.memory, this.engine.actors_facing_ptr(), ac, old?.actors.facing),
       sprite_id: f32(this.memory, this.engine.actors_sprite_id_ptr(), ac, old?.actors.sprite_id),
       active: f32(this.memory, this.engine.actors_active_ptr(), ac, old?.actors.active),
+      material_id: this.engine.actors_material_id_ptr ? f32(this.memory, this.engine.actors_material_id_ptr(), ac, old?.actors.material_id) : new Float32Array(ac),
+      uv_mode: this.engine.actors_uv_mode_ptr ? f32(this.memory, this.engine.actors_uv_mode_ptr(), ac, old?.actors.uv_mode) : new Float32Array(ac).fill(2),
+      uv_u: this.engine.actors_uv_u_ptr ? f32(this.memory, this.engine.actors_uv_u_ptr(), ac, old?.actors.uv_u) : new Float32Array(ac),
+      uv_v: this.engine.actors_uv_v_ptr ? f32(this.memory, this.engine.actors_uv_v_ptr(), ac, old?.actors.uv_v) : new Float32Array(ac),
+      render_flags: this.engine.actors_render_flags_ptr ? f32(this.memory, this.engine.actors_render_flags_ptr(), ac, old?.actors.render_flags) : new Float32Array(ac).fill(6),
       count: ac,
     };
     const lights = {
@@ -163,6 +183,14 @@ export class WorldTransportReader {
       active: f32(this.memory, this.engine.lights_active_ptr(), lc, old?.lights.active),
       count: lc,
     };
+    let polygons: GlobalScenePolygonsView | undefined;
+    if (this.engine.polygon_count && this.engine.polygons_instance_ptr && this.engine.polygon_vertices_ptr) {
+      const pc = this.engine.polygon_count(), vc = this.engine.polygon_vertex_count?.() ?? 0, ic = this.engine.polygon_index_count?.() ?? 0;
+      const u32 = (fn: (() => number) | undefined) => new Uint32Array(this.memory.buffer, fn ? fn() : 0, pc);
+      const f = (fn: (() => number) | undefined, n: number) => new Float32Array(this.memory.buffer, fn ? fn() : 0, n);
+      // Bind WASM methods: passing raw wrappers loses `this` and crashes on `__wbg_ptr`.
+      polygons = { instance_id: u32(() => this.engine.polygons_instance_ptr!()), source_id: u32(() => this.engine.polygons_source_ptr!()), vertex_start: u32(() => this.engine.polygons_vertex_start_ptr!()), vertex_count: u32(() => this.engine.polygons_vertex_count_ptr!()), index_start: u32(() => this.engine.polygons_index_start_ptr!()), index_count: u32(() => this.engine.polygons_index_count_ptr!()), material_id: u32(() => this.engine.polygons_material_id_ptr!()), uv_mode: f(() => this.engine.polygons_uv_mode_ptr!(), pc), render_flags: f(() => this.engine.polygons_render_flags_ptr!(), pc), placement_id: u32(() => this.engine.polygons_placement_ptr!()), vertices: f(() => this.engine.polygon_vertices_ptr!(), vc * 8), indices: new Uint32Array(this.memory.buffer, this.engine.polygon_indices_ptr ? this.engine.polygon_indices_ptr() : 0, ic), count: pc, vertex_count_total: vc, index_count_total: ic };
+    }
     const instances = Array.from({ length: this.engine.instance_count() }, (_, i) => ({
       id: this.engine.instance_id(i),
       state: this.engine.instance_state(i),
@@ -176,6 +204,7 @@ export class WorldTransportReader {
       handoff_status: this.engine.instance_handoff_status(i),
     }));
     const scene: GlobalSceneView = {
+      polygons,
       tiles,
       actors,
       lights,

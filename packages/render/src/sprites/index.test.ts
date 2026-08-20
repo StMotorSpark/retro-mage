@@ -6,7 +6,7 @@ describe('SpriteRenderer', () => {
   const createMockGl = () => {
     const drawElementsSpy = vi.fn();
     const recordedMatrices: Float32Array[] = [];
-    const uniformMatrix4fvSpy = vi.fn((_loc: any, _transpose: any, value: Float32Array) => {
+    const uniformMatrix4fvSpy = vi.fn((_loc: WebGLUniformLocation | null, _transpose: boolean, value: Float32Array) => {
       recordedMatrices.push(new Float32Array(value));
     });
     const activeTextureSpy = vi.fn();

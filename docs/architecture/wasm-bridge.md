@@ -9,6 +9,7 @@ relates-to:
   - "[Collision Bridge](./collision-bridge.md)"
   - "[Rendering](./rendering.md)"
   - "[Scene Capacity](./scene-capacity.md)"
+  - "[Polygon Scene Transport](./polygon-scene-transport.md)"
   - "[Visibility](./visibility.md)"
   - "[Input Event Schema](./input-schema.md)"
   - "[Test-Driven Development](../principles/test-driven-development.md)"
@@ -35,7 +36,7 @@ The input-to-engine direction uses the normalized per-frame function-call schema
 
 Bridge storage uses preallocated typed buffers where fixed-capacity SoA access provides a measured benefit. Variable scene content uses configurable capacities or instance/chunk submission units rather than one hidden tiny global visible-tile limit. Overflow is explicit and observable; silent geometry loss is invalid.
 
-The exact field order, numeric types, capacity, and pointer/count contracts are documented with the implementation slice that owns each buffer. Boundary tests cover stride, pointer, count, active flags, and memory-growth view refresh.
+The exact field order, numeric types, capacity, and pointer/count contracts are documented with the implementation slice that owns each buffer. World tile SoA exposes `material_id`, `uv_mode` (0 tile-repeat, 1 explicit, 2 billboard), `uv_u`, `uv_v`, and `render_flags` (opaque=1, cutout=2, lit=4, unlit=8, emissive=16, water=32, sky=64), all `f32` scalar lanes. Missing legacy metadata defaults to material 0, UV mode/data 0, flags opaque|lit (5). Polygon transport is the fixed SoA contract in [Polygon Scene Transport](./polygon-scene-transport.md): `u32` record/index lanes, interleaved eight-`f32` vertex lanes, explicit polygon/vertex/index counts, and global transformed positions. Polygon publication uses same atomic instance preflight and immutable snapshot swap; invalid geometry and overflow publish neither partial records nor partial snapshots. These are renderer-neutral values; descriptors/texture keys stay app-owned and WebGL resources never enter WASM. Boundary tests cover stride, pointer, count, active flags, polygon starts/counts, index bounds, publication token, and memory-growth view refresh.
 
 ## Global Coordinates
 
@@ -57,6 +58,7 @@ Each bridge schema has one documented owner and colocated tests. Changes update 
 - [Collision Bridge](./collision-bridge.md) — runtime-owned movement integration
 - [Rendering](./rendering.md) — global scene consumer
 - [Scene Capacity](./scene-capacity.md) — configured buffers and overflow semantics
+- [Polygon Scene Transport](./polygon-scene-transport.md) — polygon render data boundary
 - [Visibility](./visibility.md) — render relevance
 - [Input Event Schema](./input-schema.md) — reverse-direction input contract
 - [Test-Driven Development](../principles/test-driven-development.md) — boundary tests

@@ -5,7 +5,7 @@ export default defineConfig({
   testIgnore: 'persistence.spec.ts',
   // SwiftShader/browser contexts are stable serially; CI keeps proof deterministic.
   // Parallel-worker hardening remains deferred until suite size justifies it.
-  workers: process.env.CI ? 1 : undefined,
+  workers: 1,
   fullyParallel: false,
   timeout: 90_000,
   expect: { timeout: 60_000 },
@@ -17,7 +17,8 @@ export default defineConfig({
   webServer: {
     command: 'pnpm --dir examples/demo dev --host 127.0.0.1',
     url: 'http://127.0.0.1:5173',
-    reuseExistingServer: true,
+    // Root E2E must boot current source/WASM, never attach to stale developer Vite state.
+    reuseExistingServer: false,
     timeout: 30_000,
   },
 });

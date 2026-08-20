@@ -11,6 +11,7 @@ relates-to:
   - "[Scene Capacity](./scene-capacity.md)"
   - "[Lighting](./lighting.md)"
   - "[Asset Pipeline](./asset-pipeline.md)"
+  - "[Material Contract](./material-contract.md)"
   - "[Visibility](./visibility.md)"
 ---
 
@@ -64,4 +65,5 @@ Outdoor level instances use streamed terrain content, atmospheric sky rendering,
 - [Scene Capacity](./scene-capacity.md) — configured buffers and overflow behavior
 - [Lighting](./lighting.md) — LUT and dynamic light behavior
 - [Asset Pipeline](./asset-pipeline.md) — runtime texture contract
+- [Material Contract](./material-contract.md) — application assets and renderer material behavior
 - [Visibility](./visibility.md) — culling responsibilities

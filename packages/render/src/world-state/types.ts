@@ -9,6 +9,13 @@ export interface ActorsView {
   readonly facing: Float32Array;
   readonly sprite_id: Float32Array;
   readonly active: Float32Array;
+  readonly material_id?: Float32Array;
+  /** 0 tile-repeat, 1 explicit, 2 billboard. */
+  readonly uv_mode?: Float32Array;
+  readonly uv_u?: Float32Array;
+  readonly uv_v?: Float32Array;
+  /** Bit flags: opaque=1, cutout=2, lit=4, unlit=8, emissive=16, water=32, sky=64. */
+  readonly render_flags?: Float32Array;
   /** Number of live active actors currently in the simulation */
   count: number;
 }
@@ -39,6 +46,14 @@ export interface TilesView {
   readonly y: Float32Array;
   readonly z: Float32Array;
   readonly tile_id: Float32Array;
+  /** 0 tile-repeat, 1 explicit, 2 billboard. */
+  /** Optional on legacy non-scene tile adapters; scene views always provide defaults. */
+  readonly material_id?: Float32Array;
+  readonly uv_mode?: Float32Array;
+  readonly uv_u?: Float32Array;
+  readonly uv_v?: Float32Array;
+  /** Bit flags: opaque=1, cutout=2, lit=4, unlit=8, emissive=16, water=32, sky=64. */
+  readonly render_flags?: Float32Array;
   readonly variant: Float32Array;
   readonly solid: Float32Array;
   readonly vertical_opening: Float32Array;

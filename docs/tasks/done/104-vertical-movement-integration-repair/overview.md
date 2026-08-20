@@ -6,7 +6,7 @@ depends-on: ["100", "101"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-07-30
-outcome: "Fixed vertical movement desynchronization at the global collision/world-aware tick boundary and corrected synthetic touch movement handling. Added production movement browser coverage; engine and demo build/typecheck evidence recorded in commit 299dd5e."
+outcome: "Fixed vertical movement desynchronization at the global collision/world-aware tick boundary in `packages/engine-core/src/world_transport.rs` and `global_collision.rs`, and corrected synthetic touch movement handling. Added production movement browser coverage; engine and demo build/typecheck evidence recorded in commit 299dd5e."
 ---
 
 # Repair Vertical Movement Integration
@@ -23,12 +23,12 @@ Trace and fix the engine/demo integration defects preventing player movement, su
 
 ## Definition of Done
 
-- [ ] Root cause identified in task outcome with exact module/API boundary.
-- [ ] Demo movement changes X/Z under supported input path.
-- [ ] Initial/support pose uses valid authored elevation or explicit safe-arrival behavior.
-- [ ] Vertical state reaches browser diagnostics through production transport.
-- [ ] Focused engine/bridge/demo tests pass.
-- [ ] No temporary test specs, traces, result directories, or generated artifacts remain.
+- [x] Root cause identified in task outcome with exact module/API boundary.
+- [x] Demo movement changes X/Z under supported input path.
+- [x] Initial/support pose uses valid authored elevation or explicit safe-arrival behavior.
+- [x] Vertical state reaches browser diagnostics through production transport.
+- [x] Focused engine/bridge/demo tests pass.
+- [x] No temporary test specs, traces, result directories, or generated artifacts remain.
 
 ## Out of Scope
 

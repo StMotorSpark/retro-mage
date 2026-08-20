@@ -31,7 +31,7 @@ impl GlobalLevelContent {
             tiles: definition.tiles.iter().map(|tile| LevelTile { position: transform.transform_point(tile.position), ..*tile }).collect(),
             actors: definition.actors.iter().map(|actor| LevelActor { position: transform.transform_point(actor.position), ..actor.clone() }).collect(),
             lights: definition.lights.iter().map(|light| LevelLight { position: transform.transform_point(light.position), ..*light }).collect(),
-            polygons: definition.polygons.iter().map(|polygon| LevelPolygon { vertices: transform_points(&polygon.vertices, transform), ..polygon.clone() }).collect(),
+            polygons: definition.polygons.iter().map(|polygon| LevelPolygon { vertices: transform_points(&polygon.vertices, transform), normals: polygon.normals.iter().map(|normal| transform.rotation.normalized().rotate(*normal)).collect(), ..polygon.clone() }).collect(),
             surfaces: definition.surfaces.iter().map(|surface| surface.transformed(transform).unwrap_or_else(|_| surface.clone())).collect(),
         })
     }
@@ -174,10 +174,10 @@ mod tests {
                 min: Vec3::ZERO,
                 max: Vec3 { x: 2.0, y: 1.0, z: 3.0 },
             },
-            tiles: vec![LevelTile { position: Vec3 { x: 1.0, y: 0.0, z: 2.0 }, tile_id: 7, material_id: 3, variant: 2, orientation: 1, solid: true, openings: Default::default(), stairs: None }],
-            actors: vec![LevelActor { position: Vec3 { x: 0.0, y: 1.0, z: 0.0 }, actor_id: "guard".into(), sprite_id: 4, facing: 1.5, active: true, spawn: true }],
+            tiles: vec![LevelTile { position: Vec3 { x: 1.0, y: 0.0, z: 2.0 }, tile_id: 7, material_id: 3, uv_mode: 0, uv_u: 0.0, uv_v: 0.0, render_flags: 5, variant: 2, orientation: 1, solid: true, openings: Default::default(), stairs: None }],
+            actors: vec![LevelActor { position: Vec3 { x: 0.0, y: 1.0, z: 0.0 }, actor_id: "guard".into(), sprite_id: 4, facing: 1.5, active: true, spawn: true, material_id: 0, uv_mode: 2, uv_u: 0.0, uv_v: 0.0, render_flags: 6 }],
             lights: vec![LevelLight { position: Vec3 { x: 2.0, y: 1.0, z: 3.0 }, color: [1.0, 0.5, 0.25], intensity: 2.0, active: true }],
-            polygons: vec![LevelPolygon { vertices: vec![Vec3::ZERO, Vec3 { x: 1.0, y: 0.0, z: 0.0 }, Vec3 { x: 0.0, y: 0.0, z: 1.0 }], material_id: 9, solid: false }],
+            polygons: vec![LevelPolygon { vertices: vec![Vec3::ZERO, Vec3 { x: 1.0, y: 0.0, z: 0.0 }, Vec3 { x: 0.0, y: 0.0, z: 1.0 }], normals: vec![Vec3 { x: 0.0, y: 1.0, z: 0.0 }; 3], uvs: vec![(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)], material_id: 9, uv_mode: 1, render_flags: 5, source_id: 7, solid: false }],
             surfaces: vec![],
             anchors: vec![],
             metadata: Default::default(),

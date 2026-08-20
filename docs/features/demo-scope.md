@@ -4,6 +4,7 @@ tags: [features, demo, content, rendering, transitions]
 summary: The Retro Mage demo proves a continuous global scene by connecting a small authored dungeon level to an outdoor level with visible preloading, traversal, collision, sprites, sky, and stylized lighting.
 relates-to:
   - "[World Model](./world-model.md)"
+  - "[Demo Experience](./demo-experience.md)"
   - "[Level Transitions](./level-transitions.md)"
   - "[World Runtime](../architecture/world-runtime.md)"
   - "[Rendering](../architecture/rendering.md)"
@@ -82,7 +83,7 @@ The demo does not require:
 - HUD or inventory
 - animated sprites
 - audio
-- full multi-floor movement physics
+- advanced multi-floor movement physics beyond authored ramp/support surfaces
 - WebGPU backend
 - procedural clouds
 - advanced portal culling
@@ -94,6 +95,7 @@ These remain documented capabilities or known gaps rather than hidden assumption
 ## Related Docs
 
 - [World Model](./world-model.md) — definitions and global instances
+- [Demo Experience](./demo-experience.md) — target showcase route and visual experience
 - [Level Transitions](./level-transitions.md) — visible connection behavior
 - [World Runtime](../architecture/world-runtime.md) — provider and lifecycle
 - [Rendering](../architecture/rendering.md) — shared global scene

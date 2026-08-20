@@ -17,7 +17,10 @@ Each entry links to a design doc and includes the doc's one-line summary. Docs d
 
 | Doc | Summary |
 |-----|---------|
+| [`docs/features/demo-experience.md`](./features/demo-experience.md) | The Retro Mage showcase demo presents one continuous first-person journey from a torch-lit dungeon through a forest, stream crossing, and vertically layered castle. |
+| [`docs/features/demo-experience.md`](./features/demo-experience.md) | The Retro Mage showcase demo presents one continuous first-person journey from a torch-lit dungeon through a forest, stream crossing, and vertically layered castle. |
 | [`docs/features/demo-scope.md`](./features/demo-scope.md) | The Retro Mage demo proves a continuous global scene by connecting a small authored dungeon level to an outdoor level with visible preloading, traversal, collision, sprites, sky, and stylized lighting. |
+| [`docs/features/demo-slices.md`](./features/demo-slices.md) | The Retro Mage showcase demo advances through bounded playable slices that expose engine gaps while preserving alignment with the target experience. |
 | [`docs/features/level-transitions.md`](./features/level-transitions.md) | Retro Mage connects reusable level instances through explicit anchors and application-owned links while rendering both sides as one continuous global scene. |
 | [`docs/features/world-model.md`](./features/world-model.md) | Retro Mage represents one continuous global 3D world made from reusable authored or application-generated level definitions placed as runtime instances. |
 
@@ -37,7 +40,9 @@ Each entry links to a design doc and includes the doc's one-line summary. Docs d
 | [`docs/architecture/example-deployment.md`](./architecture/example-deployment.md) | Retro Mage example apps deploy as static sites to S3 + CloudFront under pixeldrip.games subdomains, so anyone can test the engine without running a local dev server. |
 | [`docs/architecture/input-schema.md`](./architecture/input-schema.md) | Retro Mage normalizes gamepad and touch input into one fixed-shape event struct — two analog vectors, a reserved vertical axis, and a 12-slot button bitmask — that the input package produces and engine-core consumes identically regardless of source device. |
 | [`docs/architecture/lighting.md`](./architecture/lighting.md) | Retro Mage computes surface shading using dynamic 2D lighting lookup tables (LUTs) generated at runtime, mapping surface base colors and active point lights read from engine-core's WASM buffer to shaded pixel colors. |
+| [`docs/architecture/material-contract.md`](./architecture/material-contract.md) | Retro Mage keeps material and visual asset ownership in the application while the renderer owns GPU resources, shader execution, render passes, and runtime LUT generation. |
 | [`docs/architecture/persistence-restore.md`](./architecture/persistence-restore.md) | Retro Mage restores application-owned instance state after base content reload while keeping runtime identity, placement, and activation safety engine-owned. |
+| [`docs/architecture/polygon-scene-transport.md`](./architecture/polygon-scene-transport.md) | Retro Mage transports authored polygon render content through a fixed-capacity renderer-neutral WASM scene boundary with explicit material, UV, transform, publication, and overflow rules. |
 | [`docs/architecture/provider-lifecycle.md`](./architecture/provider-lifecycle.md) | Retro Mage exposes application-owned level provider work through a pull-based request queue with explicit cancellation, terminal cleanup, retry identity, and stale-result rejection. |
 | [`docs/architecture/rendering.md`](./architecture/rendering.md) | Retro Mage renders transformed level instances as one global retro 3D scene using depth-tested tile and polygon geometry, billboard sprites, stylized LUT lighting, and long-distance outdoor support. |
 | [`docs/architecture/repo-structure.md`](./architecture/repo-structure.md) | Retro Mage is a pnpm monorepo where the engine ships as a consumable package, an example dungeon demonstrates it end to end, and every package is organized as vertical feature slices. |

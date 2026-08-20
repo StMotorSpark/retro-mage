@@ -8,4 +8,10 @@ export default tseslint.config(
   {
     ignores: ['**/dist/**', '**/node_modules/**', '**/target/**', '**/*.wasm', '**/pkg/**'],
   },
+  {
+    files: ['examples/spike-ktx2/scripts/**/*.mjs'],
+    languageOptions: {
+      globals: { console: 'readonly', process: 'readonly' },
+    },
+  },
 );

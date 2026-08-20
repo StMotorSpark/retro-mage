@@ -1,5 +1,30 @@
 import { test, expect, chromium, Page } from '@playwright/test';
 
+type DemoDebug = {
+  assetsReady: boolean;
+  pose: { x: number; y: number; z: number };
+  grounded: boolean;
+  verticalVelocity: number;
+  renderFrame: number;
+  debugMovement: { pitch: number };
+  renderProof: {
+    lowerRoomVisible: boolean;
+    materialIds: number[];
+    litOpaqueTileCount: number;
+    translucentTileCount: number;
+    activeLightCount: number;
+    lutActive: boolean;
+    materialDiagnostics: number;
+  };
+};
+
+declare global {
+  interface Window {
+    __retroMageDebug?: DemoDebug;
+    __retroMageTeleport?: (x: number, y: number, z: number) => void;
+  }
+}
+
 async function dispatchMove(page: Page, dx: number, dy: number) {
   await page.evaluate(({ selector, dx, dy }) => {
     const target = document.querySelector(selector);
@@ -40,6 +65,13 @@ async function stopMove(page: Page) {
   }, { selector: '.retro-input-move-zone' });
 }
 
+async function waitForSettledSupport(page: Page, expectedHeight: (state: DemoDebug) => boolean) {
+  await expect.poll(async () => {
+    const state = await page.evaluate(() => window.__retroMageDebug);
+    return state !== undefined && state.grounded && state.verticalVelocity === 0 && expectedHeight(state);
+  }, { timeout: 5000 }).toBe(true);
+}
+
 test('vertical movement demo', async () => {
   const browser = await chromium.launch({
     headless: true,
@@ -48,15 +80,20 @@ test('vertical movement demo', async () => {
   const context = await browser.newContext();
   const page = await context.newPage();
 
+  try {
   await page.goto('http://localhost:5173');
   await page.waitForSelector('canvas', { state: 'attached', timeout: 15000 });
 
-  const getDebug = async () => await page.evaluate(() => (window as any).__retroMageDebug);
+  const getDebug = async (): Promise<DemoDebug> => {
+    const debug = await page.evaluate(() => window.__retroMageDebug);
+    if (!debug) throw new Error('Demo debug state missing');
+    return debug;
+  };
 
-  await expect.poll(async () => {
-    const debug = await getDebug();
-    return debug && debug.assetsReady && debug.pose;
-  }, { timeout: 15000 }).toBeTruthy();
+  await expect.poll(
+    () => page.evaluate(() => window.__retroMageDebug?.assetsReady === true),
+    { timeout: 15000 },
+  ).toBe(true);
 
   let state = await getDebug();
   console.log('Initial pos:', state.pose);
@@ -73,6 +110,8 @@ test('vertical movement demo', async () => {
 
   await stopMove(page);
 
+  // Route position only proves we left ramp. Wait for documented ground support.
+  await waitForSettledSupport(page, state => state.pose.y < 0.1);
   state = await getDebug();
   console.log('Pos after moving past ramp bottom:', state.pose);
   expect(state.pose.y).toBeLessThan(0.1);
@@ -92,15 +131,52 @@ test('vertical movement demo', async () => {
 
   await stopMove(page);
 
-  // Wait for the player to fully stop and be grounded.
-  await expect.poll(async () => {
-    const debug = await getDebug();
-    return debug.grounded && debug.verticalVelocity === 0;
-  }, { timeout: 5000 }).toBe(true);
+  // Route position only proves ramp traversal; settle on upper support first.
+  await waitForSettledSupport(page, state => state.pose.y > 0.9);
 
   state = await getDebug();
   console.log('Pos after ascending ramp:', state.pose);
   expect(state.pose.y).toBeGreaterThan(0.9);
+  // Balcony proof: the same production traversal reaches the authored rail; no teleport bypass.
+  const balconyEntry = await getDebug();
+  expect(balconyEntry.pose.y).toBeGreaterThan(0.9);
+  expect(balconyEntry.grounded).toBe(true);
+  // Continue along the authored balcony before testing its side guard.
+  await dispatchMove(page, 0, -10);
+  await expect.poll(async () => (await getDebug()).pose.z < 3.2, { timeout: 5000 }).toBe(true);
+  await stopMove(page);
+  await dispatchMove(page, 30, 0);
+  await expect.poll(async () => (await getDebug()).renderFrame > balconyEntry.renderFrame + 10, { timeout: 5000 }).toBe(true);
+  await stopMove(page);
+  await waitForSettledSupport(page, state => state.pose.y > 0.9);
+  state = await getDebug();
+  expect(state.pose.x).toBeLessThan(2.8);
+  expect(state.pose.y).toBeGreaterThan(0.9);
+  expect(state.grounded).toBe(true);
+
+  // Look-down proof uses the production look touch zone and verifies lower-room geometry evidence.
+  const pitchBefore = (await getDebug()).debugMovement.pitch;
+  await page.evaluate(() => {
+    const target = document.querySelector('.retro-input-look-zone');
+    if (!target) throw new Error('Look zone missing');
+    const rect = target.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    const start = new Touch({ identifier: 23456, target, clientX: x, clientY: y });
+    const moved = new Touch({ identifier: 23456, target, clientX: x, clientY: y + 80 });
+    target.dispatchEvent(new TouchEvent('touchstart', { touches: [start], targetTouches: [start], changedTouches: [start], bubbles: true }));
+    target.dispatchEvent(new TouchEvent('touchmove', { touches: [moved], targetTouches: [moved], changedTouches: [moved], bubbles: true }));
+    target.dispatchEvent(new TouchEvent('touchend', { touches: [], targetTouches: [], changedTouches: [moved], bubbles: true }));
+  });
+  await expect.poll(async () => (await getDebug()).debugMovement.pitch, { timeout: 5000 }).toBeGreaterThan(pitchBefore);
+  state = await getDebug();
+  expect(state.renderProof.lowerRoomVisible).toBe(true);
+  expect(state.renderProof.materialIds).toContain(2);
+  expect(state.renderProof.litOpaqueTileCount).toBeGreaterThan(0);
+  expect(state.renderProof.translucentTileCount).toBe(0);
+  expect(state.renderProof.activeLightCount).toBeGreaterThan(0);
+  expect(state.renderProof.lutActive).toBe(true);
+  expect(state.renderProof.materialDiagnostics).toBe(0);
 
   // 2.1 Descend the ramp (walk +Z)
   await dispatchMove(page, 0, 10);
@@ -111,10 +187,7 @@ test('vertical movement demo', async () => {
 
   await stopMove(page);
 
-  await expect.poll(async () => {
-    const debug = await getDebug();
-    return debug.grounded && debug.verticalVelocity === 0;
-  }, { timeout: 5000 }).toBe(true);
+  await waitForSettledSupport(page, state => state.pose.y < 0.1);
 
   state = await getDebug();
   console.log('Pos after descending ramp:', state.pose);
@@ -129,10 +202,7 @@ test('vertical movement demo', async () => {
 
   await stopMove(page);
 
-  await expect.poll(async () => {
-    const debug = await getDebug();
-    return debug.grounded && debug.verticalVelocity === 0;
-  }, { timeout: 5000 }).toBe(true);
+  await waitForSettledSupport(page, state => state.pose.y > 0.9);
 
   // 3. Walk off the ledge (walk -X)
   await dispatchMove(page, -30, 0);
@@ -153,6 +223,7 @@ test('vertical movement demo', async () => {
 
   await stopMove(page);
 
+  await waitForSettledSupport(page, state => state.pose.y < 0.1);
   state = await getDebug();
   console.log('Pos after falling:', state.pose);
   expect(state.pose.y).toBeLessThan(0.1);
@@ -165,17 +236,17 @@ test('vertical movement demo', async () => {
 
   // 4. Test steep ramp (blocks movement)
   // Teleport directly in front of the steep ramp at x=4.5, z=6.5
-  await page.evaluate(() => (window as any).__retroMageTeleport?.(4.5, 0, 6.5));
-  // Wait for gravity to settle if needed
-  await expect.poll(async () => (await getDebug()).grounded, { timeout: 5000 }).toBe(true);
+  await page.evaluate(() => window.__retroMageTeleport?.(4.5, 0, 6.5));
+  // Teleport arrival is valid only after ground support settles.
+  await waitForSettledSupport(page, state => state.pose.y < 0.1);
 
   // Walk -Z into the steep ramp
   await dispatchMove(page, 0, -30);
 
-  // Give it 1 second to try and climb
-  let zBeforeSteep = (await getDebug()).pose.z;
-  await page.waitForTimeout(1000);
+  const steepStartFrame = (await getDebug()).renderFrame;
+  await expect.poll(async () => (await getDebug()).renderFrame, { timeout: 5000 }).toBeGreaterThan(steepStartFrame + 60);
   await stopMove(page);
+  await waitForSettledSupport(page, state => state.pose.y < 0.1);
 
   state = await getDebug();
   console.log('Pos after trying to climb steep ramp:', state.pose);
@@ -185,19 +256,24 @@ test('vertical movement demo', async () => {
 
   // 5. Test low ceiling
   // Teleport directly in front of the low ceiling at x=-2, z=4.5
-  await page.evaluate(() => (window as any).__retroMageTeleport?.(-2.0, 0, 4.5));
-  // Wait for gravity to settle if needed
-  await expect.poll(async () => (await getDebug()).grounded, { timeout: 5000 }).toBe(true);
+  await page.evaluate(() => window.__retroMageTeleport?.(-2.0, 0, 4.5));
+  // Teleport arrival is valid only after ground support settles.
+  await waitForSettledSupport(page, state => state.pose.y < 0.1);
 
   // Walk directly into the ceiling at x=-2, z=3 (moving -Z)
   await dispatchMove(page, 0, -30);
-  await page.waitForTimeout(1000);
+  const ceilingStartFrame = (await getDebug()).renderFrame;
+  await expect.poll(async () => (await getDebug()).renderFrame, { timeout: 5000 }).toBeGreaterThan(ceilingStartFrame + 60);
   await stopMove(page);
+  await waitForSettledSupport(page, state => state.pose.y < 0.1);
 
   state = await getDebug();
   console.log('Pos after trying to walk under low ceiling:', state.pose);
   // We should be blocked from entering z=3 under the ceiling
   expect(state.pose.z).toBeGreaterThan(3.2);
-
-  await browser.close();
+  } finally {
+    // Failed route predicates must still release production touch state.
+    await stopMove(page);
+    await browser.close();
+  }
 });

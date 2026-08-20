@@ -31,3 +31,4 @@ export * from './skybox/index.js';
 export * from './sprites/index.js';
 export * from './matrix.js';
 export * from './textures/index.js';
+export * from './materials/index.js';

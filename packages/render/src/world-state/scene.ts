@@ -6,6 +6,10 @@ export interface GlobalSceneTile {
   z: number;
   tile_id?: number;
   material_id?: number;
+  uv_mode?: number;
+  uv_u?: number;
+  uv_v?: number;
+  render_flags?: number;
   variant?: number;
   orientation?: number;
   solid?: number;
@@ -21,6 +25,11 @@ export interface GlobalSceneActor {
   facing?: number;
   sprite_id?: number;
   active?: number;
+  material_id?: number;
+  uv_mode?: number;
+  uv_u?: number;
+  uv_v?: number;
+  render_flags?: number;
 }
 
 export interface GlobalSceneLight {
@@ -87,7 +96,17 @@ export class SceneCapacityError extends Error {
   }
 }
 
+export interface GlobalScenePolygonsView {
+  readonly instance_id: Uint32Array; readonly source_id: Uint32Array;
+  readonly vertex_start: Uint32Array; readonly vertex_count: Uint32Array;
+  readonly index_start: Uint32Array; readonly index_count: Uint32Array;
+  readonly material_id: Uint32Array; readonly uv_mode: Float32Array; readonly render_flags: Float32Array; readonly placement_id: Uint32Array;
+  readonly vertices: Float32Array; readonly indices: Uint32Array;
+  readonly count: number; readonly vertex_count_total: number; readonly index_count_total: number;
+}
+
 export interface GlobalSceneView {
+  readonly polygons?: GlobalScenePolygonsView;
   readonly tiles: TilesView;
   readonly actors: ActorsView;
   readonly lights: LightsView;
@@ -129,7 +148,7 @@ export class GlobalSceneSubmission {
     }
     this.tileData = {
       x: new Float32Array(this.capacity.tiles), y: new Float32Array(this.capacity.tiles), z: new Float32Array(this.capacity.tiles),
-      tile_id: new Float32Array(this.capacity.tiles), variant: new Float32Array(this.capacity.tiles), solid: new Float32Array(this.capacity.tiles),
+      tile_id: new Float32Array(this.capacity.tiles), material_id: new Float32Array(this.capacity.tiles), uv_mode: new Float32Array(this.capacity.tiles), uv_u: new Float32Array(this.capacity.tiles), uv_v: new Float32Array(this.capacity.tiles), render_flags: new Float32Array(this.capacity.tiles), variant: new Float32Array(this.capacity.tiles), solid: new Float32Array(this.capacity.tiles),
       vertical_opening: new Float32Array(this.capacity.tiles), direction: new Float32Array(this.capacity.tiles), count: 0,
     };
     this.actorData = {
@@ -171,7 +190,7 @@ export class GlobalSceneSubmission {
     let i = this.tileCount;
     for (const tile of tiles) {
       this.tileData.x[i] = tile.x; this.tileData.y[i] = tile.y; this.tileData.z[i] = tile.z;
-      this.tileData.tile_id[i] = tile.tile_id ?? 0; this.tileData.variant[i] = tile.variant ?? 0; this.tileData.solid[i] = tile.solid ?? 0;
+      this.tileData.tile_id[i] = tile.tile_id ?? 0; this.tileData.material_id![i] = tile.material_id ?? 0; this.tileData.uv_mode![i] = tile.uv_mode ?? 0; this.tileData.uv_u![i] = tile.uv_u ?? 0; this.tileData.uv_v![i] = tile.uv_v ?? 0; this.tileData.render_flags![i] = tile.render_flags ?? 5; this.tileData.variant[i] = tile.variant ?? 0; this.tileData.solid[i] = tile.solid ?? 0;
       this.tileData.vertical_opening[i] = tile.vertical_opening ?? 0; this.tileData.direction[i] = tile.direction ?? 0; i++;
     }
     i = this.actorCount;

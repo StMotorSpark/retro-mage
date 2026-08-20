@@ -18,7 +18,11 @@ impl SolidAabb {
         if y >= self.max.y || y + height <= self.min.y { return false; }
         let cx = x.clamp(self.min.x, self.max.x);
         let cz = z.clamp(self.min.z, self.max.z);
-        (x - cx).powi(2) + (z - cz).powi(2) < radius * radius
+        // Contact is blocking, not free space. A tiny skin makes that rule
+        // stable in f32: without it, a nominally tangent substep can round
+        // outside the strict boundary and settle one full touch step late.
+        let contact_radius = radius + 0.0001;
+        (x - cx).powi(2) + (z - cz).powi(2) <= contact_radius * contact_radius
     }
 }
 
@@ -228,7 +232,7 @@ mod tests {
     use crate::world::{Bounds, PersistencePolicy, RuntimeState};
 
     fn level(id: &str, transform: Transform) -> (LevelInstance, LevelDefinition) {
-        (LevelInstance { id: id.into(), definition_id: "d".into(), definition_version: "1".into(), transform, state: RuntimeState::Active, persistence: PersistencePolicy::Session, render_resident: true, collision_active: true, simulation_active: true, restore_status: crate::world::RestoreStatus::None, state_version: String::new(), restore_attempts: 0, handoff_status: crate::world::HandoffStatus::None }, LevelDefinition { id: "d".into(), version: "1".into(), bounds: Bounds { min: Vec3::ZERO, max: Vec3 { x: 4.0, y: 2.0, z: 4.0 } }, tiles: vec![crate::world::LevelTile { position: Vec3 { x: 0.0, y: 0.0, z: -2.0 }, tile_id: 0, material_id: 0, variant: 0, orientation: 0, solid: true, openings: Default::default(), stairs: None }], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], surfaces: vec![], metadata: Default::default() })
+        (LevelInstance { id: id.into(), definition_id: "d".into(), definition_version: "1".into(), transform, state: RuntimeState::Active, persistence: PersistencePolicy::Session, render_resident: true, collision_active: true, simulation_active: true, restore_status: crate::world::RestoreStatus::None, state_version: String::new(), restore_attempts: 0, handoff_status: crate::world::HandoffStatus::None }, LevelDefinition { id: "d".into(), version: "1".into(), bounds: Bounds { min: Vec3::ZERO, max: Vec3 { x: 4.0, y: 2.0, z: 4.0 } }, tiles: vec![crate::world::LevelTile { position: Vec3 { x: 0.0, y: 0.0, z: -2.0 }, tile_id: 0, material_id: 0, uv_mode: 0, uv_u: 0.0, uv_v: 0.0, render_flags: 5, variant: 0, orientation: 0, solid: true, openings: Default::default(), stairs: None }], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], surfaces: vec![], metadata: Default::default() })
     }
 
     #[test]
@@ -244,7 +248,7 @@ mod tests {
     fn projection_uses_render_global_tile_positions_without_second_transform() {
         let content = GlobalLevelContent {
             bounds: Bounds { min: Vec3::ZERO, max: Vec3 { x: 12.0, y: 2.0, z: 2.0 } },
-            tiles: vec![crate::world::LevelTile { position: Vec3 { x: 10.0, y: 0.0, z: 1.0 }, tile_id: 1, material_id: 2, variant: 0, orientation: 0, solid: true, openings: Default::default(), stairs: None }],
+            tiles: vec![crate::world::LevelTile { position: Vec3 { x: 10.0, y: 0.0, z: 1.0 }, tile_id: 1, material_id: 2, uv_mode: 0, uv_u: 0.0, uv_v: 0.0, render_flags: 5, variant: 0, orientation: 0, solid: true, openings: Default::default(), stairs: None }],
             actors: vec![], lights: vec![], polygons: vec![], surfaces: vec![],
         };
         let projection = CollisionInstance::from_content("global", &content);
@@ -272,6 +276,28 @@ mod tests {
         definition.tiles[0].openings.vertical = true;
         let world_instance = CollisionInstance::from_level(&instance, &definition);
         assert!(world_instance.solids.is_empty());
+    }
+
+    #[test]
+    fn contact_blocks_before_a_full_touch_step_enters_a_stream_bank() {
+        let mut world = GlobalCollisionWorld::new();
+        // This is the global projection of the authored tile-9 stream bank:
+        // a collision-only tile centered at x=20, with its west face at 19.5.
+        world.add_solid("stream-bank", SolidAabb {
+            min: Vec3 { x: 19.5, y: 0.0, z: 10.5 },
+            max: Vec3 { x: 20.5, y: 1.0, z: 11.5 },
+        }, true);
+        let mut config = crate::collision::CollisionConfig::default();
+        config.gravity = 0.0;
+        let start = Transform { translation: Vec3 { x: 18.4, y: 0.0, z: 11.0 }, ..Transform::IDENTITY };
+        let (blocked, _) = world.resolve_movement(start, 0.8, 0.0, 0.0, &config, 0.1);
+        assert!(blocked.translation.x - start.translation.x < 0.75, "blocked displacement was {}", blocked.translation.x - start.translation.x);
+
+        // The authored cobblestone opening is a non-solid tile at x=22, so
+        // traversal through that gap remains unblocked by collision-only banks.
+        let crossing = Transform { translation: Vec3 { x: 22.0, y: 0.0, z: 10.0 }, ..Transform::IDENTITY };
+        let (passed, _) = world.resolve_movement(crossing, 0.0, 2.0, 0.0, &config, 0.1);
+        assert!(passed.translation.z > 11.9, "cobblestone crossing was blocked at z={}", passed.translation.z);
     }
 
     #[test]

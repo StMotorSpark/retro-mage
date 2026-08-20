@@ -11,8 +11,8 @@ function log(msg: string, kind: LogKind = 'info') {
   line.textContent = msg;
   logEl.appendChild(line);
   logEl.scrollTop = logEl.scrollHeight;
-  // eslint-disable-next-line no-console
-  kind === 'error' ? console.error(msg) : console.log(msg);
+  if (kind === 'error') console.error(msg);
+  else console.log(msg);
 }
 
 window.addEventListener('error', (e) => log(`window.onerror: ${e.message}`, 'error'));
