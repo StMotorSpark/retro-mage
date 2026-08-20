@@ -35,6 +35,7 @@ Each entry links to a design doc and includes the doc's one-line summary. Docs d
 | [`docs/architecture/asset-pipeline.md`](./architecture/asset-pipeline.md) | Retro Mage ships texture assets as KTX2/UASTC, compressed by the consuming game's build step and transcoded/uploaded at runtime by the engine's render package, splitting the compression step (build-time, app-owned) from the transcode step (runtime, engine-owned). |
 | [`docs/architecture/collision-bridge.md`](./architecture/collision-bridge.md) | The world transport drives one world-aware tick while runtime-owned collision state feeds engine movement without caller-managed snapshots. |
 | [`docs/architecture/collision.md`](./architecture/collision.md) | Retro Mage resolves player movement against active transformed level geometry while preserving a 3D-capable world and simple sliding movement for the initial ground-plane slice. |
+| [`docs/architecture/consumer-integration.md`](./architecture/consumer-integration.md) | Retro Mage consuming games integrate engine-core, render, and input through an application-owned shell with explicit runtime, provider, asset, and verification boundaries. |
 | [`docs/architecture/crossing-policy.md`](./architecture/crossing-policy.md) | Retro Mage separates link preload relevance from narrow directional crossing and explicit re-arm hysteresis so active-world state changes only during intentional traversal. |
 | [`docs/architecture/eviction-reload.md`](./architecture/eviction-reload.md) | Retro Mage releases unneeded level-instance content through protected deterministic eviction and reloads it through the same provider and transform validation path while application state remains opaque. |
 | [`docs/architecture/example-deployment.md`](./architecture/example-deployment.md) | Retro Mage example apps deploy as static sites to S3 + CloudFront under pixeldrip.games subdomains, so anyone can test the engine without running a local dev server. |
@@ -56,6 +57,21 @@ Each entry links to a design doc and includes the doc's one-line summary. Docs d
 | [`docs/architecture/world-runtime.md`](./architecture/world-runtime.md) | Retro Mage manages application-supplied level definitions as transformed runtime instances with explicit loading, residency, activation, persistence, and eviction states. |
 | [`docs/architecture/world-streaming.md`](./architecture/world-streaming.md) | Retro Mage streams application-supplied level instances by relevance, preloads linked targets before visual reveal, and evicts unneeded content without interrupting global-world traversal. |
 | [`docs/architecture/world-structure-partitioning.md`](./architecture/world-structure-partitioning.md) | Retro Mage permits separate storage and streaming strategies for indoor and outdoor content while composing both through one global runtime coordinate space. |
+
+---
+
+## Consumer Guides
+
+> Agent-facing runbooks for separate game repositories consuming Retro Mage packages.
+
+| Doc | Summary |
+|-----|---------|
+| [`docs/consumer/agent-guide.md`](./consumer/agent-guide.md) | Retro Mage consumer agents use this entrypoint to integrate the engine without inheriting demo-specific behavior or violating runtime ownership. |
+| [`docs/consumer/integration-contract.md`](./consumer/integration-contract.md) | Retro Mage consumers preserve engine lifecycle authority while owning game content, provider execution, assets, gameplay, and durable state. |
+| [`docs/consumer/quickstart.md`](./consumer/quickstart.md) | Retro Mage consumers bootstrap one world-aware game loop by initializing WASM, registering game-owned world data, resolving provider work, and rendering exported state. |
+| [`docs/consumer/reference-app.md`](./consumer/reference-app.md) | Retro Mage consumers inspect the demo by integration concern while treating it as a runnable reference rather than a reusable dependency. |
+| [`docs/consumer/troubleshooting.md`](./consumer/troubleshooting.md) | Retro Mage consumers diagnose lifecycle, collision, render, asset, and browser integration failures through authoritative transport diagnostics and bounded reproductions. |
+| [`docs/consumer/vertical-slice-playbook.md`](./consumer/vertical-slice-playbook.md) | Retro Mage consumer agents deliver bounded game slices through contract reading, world-aware integration, browser proof, and explicit engine-gap escalation. |
 
 ---
 

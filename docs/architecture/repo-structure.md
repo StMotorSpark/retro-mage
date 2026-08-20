@@ -9,6 +9,7 @@ relates-to:
   - "[WASM Bridge](./wasm-bridge.md)"
   - "[Asset Pipeline](./asset-pipeline.md)"
   - "[Example Deployment](./example-deployment.md)"
+  - "[Consumer Integration](./consumer-integration.md)"
 ---
 
 # Repo Structure
@@ -69,3 +70,4 @@ A separate game repo built on Retro Mage depends on `engine-core`, `render`, and
 - [WASM Bridge](./wasm-bridge.md) — the read-only data contract between the `engine-core` and `render` packages
 - [Asset Pipeline](./asset-pipeline.md) — the engine-package-vs-consuming-game responsibility split this pipeline follows
 - [Example Deployment](./example-deployment.md) — how `examples/demo` deploys as a static site so the engine is testable without a local dev server
+- [Consumer Integration](./consumer-integration.md) — separate-game package and ownership boundary
