@@ -1,12 +1,12 @@
 ---
 task: "129"
 slug: bidirectional-return-core
-status: pending
+status: done
 depends-on: []
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-20
-outcome: ""
+outcome: "Replaced global crossing disarm with link-and-endpoint runtime state, transformed-forward direction, and reverse endpoint orientation. Added consumer-topology tick_engine return coverage with collision activation assertions. Verified: cd packages/engine-core && cargo test (119 unit + 5 integration passed)."
 ---
 
 # Repair Bidirectional Spatial Return Crossing

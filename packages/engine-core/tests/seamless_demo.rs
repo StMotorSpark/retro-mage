@@ -7,7 +7,7 @@ use engine_core::world_manifest::{AnchorRef, AnchorSharingPolicy, CrossingPolicy
 use engine_core::world_runtime::WorldRuntime;
 
 fn anchor(id: &str, x: f32) -> LevelAnchor {
-    LevelAnchor { id: id.into(), transform: Transform { translation: Vec3 { x, y: 0.0, z: 0.0 }, ..Transform::IDENTITY }, volume: Bounds { min: Vec3 { x: -0.5, y: 0.0, z: -0.5 }, max: Vec3 { x: 0.5, y: 1.0, z: 0.5 } }, direction: AnchorDirection::Both }
+    LevelAnchor { id: id.into(), transform: Transform::from_translation_yaw_scale(Vec3 { x, y: 0.0, z: 0.0 }, std::f32::consts::FRAC_PI_2, 1.0), volume: Bounds { min: Vec3 { x: -0.5, y: 0.0, z: -0.5 }, max: Vec3 { x: 0.5, y: 1.0, z: 0.5 } }, direction: AnchorDirection::Both }
 }
 
 fn dungeon() -> LevelDefinition {
@@ -70,7 +70,9 @@ fn spatial_target_is_placed_before_residency_and_stays_fixed_across_crossings() 
     runtime.resolve_definition("outdoor-instance", outdoor()).unwrap();
 
     let placed = runtime.instance("outdoor-instance").unwrap().transform;
-    assert_eq!(placed.translation, Vec3 { x: 6.0, y: 0.0, z: 0.0 });
+    assert!((placed.translation.x - 6.0).abs() < 0.001);
+    assert!(placed.translation.y.abs() < 0.001);
+    assert!(placed.translation.z.abs() < 0.001);
     assert_eq!(runtime.instance("outdoor-instance").unwrap().state, RuntimeState::Resident);
 
     runtime.activate("dungeon-instance").unwrap();
@@ -80,9 +82,9 @@ fn spatial_target_is_placed_before_residency_and_stays_fixed_across_crossings() 
 
     // Leave doorway volume, then return through reverse endpoint.
     let reverse_pose = Transform { translation: Vec3 { x: 3.2, y: 0.5, z: 0.0 }, ..Transform::IDENTITY };
-    assert!(runtime.try_crossing(reverse_pose, Vec3 { x: -1.0, y: 0.0, z: 0.0 }, &[], true).unwrap().resolution.is_none());
-    let _ = runtime.try_crossing(Transform { translation: Vec3 { x: 4.1, y: 0.5, z: 0.0 }, ..Transform::IDENTITY }, Vec3::ZERO, &[], true);
-    assert!(runtime.try_crossing(reverse_pose, Vec3 { x: -1.0, y: 0.0, z: 0.0 }, &[], true).unwrap().resolution.is_some());
+    assert!(runtime.try_crossing(reverse_pose, Vec3 { x: 1.0, y: 0.0, z: 0.0 }, &[], true).unwrap().resolution.is_none());
+    let _ = runtime.try_crossing(Transform { translation: Vec3 { x: 4.6, y: 0.5, z: 0.0 }, ..Transform::IDENTITY }, Vec3::ZERO, &[], true);
+    assert!(runtime.try_crossing(reverse_pose, Vec3 { x: 1.0, y: 0.0, z: 0.0 }, &[], true).unwrap().resolution.is_some());
     assert_eq!(runtime.instance("outdoor-instance").unwrap().transform, placed);
 }
 

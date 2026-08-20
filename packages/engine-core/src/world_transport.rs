@@ -526,21 +526,22 @@ mod tests {
     #[test]
     fn tick_engine_orders_movement_crossing_and_scheduler() {
         let mut t = WorldTransport::with_capacity(4, 1, 1, 2);
-        assert!(t.begin_definition("room1", "1", -2., 0., -2., 2., 2., 2.));
-        assert!(t.definition_anchor("room1", "out", 1., 0., 0., -0.5, 0., -0.5, 0.5, 2., 0.5, 2));
-        assert!(t.finish_definition("room1"));
-        assert!(t.begin_definition("room2", "1", -2., 0., -2., 2., 2., 2.));
-        assert!(t.definition_anchor("room2", "in", 0., 0., 0., -0.5, 0., -0.5, 0.5, 2., 0.5, 2));
-        assert!(t.finish_definition("room2"));
+        // Consumer-equivalent topology: outside anchor [4, 0, 1], dungeon
+        // anchor [3, 0, 6], and provisional dungeon placement [1, 0, 5].
+        assert!(t.begin_definition("outside", "1", -10., 0., -10., 10., 2., 10.));
+        assert!(t.definition_anchor_oriented("outside", "dungeon", 4., 0., 1., -std::f32::consts::FRAC_PI_2, -0.5, 0., -0.5, 0.5, 2., 0.5, 2));
+        assert!(t.finish_definition("outside"));
+        assert!(t.begin_definition("dungeon", "1", -10., 0., -10., 10., 2., 10.));
+        assert!(t.definition_anchor_oriented("dungeon", "outside", 3., 0., 6., -std::f32::consts::FRAC_PI_2, -0.5, 0., -0.5, 0.5, 2., 0.5, 2));
+        assert!(t.finish_definition("dungeon"));
+        assert!(t.register_instance("outside-instance", "outside", 0., 0., 0., 0., 0., 0., 1., 1., 1));
+        assert!(t.register_instance("dungeon-instance", "dungeon", 1., 0., 5., 0., 0., 0., 1., 1., 1));
+        assert!(t.register_bidirectional_link("link", "outside-instance", "dungeon", "dungeon-instance", "outside"));
 
-        assert!(t.register_instance("inst1", "room1", 0., 0., 0., 0., 0., 0., 1., 1., 1));
-        assert!(t.register_instance("inst2", "room2", 3., 0., 0., 0., 0., 0., 1., 1., 1));
-        assert!(t.register_bidirectional_link("link", "inst1", "out", "inst2", "in"));
-
-        let req1 = t.begin_load("inst1", "test");
-        assert!(t.accept_definition(req1, "inst1"));
-        assert!(t.set_instance_state("inst1", 3, true, true, true));
-        assert!(t.set_current_instance("inst1"));
+        let req1 = t.begin_load("outside-instance", "test");
+        assert!(t.accept_definition(req1, "outside-instance"));
+        assert!(t.set_instance_state("outside-instance", 3, true, true, true));
+        assert!(t.set_current_instance("outside-instance"));
 
         let mut engine = crate::EngineState::new();
         engine.global_collision_configured = true;
@@ -548,33 +549,35 @@ mod tests {
         config.gravity = 0.0;
         engine.set_collision_config(config);
         engine.set_player_speed(10.0);
-        engine.camera.x[0] = 0.0;
+        engine.camera.x[0] = 3.0;
         engine.camera.y[0] = 0.0;
-        engine.camera.z[0] = 0.0;
-
-        // Move towards the anchor
-        engine.set_input(0.0, 1.0, 0.0, 0.0, 0.0, 0, 0); // Move forward (Z direction)
-
-        // First tick moves the player closer
+        engine.camera.z[0] = 1.0;
+        engine.set_input(1.0, 0.0, 0.0, 0.0, 0.0, 0, 0);
         t.tick_engine(&mut engine, 0.05);
-        assert_eq!(t.active_instance_id(), "inst1");
-
-        // Ensure scheduler has queued the preload
+        assert_eq!(t.active_instance_id(), "outside-instance");
         assert!(t.scheduler_queue_depth() > 0 || t.scheduler_active_request_count() > 0);
 
-        let req2 = t.begin_load("inst2", "test");
-        if req2 > 0 { t.accept_definition(req2, "inst2"); }
-        assert!(t.set_instance_state("inst2", 2, true, true, false));
+        let req2 = t.begin_load("dungeon-instance", "test");
+        if req2 > 0 { t.accept_definition(req2, "dungeon-instance"); }
+        assert!(t.set_instance_state("dungeon-instance", 2, true, true, false));
 
-        // Now force the player into the crossing volume (before center to pass directional check)
-        engine.camera.x[0] = 0.6;
-        engine.camera.z[0] = 0.0;
-        engine.set_player_speed(2.0); // Move 0.2 in dt=0.1
-        engine.set_input(1.0, 0.0, 0.0, 0.0, 0.0, 0, 0); // Move right (X direction)
+        engine.set_player_speed(2.0);
         t.tick_engine(&mut engine, 0.1);
+        assert_eq!(t.active_instance_id(), "dungeon-instance");
+        assert!(t.runtime.collision_active("dungeon-instance"));
+        assert!(!t.runtime.collision_active("outside-instance"));
 
-        // Crossing should have triggered
-        assert_eq!(t.active_instance_id(), "inst2");
+        // Leave re-arm clearance with normal ticks, then cross reverse endpoint.
+        engine.set_player_speed(5.0);
+        t.tick_engine(&mut engine, 0.1);
+        t.tick_engine(&mut engine, 0.1);
+        t.tick_engine(&mut engine, 0.1);
+        engine.set_input(-1.0, 0.0, 0.0, 0.0, 0.0, 0, 0);
+        t.tick_engine(&mut engine, 0.1);
+        t.tick_engine(&mut engine, 0.1);
+        assert_eq!(t.active_instance_id(), "outside-instance");
+        assert!(t.runtime.collision_active("outside-instance"));
+        assert!(!t.runtime.collision_active("dungeon-instance"));
     }
 }
 
