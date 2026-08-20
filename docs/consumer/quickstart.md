@@ -84,6 +84,12 @@ Verify checked-out declarations for exact registration and scheduler method name
 
 For every active request, retain `{ requestId, instanceId, abortController }` in game-owned provider state. On success call the public acceptance method with the same request identity and instance. On failure report failure with the same identity. On engine cancellation abort the game job where possible. A late promise completion remains stale; never retry it by issuing acceptance under a newer ID.
 
+## Spatial Link Rules
+
+`register_bidirectional_link(...)` creates a spatial connection. The target instance transform supplied during registration is provisional: the engine aligns the target anchor to the source anchor before residency. The application supplies authored anchors and starts/completes provider work; it does not calculate doorway coordinates or target placement.
+
+The runtime owns anchor-volume evaluation, directional traversal, target readiness, collision activation, and re-arm hysteresis. Each frame submits normalized input once, then calls `WorldTransport.tick_engine(engine, dtSeconds)` once. A consumer does not add coordinate thresholds, direct camera teleports, a second engine tick, or manual collision synchronization around a crossing.
+
 ## Minimal Proof
 
 Automate browser assertions that prove:

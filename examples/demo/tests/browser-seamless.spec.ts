@@ -180,7 +180,14 @@ test('target is visible before crossing and forward/reverse traversal stays cont
   await strafe(page, 70, (snapshot) => snapshot.activeInstance === 'outdoor-instance');
   const forward = await debug(page);
   expect(forward.activeInstance).toBe('outdoor-instance');
+  // Spatial links change active ownership without an authored arrival teleport:
+  // normal normalized touch movement carries the global pose through the seam.
   expect(forward.pose.x).toBeGreaterThan(startX + 1);
+  expect(forward.pose.z).toBeCloseTo(before.pose.z, 1);
+  expect(forward.grounded).toBe(true);
+  expect(forward.overflowed).toBe(false);
+  expect(forward.instances.find((instance) => instance.id === 'outdoor-instance')?.collisionActive).toBe(true);
+  expect(forward.instances.find((instance) => instance.id === 'dungeon-instance')?.collisionActive).toBe(false);
   expect(forward.renderFrame).toBeGreaterThan(before.renderFrame);
 
   // Clear re-arm hysteresis before attempting return traversal.
@@ -192,6 +199,11 @@ test('target is visible before crossing and forward/reverse traversal stays cont
   const reverse = await debug(page);
   expect(reverse.activeInstance).toBe('dungeon-instance');
   expect(reverse.pose.x).toBeLessThan(outside.pose.x - 0.5);
+  expect(reverse.pose.z).toBeCloseTo(outside.pose.z, 1);
+  expect(reverse.grounded).toBe(true);
+  expect(reverse.overflowed).toBe(false);
+  expect(reverse.instances.find((instance) => instance.id === 'dungeon-instance')?.collisionActive).toBe(true);
+  expect(reverse.instances.find((instance) => instance.id === 'outdoor-instance')?.collisionActive).toBe(false);
   expect(reverse.sourcePlayable).toBe(true);
 });
 

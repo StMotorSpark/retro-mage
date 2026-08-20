@@ -198,6 +198,11 @@ impl WorldTransport {
         self.runtime.cancel_load(id, "Transport explicitly cancelled").map(|_| { self.sync(); true }).unwrap_or(false)
     }
 
+    /// Register a spatial link whose target transform is provisional: the runtime
+    /// aligns its target anchor to the source anchor before residency. The engine
+    /// owns anchor-volume, directional, and re-arm crossing behavior; callers use
+    /// `tick_engine` only and never add crossing thresholds, teleports, or collision
+    /// synchronization workarounds.
     pub fn register_bidirectional_link(&mut self, id: &str, source_instance_id: &str, source_anchor_id: &str, target_instance_id: &str, target_anchor_id: &str) -> bool {
         self.runtime.register_link(LevelLink { id: id.into(), source: AnchorRef { instance_id: source_instance_id.into(), anchor_id: source_anchor_id.into() }, target: LinkTarget::Instance(AnchorRef { instance_id: target_instance_id.into(), anchor_id: target_anchor_id.into() }), direction: LinkDirection::Bidirectional, anchor_sharing: AnchorSharingPolicy::Exclusive, transform: LinkTransform::Spatial, crossing_policy: CrossingPolicy::default(), preload_policy: LinkPreloadPolicy::Distance(10.0) }).is_ok()
     }

@@ -1,12 +1,12 @@
 ---
 task: "130"
 slug: return-crossing-browser-proof
-status: pending
+status: done
 depends-on: ["129"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-20
-outcome: ""
+outcome: "Strengthened public-WASM browser proof for touch-driven source-to-target and return crossings, including active collision handoff, grounding, clean overflow, and spatial pose continuity. Published spatial-link ownership guidance in the consumer quickstart and WorldTransport API docs. Verified: cd packages/engine-core && cargo test -p engine-core (119 unit + 5 integration passed); pnpm --filter demo typecheck (passed); pnpm --filter engine-core build (passed); targeted Playwright browser-seamless return proof (1 passed). rustfmt check could not run because stable-aarch64-apple-darwin lacks cargo-fmt."
 ---
 
 # Prove Return Crossing at Browser Consumer Boundary
