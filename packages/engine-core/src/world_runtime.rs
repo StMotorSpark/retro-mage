@@ -38,12 +38,18 @@ pub struct CrossingEvaluation {
     pub rejection: Option<CrossingRejection>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct DisarmedCrossing {
+    link_id: String,
+    endpoint: AnchorRef,
+}
+
 /// Composition root for one global world.
 #[derive(Debug)]
 pub struct WorldRuntime {
     topology: WorldTopology,
     residency: ResidencyStore,
-    crossing_armed: bool,
+    disarmed_crossing: Option<DisarmedCrossing>,
 }
 
 impl WorldRuntime {
@@ -54,7 +60,7 @@ impl WorldRuntime {
         for descriptor in topology.instances() {
             residency.register(descriptor.instance.clone())?;
         }
-        Ok(Self { topology, residency, crossing_armed: true })
+        Ok(Self { topology, residency, disarmed_crossing: None })
     }
 
     pub fn new(manifest: WorldManifest) -> Result<Self, WorldRuntimeError> {
@@ -85,28 +91,29 @@ impl WorldRuntime {
     /// Resolve and commit spatial link crossing from player proximity. Runtime
     /// owns anchor selection, readiness gate, hysteresis, and activation.
     pub fn try_crossing(&mut self, player_pose: crate::world::Transform, movement: Vec3, overflowed_targets: &[&str], block_on_overflow: bool) -> Result<CrossingEvaluation, WorldRuntimeError> {
-        if !self.crossing_armed {
-            let still_inside = self.residency.current().and_then(|current| self.topology.links().find_map(|link| {
-                let source = if link.source.instance_id == current { Some(&link.source) } else if link.direction == crate::world_manifest::LinkDirection::Bidirectional {
-                    match &link.target { crate::world_manifest::LinkTarget::Instance(target) if target.instance_id == current => Some(target), _ => None }
-                } else { None };
-                source.map(|anchor| (anchor, link.crossing_policy))
-            }));
-            if !still_inside.map(|(anchor, policy)| self.topology.anchor_contains_world(anchor, player_pose.translation, policy.padding + policy.rearm_distance).unwrap_or(false)).unwrap_or(false) { self.crossing_armed = true; }
-            if !self.crossing_armed { return Ok(CrossingEvaluation { resolution: None, rejection: None }); }
+        if let Some(disarmed) = &self.disarmed_crossing {
+            let still_inside = self.topology.link(&disarmed.link_id).map(|link| {
+                self.topology.anchor_contains_world(
+                    &disarmed.endpoint,
+                    player_pose.translation,
+                    link.crossing_policy.padding + link.crossing_policy.rearm_distance,
+                ).unwrap_or(false)
+            }).unwrap_or(false);
+            if still_inside { return Ok(CrossingEvaluation { resolution: None, rejection: None }); }
+            self.disarmed_crossing = None;
         }
         let Some(current) = self.residency.current().map(str::to_owned) else { return Ok(CrossingEvaluation { resolution: None, rejection: None }) };
         let candidate = self.topology.links().find_map(|link| {
-            let from = if link.source.instance_id == current { Some(&link.source) } else if link.direction == crate::world_manifest::LinkDirection::Bidirectional {
-                match &link.target { crate::world_manifest::LinkTarget::Instance(target) if target.instance_id == current => Some(target), _ => None }
+            let from = if link.source.instance_id == current { Some(link.source.clone()) } else if link.direction == crate::world_manifest::LinkDirection::Bidirectional && link.target_ref().instance_id == current {
+                Some(link.target_ref())
             } else { None }?;
-            let inside = self.topology.anchor_contains_world(from, player_pose.translation, link.crossing_policy.padding).ok().unwrap_or(false);
+            let inside = self.topology.anchor_contains_world(&from, player_pose.translation, link.crossing_policy.padding).ok().unwrap_or(false);
             let directional = if !link.crossing_policy.require_direction { true } else {
-                let center = self.topology.anchor_center_world(from).ok()?;
-                let toward = Vec3 { x: center.x - player_pose.translation.x, y: center.y - player_pose.translation.y, z: center.z - player_pose.translation.z };
-                movement.x * toward.x + movement.y * toward.y + movement.z * toward.z > 0.0
+                let mut forward = self.topology.anchor_forward_world(&from).ok()?;
+                if from != link.source { forward = Vec3 { x: -forward.x, y: -forward.y, z: -forward.z }; }
+                movement.x * forward.x + movement.y * forward.y + movement.z * forward.z > 0.0
             };
-            (inside && directional).then(|| (link.id.clone(), from.clone()))
+            (inside && directional).then(|| (link.id.clone(), from))
         });
         let Some((link_id, from)) = candidate else { return Ok(CrossingEvaluation { resolution: None, rejection: None }) };
         let resolution = self.resolve_crossing(&link_id, &from, player_pose)?;
@@ -126,13 +133,14 @@ impl WorldRuntime {
         // Crossing-critical pair pin ends when transaction commits. Current-instance
         // pin and scheduler link relevance retain content as needed afterward.
         self.residency.set_transition_pair(&current, &resolution.target_instance_id, false)?;
-        self.crossing_armed = false;
+        self.disarmed_crossing = Some(DisarmedCrossing { link_id, endpoint: from });
         Ok(CrossingEvaluation { resolution: Some(resolution), rejection: None })
     }
 
     /// Add application-discovered topology and its authoritative lifecycle record.
     pub fn register_link(&mut self, link: crate::world_manifest::LevelLink) -> Result<(), WorldRuntimeError> {
         self.topology.register_link(link)?;
+        self.disarmed_crossing = None;
         Ok(())
     }
 
@@ -229,6 +237,9 @@ impl WorldRuntime {
         Ok(())
     }
     pub fn evict(&mut self, id: &str, reason: String) -> Result<PersistenceHandoff, WorldRuntimeError> {
+        if self.disarmed_crossing.as_ref().is_some_and(|crossing| crossing.endpoint.instance_id == id) {
+            self.disarmed_crossing = None;
+        }
         let handoff = self.residency.evict(id, reason)?;
         self.sync_topology_instance(id);
         Ok(handoff)
