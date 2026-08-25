@@ -67,7 +67,12 @@ async function strafe(page: Page, dx: number, reached: (snapshot: DebugSnapshot)
     target.dispatchEvent(new TouchEvent('touchmove', { touches: [moved], targetTouches: [moved], changedTouches: [moved], bubbles: true }));
     (window as unknown as { __testTouch?: Touch }).__testTouch = moved;
   }, { dx });
-  await expect.poll(async () => reached(await debug(page)), { timeout }).toBe(true);
+  try {
+    await expect.poll(async () => reached(await debug(page)), { timeout }).toBe(true);
+  } catch (error) {
+    const snapshot = await debug(page);
+    throw new Error(`Touch traversal did not reach route condition: ${JSON.stringify({ pose: snapshot.pose, activeInstance: snapshot.activeInstance, instances: snapshot.instances, sourcePlayable: snapshot.sourcePlayable, evictions: snapshot.evictions, diagnostics: diagnostics.get(page) })}`, { cause: error });
+  }
   await page.evaluate(() => {
     const target = document.querySelector('.retro-input-move-zone');
     const touch = (window as unknown as { __testTouch?: Touch }).__testTouch;

@@ -748,6 +748,42 @@ mod tests {
     }
 
     #[test]
+    fn dynamic_content_opening_changes_scene_and_world_aware_player_passage() {
+        let mut transport = WorldTransport::with_capacity(4, 1, 1, 1);
+        assert!(transport.begin_definition("door", "1", -3., 0., -2., 3., 2., 2.));
+        assert!(transport.begin_dynamic_content_slot("door", "gate", "closed"));
+        assert!(transport.definition_dynamic_content_variant("door", "gate", "closed"));
+        assert!(transport.dynamic_content_variant_tile("door", 0., 0., 0., 41, 0, 0, 0, true, false, false, false, false, false));
+        assert!(transport.definition_dynamic_content_variant("door", "gate", "open"));
+        assert!(transport.dynamic_content_variant_tile("door", 0., 0., 0., 42, 0, 0, 0, false, false, false, false, false, false));
+        assert!(transport.finish_dynamic_content_slot("door", "gate"));
+        assert!(transport.finish_definition("door"));
+        assert!(transport.register_instance("door-instance", "door", 0., 0., 0., 0., 0., 0., 1., 1., 0));
+        let request = transport.begin_load("door-instance", "fixture");
+        assert!(transport.accept_definition(request, "door-instance"));
+        assert!(transport.set_instance_state("door-instance", 3, true, true, true));
+
+        let mut engine = crate::EngineState::new();
+        let mut config = engine.collision_config();
+        config.gravity = 0.0;
+        engine.set_collision_config(config);
+        engine.set_player_speed(10.0);
+        engine.camera.x[0] = -2.0;
+        engine.camera.y[0] = 0.0;
+        engine.camera.z[0] = 0.0;
+        engine.set_input(1.0, 0.0, 0.0, 0.0, 0.0, 0, 0);
+
+        transport.tick_engine(&mut engine, 0.2);
+        assert_eq!((transport.tile_id[0], transport.tile_solid[0]), (41., 1.));
+        assert!(engine.camera.x[0] < -0.5, "closed door must block the normal world-aware route");
+
+        assert_eq!(transport.set_dynamic_content_variant("door-instance", "gate", "open"), 1);
+        transport.tick_engine(&mut engine, 0.2);
+        assert_eq!((transport.tile_id[0], transport.tile_solid[0]), (42., 0.));
+        assert!(engine.camera.x[0] > 0.5, "accepted open command must permit the same route without collision synchronization");
+    }
+
+    #[test]
     fn dynamic_content_restore_reapplies_before_activation_and_evicts_transient_override() {
         let mut t = WorldTransport::with_capacity(8, 1, 1, 2);
         assert!(t.begin_definition("door", "1", -2., 0., -2., 2., 2., 2.));
