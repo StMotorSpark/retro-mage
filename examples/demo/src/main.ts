@@ -3,6 +3,7 @@ import { createRenderer, createSpriteRenderer, loadPngTexture, mat4Create, mat4P
 import { createInputSource, FACE1 } from 'input';
 import { PerfOverlay } from './perf-overlay.js';
 import { createDemoLevelProvider, demoManifest, registerDemoWorld, type DemoLevelId } from './demo-world.js';
+import { installDynamicContentProof, type DynamicContentProofHarness } from './dynamic-content-proof.js';
 
 declare const __RETRO_MAGE_BUILD_ID__: string;
 
@@ -39,6 +40,7 @@ declare global {
     __retroMageWorldTransport?: WorldTransport;
     __retroMageTeleport?: (x: number, y: number, z: number) => void;
     __retroMageCancelProof?: () => boolean;
+    __retroMageDynamicContentProof?: DynamicContentProofHarness;
   }
 }
 
@@ -78,8 +80,13 @@ async function main(): Promise<void> {
   if (spriteAlphaProof === 'tree' || spriteAlphaProof === 'torch') await renderSpriteAlphaProof(spriteAlphaProof);
 
   const wasmOutput = await init();
-  const engineState = new EngineState();
   const searchParams = new URLSearchParams(window.location.search);
+  if (searchParams.has('dynamicContentProof')) {
+    // Isolated browser fixture: it deliberately does not register or depend on demo content.
+    window.__retroMageDynamicContentProof = installDynamicContentProof(wasmOutput.memory);
+    return;
+  }
+  const engineState = new EngineState();
   const failOutdoor = searchParams.has('failOutdoor');
   const slowOutdoor = searchParams.has('slowOutdoor');
   const overflowActors = searchParams.has('overflowActors');
