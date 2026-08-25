@@ -327,6 +327,28 @@ impl SupportSurface {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct DynamicContentContribution {
+    pub tiles: Vec<LevelTile>,
+    pub actors: Vec<LevelActor>,
+    pub lights: Vec<LevelLight>,
+    pub polygons: Vec<LevelPolygon>,
+    pub surfaces: Vec<SupportSurface>,
+}
+
+impl DynamicContentContribution {
+    pub fn validate(&self) -> Result<(), WorldContractError> {
+        let definition = LevelDefinition { id: "dynamic-content".into(), version: "1".into(), bounds: Bounds { min: Vec3::ZERO, max: Vec3::ZERO }, tiles: self.tiles.clone(), actors: self.actors.clone(), lights: self.lights.clone(), polygons: self.polygons.clone(), anchors: vec![], surfaces: self.surfaces.clone(), metadata: HashMap::new(), dynamic_content: vec![] };
+        definition.validate()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct DynamicContentVariant { pub id: String, pub contribution: DynamicContentContribution }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct DynamicContentSlot { pub content_id: String, pub default_variant_id: String, pub variants: Vec<DynamicContentVariant> }
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct LevelDefinition {
     pub id: String,
     pub version: String,
@@ -338,6 +360,7 @@ pub struct LevelDefinition {
     pub anchors: Vec<LevelAnchor>,
     pub surfaces: Vec<SupportSurface>,
     pub metadata: HashMap<String, String>,
+    pub dynamic_content: Vec<DynamicContentSlot>,
 }
 
 impl LevelDefinition {
@@ -350,6 +373,21 @@ impl LevelDefinition {
         for light in &self.lights { if !light.position.is_finite() || light.color.iter().any(|value| !value.is_finite()) || !light.intensity.is_finite() { return Err(WorldContractError::NonFinite("light")); } }
         for polygon in &self.polygons { if polygon.vertices.len() < 3 || polygon.vertices.iter().any(|point| !point.is_finite()) || polygon.normals.len() != polygon.vertices.len() || polygon.normals.iter().any(|normal| !normal.is_finite()) || polygon.uvs.len() != polygon.vertices.len() || polygon.uvs.iter().any(|(u, v)| !u.is_finite() || !v.is_finite()) || polygon.uv_mode > 2 { return Err(WorldContractError::InvalidPolygon); } }
         for surface in &self.surfaces { surface.validate()?; }
+        let mut content_ids = std::collections::HashSet::new();
+        for slot in &self.dynamic_content {
+            validate_id(&slot.content_id, "content")?;
+            validate_id(&slot.default_variant_id, "variant")?;
+            if !content_ids.insert(&slot.content_id) { return Err(WorldContractError::DuplicateContentId(slot.content_id.clone())); }
+            let mut variant_ids = std::collections::HashSet::new();
+            let mut has_default = false;
+            for variant in &slot.variants {
+                validate_id(&variant.id, "variant")?;
+                if !variant_ids.insert(&variant.id) { return Err(WorldContractError::DuplicateVariantId { content_id: slot.content_id.clone(), variant_id: variant.id.clone() }); }
+                has_default |= variant.id == slot.default_variant_id;
+                variant.contribution.validate()?;
+            }
+            if !has_default { return Err(WorldContractError::UnknownDefaultVariant(slot.content_id.clone())); }
+        }
         let mut ids = std::collections::HashSet::new();
         for anchor in &self.anchors {
             anchor.validate()?;
@@ -430,6 +468,9 @@ pub enum WorldContractError {
     UnknownDefinition(String),
     InvalidPolygon,
     InvalidAnchorVolume,
+    DuplicateContentId(String),
+    DuplicateVariantId { content_id: String, variant_id: String },
+    UnknownDefaultVariant(String),
 }
 
 fn validate_id(id: &str, kind: &'static str) -> Result<(), WorldContractError> {
@@ -467,7 +508,7 @@ mod tests {
     #[test]
     fn derives_world_bounds_from_all_corners() {
         let instance = LevelInstance { id: "room".into(), definition_id: "d".into(), definition_version: "1".into(), transform: Transform { translation: Vec3 { x: 5.0, y: 2.0, z: -1.0 }, ..Transform::IDENTITY }, state: RuntimeState::Known, persistence: PersistencePolicy::Session, render_resident: false, collision_active: false, simulation_active: false, restore_status: RestoreStatus::None, state_version: String::new(), restore_attempts: 0, handoff_status: HandoffStatus::None };
-        let definition = LevelDefinition { id: "d".into(), version: "1".into(), bounds: bounds(), tiles: vec![], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], surfaces: vec![], metadata: HashMap::new() };
+        let definition = LevelDefinition { id: "d".into(), version: "1".into(), bounds: bounds(), tiles: vec![], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], surfaces: vec![], metadata: HashMap::new(), dynamic_content: vec![] };
         assert_eq!(instance.world_bounds(&definition).unwrap(), Bounds { min: Vec3 { x: 4.0, y: 2.0, z: -3.0 }, max: Vec3 { x: 6.0, y: 4.0, z: 1.0 } });
     }
 
@@ -478,7 +519,7 @@ mod tests {
         transform.scale = 0.0;
         assert_eq!(transform.validate(), Err(WorldContractError::InvalidScale));
         assert_eq!((Bounds { min: Vec3 { x: 1.0, y: 0.0, z: 0.0 }, max: Vec3::ZERO }).validate(), Err(WorldContractError::InvertedBounds));
-        let mut definition = LevelDefinition { id: "".into(), version: "1".into(), bounds: bounds(), tiles: vec![], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], surfaces: vec![], metadata: HashMap::new() };
+        let mut definition = LevelDefinition { id: "".into(), version: "1".into(), bounds: bounds(), tiles: vec![], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], surfaces: vec![], metadata: HashMap::new(), dynamic_content: vec![] };
         assert_eq!(definition.validate(), Err(WorldContractError::EmptyId("definition")));
         definition.id = "d".into(); definition.anchors.push(LevelAnchor { id: "".into(), transform: Transform::IDENTITY, volume: bounds(), direction: AnchorDirection::Both });
         assert_eq!(definition.validate(), Err(WorldContractError::EmptyId("anchor")));

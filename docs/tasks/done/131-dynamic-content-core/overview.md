@@ -1,12 +1,12 @@
 ---
 task: "131"
 slug: dynamic-content-core
-status: pending
+status: done
 depends-on: []
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-25
-outcome: ""
+outcome: "Implemented validated authored slots and per-instance variant selection with atomic transformed render/collision recomposition and stable mutation outcomes. Added isolation, lifecycle, revision, visible/solid, visible/non-solid, empty, and no-partial-change coverage; engine-core tests pass."
 ---
 
 # Implement Runtime Dynamic-Content Core

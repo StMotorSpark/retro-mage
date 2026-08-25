@@ -9,7 +9,7 @@ use crate::global_collision::GlobalCollisionWorld;
 use crate::instance_runtime::GlobalLevelContent;
 use crate::level_provider::{FixtureProvider, LevelProvider, LevelProviderMetadata, LevelProviderRequest, LevelProviderResult, ProviderUpdate};
 use crate::world::{LevelDefinition, Vec3};
-use crate::residency::{PersistenceHandoff, ResidencyError, ResidencyStore};
+use crate::residency::{DynamicContentMutationResult, PersistenceHandoff, ResidencyError, ResidencyStore};
 use crate::world::{LevelInstance, RuntimeState};
 use crate::world_manifest::{AnchorRef, CrossingResolution, InstanceDescriptor, WorldManifest, WorldManifestError, WorldTopology};
 
@@ -264,6 +264,13 @@ impl WorldRuntime {
         Ok(())
     }
     pub fn set_current(&mut self, id: Option<&str>) -> Result<(), WorldRuntimeError> { Ok(self.residency.set_current(id)?) }
+    pub fn set_dynamic_content_variant(&mut self, instance_id: &str, content_id: &str, variant_id: &str) -> DynamicContentMutationResult {
+        self.residency.set_dynamic_content_variant(instance_id, content_id, variant_id)
+    }
+    pub fn clear_dynamic_content_override(&mut self, instance_id: &str, content_id: &str) -> DynamicContentMutationResult {
+        self.residency.clear_dynamic_content_override(instance_id, content_id)
+    }
+    pub fn dynamic_content_variant(&self, instance_id: &str, content_id: &str) -> Option<&str> { self.residency.dynamic_content_variant(instance_id, content_id) }
     pub fn pin(&mut self, id: &str, pinned: bool) -> Result<(), WorldRuntimeError> { Ok(self.residency.pin(id, pinned)?) }
     pub fn set_transition_pair(&mut self, a: &str, b: &str, pinned: bool) -> Result<(), WorldRuntimeError> { Ok(self.residency.set_transition_pair(a, b, pinned)?) }
 
@@ -322,7 +329,7 @@ mod tests {
     use crate::world_manifest::{DefinitionDescriptor, WorldManifest};
 
     fn definition() -> LevelDefinition {
-        LevelDefinition { id: "room".into(), version: "1".into(), bounds: Bounds { min: Vec3::ZERO, max: Vec3 { x: 1.0, y: 1.0, z: 1.0 } }, tiles: vec![crate::world::LevelTile { position: Vec3::ZERO, tile_id: 0, material_id: 0, uv_mode: 0, uv_u: 0.0, uv_v: 0.0, render_flags: 5, variant: 0, orientation: 0, solid: true, openings: Default::default(), stairs: None }], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], surfaces: vec![], metadata: Default::default() }
+        LevelDefinition { id: "room".into(), version: "1".into(), bounds: Bounds { min: Vec3::ZERO, max: Vec3 { x: 1.0, y: 1.0, z: 1.0 } }, tiles: vec![crate::world::LevelTile { position: Vec3::ZERO, tile_id: 0, material_id: 0, uv_mode: 0, uv_u: 0.0, uv_v: 0.0, render_flags: 5, variant: 0, orientation: 0, solid: true, openings: Default::default(), stairs: None }], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], surfaces: vec![], metadata: Default::default(), dynamic_content: vec![] }
     }
     fn manifest() -> WorldManifest {
         WorldManifest { definitions: vec![DefinitionDescriptor { id: "room".into(), version: "1".into(), anchors: vec![] }], instances: vec![InstanceDescriptor { instance: LevelInstance { id: "room-instance".into(), definition_id: "room".into(), definition_version: "1".into(), transform: Transform::IDENTITY, state: RuntimeState::Known, persistence: PersistencePolicy::Session, render_resident: false, collision_active: false, simulation_active: false, restore_status: crate::world::RestoreStatus::None, state_version: String::new(), restore_attempts: 0, handoff_status: crate::world::HandoffStatus::None } }], links: vec![], starting_locations: vec![] }

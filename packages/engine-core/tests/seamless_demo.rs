@@ -11,11 +11,11 @@ fn anchor(id: &str, x: f32) -> LevelAnchor {
 }
 
 fn dungeon() -> LevelDefinition {
-    LevelDefinition { id: "dungeon".into(), version: "1".into(), bounds: Bounds { min: Vec3 { x: -3.0, y: 0.0, z: -3.0 }, max: Vec3 { x: 3.0, y: 1.0, z: 3.0 } }, tiles: vec![engine_core::world::LevelTile { position: Vec3 { x: 0.0, y: 0.0, z: -2.0 }, tile_id: 0, material_id: 0, uv_mode: 0, uv_u: 0.0, uv_v: 0.0, render_flags: 5, variant: 0, orientation: 0, solid: true, openings: Default::default(), stairs: None }], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![anchor("outdoor-gate", 3.0)], surfaces: vec![], metadata: [("kind".into(), "authored-dungeon".into())].into_iter().collect() }
+    LevelDefinition { id: "dungeon".into(), version: "1".into(), bounds: Bounds { min: Vec3 { x: -3.0, y: 0.0, z: -3.0 }, max: Vec3 { x: 3.0, y: 1.0, z: 3.0 } }, tiles: vec![engine_core::world::LevelTile { position: Vec3 { x: 0.0, y: 0.0, z: -2.0 }, tile_id: 0, material_id: 0, uv_mode: 0, uv_u: 0.0, uv_v: 0.0, render_flags: 5, variant: 0, orientation: 0, solid: true, openings: Default::default(), stairs: None }], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![anchor("outdoor-gate", 3.0)], surfaces: vec![], metadata: [("kind".into(), "authored-dungeon".into())].into_iter().collect(), dynamic_content: vec![] }
 }
 
 fn outdoor() -> LevelDefinition {
-    LevelDefinition { id: "outdoor".into(), version: "1".into(), bounds: Bounds { min: Vec3 { x: -4.0, y: 0.0, z: -4.0 }, max: Vec3 { x: 4.0, y: 1.0, z: 4.0 } }, tiles: vec![engine_core::world::LevelTile { position: Vec3 { x: 0.0, y: 0.0, z: 2.0 }, tile_id: 0, material_id: 0, uv_mode: 0, uv_u: 0.0, uv_v: 0.0, render_flags: 5, variant: 0, orientation: 0, solid: true, openings: Default::default(), stairs: None }], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![anchor("dungeon-gate", -3.0)], surfaces: vec![], metadata: [("kind".into(), "authored-outdoor".into())].into_iter().collect() }
+    LevelDefinition { id: "outdoor".into(), version: "1".into(), bounds: Bounds { min: Vec3 { x: -4.0, y: 0.0, z: -4.0 }, max: Vec3 { x: 4.0, y: 1.0, z: 4.0 } }, tiles: vec![engine_core::world::LevelTile { position: Vec3 { x: 0.0, y: 0.0, z: 2.0 }, tile_id: 0, material_id: 0, uv_mode: 0, uv_u: 0.0, uv_v: 0.0, render_flags: 5, variant: 0, orientation: 0, solid: true, openings: Default::default(), stairs: None }], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![anchor("dungeon-gate", -3.0)], surfaces: vec![], metadata: [("kind".into(), "authored-outdoor".into())].into_iter().collect(), dynamic_content: vec![] }
 }
 
 fn instance(id: &str, definition_id: &str) -> InstanceDescriptor {
