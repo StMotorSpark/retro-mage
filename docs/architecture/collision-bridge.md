@@ -8,6 +8,7 @@ relates-to:
   - "[World Streaming](./world-streaming.md)"
   - "[Crossing Policy](./crossing-policy.md)"
   - "[WASM Bridge](./wasm-bridge.md)"
+  - "[Runtime Dynamic Content](./runtime-dynamic-content.md)"
   - "[Known Gaps](../research/known-gaps.md)"
 ---
 
@@ -52,10 +53,11 @@ Lifecycle operations update the affected index entry without requiring a complet
 - crossing activation enables the target after readiness and safe-arrival checks
 - eviction, failure, cancellation, and deactivation remove or disable collision
 - transform changes rebuild only the affected instance entry
+- a committed dynamic-content variant replaces its affected render and collision contribution together
 
 Collision readiness means transformed collision geometry is validated and available to the index. Safe arrival remains a crossing-specific gate.
 
-Movement receives a read-only collision query for the duration of its resolution. The index does not mutate during movement. Runtime lifecycle mutation occurs at defined frame boundaries.
+Movement receives a read-only collision query for the duration of its resolution. The index does not mutate during movement. Runtime lifecycle and dynamic-content mutation occur at defined frame boundaries.
 
 ## API Boundary
 
@@ -113,6 +115,7 @@ The implementation carries tests for:
 - explicit-link arrival pose publication
 - standalone engine tick remaining compatible
 - render and collision consumers observing the same transformed content
+- dynamic-content mutation changing render and collision together without caller synchronization
 
 ## Related Docs
 
@@ -121,4 +124,5 @@ The implementation carries tests for:
 - [World Streaming](./world-streaming.md) — scheduler timing and residency intent
 - [Crossing Policy](./crossing-policy.md) — directional crossing and re-arm rules
 - [WASM Bridge](./wasm-bridge.md) — typed Rust/WASM ownership boundaries
+- [Runtime Dynamic Content](./runtime-dynamic-content.md) — atomic per-instance render and collision variants
 - [Known Gaps](../research/known-gaps.md) — remaining implementation work

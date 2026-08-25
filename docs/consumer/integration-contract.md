@@ -6,6 +6,7 @@ relates-to:
   - "[Consumer Integration](../architecture/consumer-integration.md)"
   - "[World Runtime](../architecture/world-runtime.md)"
   - "[Provider Lifecycle](../architecture/provider-lifecycle.md)"
+  - "[Runtime Dynamic Content](../architecture/runtime-dynamic-content.md)"
   - "[Material Contract](../architecture/material-contract.md)"
 ---
 
@@ -18,11 +19,11 @@ Use this checklist during implementation and review. [Consumer Integration](../a
 - Authored/generated local definitions, topology manifests, content versions, anchor/link selection, and provider metadata.
 - Fetches, workers, generator jobs, cancellation handles, retry presentation, and network policy.
 - Material IDs/descriptors, asset keys, byte resolution, palette choices, and content folder conventions.
-- Game mechanics, UI, button semantics, actor behavior, persistence payload format/storage/migration, and deployment.
+- Game mechanics, UI, button semantics, actor behavior, dynamic-content slot/variant selection, persistence payload format/storage/migration, and deployment.
 
 ## Engine Owns
 
-- Validation, runtime IDs, local-to-global placement, residency, active state, collision activation, crossing readiness, arrival safety, and scene publication.
+- Validation, runtime IDs, local-to-global placement, residency, active state, collision activation, crossing readiness, arrival safety, scene publication, and atomic per-instance dynamic-content application.
 - Provider request IDs, stale-result rejection, terminal lifecycle cleanup, scheduling intent, and crossing hysteresis.
 - Simulation pose/movement and world-aware tick ordering.
 - Renderer GPU resources, shader/pass execution, texture upload/lifetime, and LUT upload.
@@ -47,6 +48,7 @@ Use this checklist during implementation and review. [Consumer Integration](../a
 - Moving player across a link through game-specific coordinate threshold/teleport logic.
 - Accepting provider output without matching current request ID and instance ID.
 - Marking an instance collision-active merely because it is visible.
+- Editing scene data, collision state, definitions, or instance lifecycle to apply a dynamic-content selection.
 - Passing WebGL objects into level data/WASM.
 - Importing demo source or assuming demo debug hooks are supported consumer APIs.
 - Treating fallback materials, overflow, or silent provider failures as a successful slice.
@@ -64,4 +66,5 @@ Use this checklist during implementation and review. [Consumer Integration](../a
 - [Consumer Integration](../architecture/consumer-integration.md) — canonical boundary
 - [World Runtime](../architecture/world-runtime.md) — lifecycle and crossing authority
 - [Provider Lifecycle](../architecture/provider-lifecycle.md) — request identity rules
+- [Runtime Dynamic Content](../architecture/runtime-dynamic-content.md) — public mutation ownership, ordering, and diagnostics
 - [Material Contract](../architecture/material-contract.md) — asset and GPU ownership

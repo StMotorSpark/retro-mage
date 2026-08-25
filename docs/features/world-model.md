@@ -7,6 +7,7 @@ relates-to:
   - "[World Runtime](../architecture/world-runtime.md)"
   - "[Rendering](../architecture/rendering.md)"
   - "[World Streaming](../architecture/world-streaming.md)"
+  - "[Runtime Dynamic Content](../architecture/runtime-dynamic-content.md)"
   - "[Tech Stack](../architecture/tech-stack.md)"
 ---
 
@@ -26,8 +27,9 @@ A definition contains:
 - light definitions
 - named local anchors
 - local metadata
+- named dynamic-content slots with authored variant contributions and defaults
 
-A definition contains no world position, runtime actor state, residency state, or engine-owned generation rules. Definitions are reusable across multiple instances.
+A definition contains no world position, per-instance dynamic-content selection, runtime actor state, residency state, or engine-owned generation rules. Definitions are reusable across multiple instances.
 
 ## Level Instances
 
@@ -36,7 +38,7 @@ A `LevelInstance` places one definition into the global world. It contains:
 - stable instance identity
 - definition identity and version
 - global transform
-- mutable runtime state
+- mutable runtime state, including per-instance dynamic-content overrides
 - persistence policy
 - residency and simulation state
 
@@ -76,4 +78,5 @@ The world supports real-time movement, actors, lights, interaction, multi-floor 
 - [World Runtime](../architecture/world-runtime.md) — manifest, providers, lifecycle, and residency
 - [Rendering](../architecture/rendering.md) — global scene rendering
 - [World Streaming](../architecture/world-streaming.md) — loading and eviction of instances
+- [Runtime Dynamic Content](../architecture/runtime-dynamic-content.md) — named per-instance mutable authored-content variants
 - [Tech Stack](../architecture/tech-stack.md) — runtime technology foundation

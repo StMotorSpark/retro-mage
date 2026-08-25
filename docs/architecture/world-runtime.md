@@ -12,6 +12,7 @@ relates-to:
   - "[Collision Bridge](./collision-bridge.md)"
   - "[Streaming Scheduler](./streaming-scheduler.md)"
   - "[WASM Bridge](./wasm-bridge.md)"
+  - "[Runtime Dynamic Content](./runtime-dynamic-content.md)"
   - "[Repo Structure](./repo-structure.md)"
   - "[Crossing Policy](./crossing-policy.md)"
 ---
@@ -79,6 +80,10 @@ Crossing requires:
 
 If loading fails, the source remains playable and the application receives the failure. The transition can remain closed, retry, or present application-owned fallback content.
 
+## Runtime Content Mutation
+
+Definitions remain immutable while resident instances carry validated per-instance dynamic-content overrides. A named authored slot selects one complete variant contribution; the runtime applies that selection through its own lifecycle and publication authority. A resident or active instance accepts a valid selection without reloading the definition or changing unrelated lifecycle state. An unavailable instance rejects the selection, and the application restores its desired selection through the normal persistence boundary.
+
 ## Persistence Boundary
 
 The engine owns transient instance state while an instance is resident. The application owns durable persistence and decides whether an instance is persistent, session-only, or regenerated on reload. Eviction exposes runtime state for application storage; reload combines resolved base content with application-restored state.
@@ -94,5 +99,6 @@ The engine owns transient instance state while an instance is resident. The appl
 - [Collision Bridge](./collision-bridge.md) — runtime-owned collision and world tick integration
 - [Streaming Scheduler](./streaming-scheduler.md) — relevance, request scheduling, and retention intent
 - [WASM Bridge](./wasm-bridge.md) — simulation data crossing into rendering
+- [Runtime Dynamic Content](./runtime-dynamic-content.md) — per-instance content variants and atomic mutation
 - [Repo Structure](./repo-structure.md) — package ownership boundaries
 - [Crossing Policy](./crossing-policy.md) — narrow directional traversal and re-arm hysteresis
