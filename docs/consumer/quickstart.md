@@ -80,6 +80,39 @@ requestAnimationFrame(frame);
 
 Verify checked-out declarations for exact registration and scheduler method names. The frame and ownership ordering above is contract; registration helper shape is application code.
 
+## Dynamic-Content Slot Example
+
+Author dynamic content as part of the game-owned definition before finalizing it. This generic door uses stable authored IDs and complete closed/open variant contributions:
+
+```ts
+world.begin_dynamic_content_slot("gate-definition", "door", "closed");
+world.definition_dynamic_content_variant("gate-definition", "door", "closed");
+world.dynamic_content_variant_tile(/* closed door tile; solid: true */);
+world.definition_dynamic_content_variant("gate-definition", "door", "open");
+world.dynamic_content_variant_tile(/* open door visual; solid: false */);
+world.finish_dynamic_content_slot("gate-definition", "door");
+```
+
+The supported variant contribution builders are `dynamic_content_variant_tile(...)`, `dynamic_content_variant_actor(...)`, `dynamic_content_variant_light(...)`, and `dynamic_content_variant_polygon(...)`. An open variant may have no contribution when no open visual is needed. The slot's `content_id` is unique within its definition, its `variant_id` values are unique within that slot, and `(instance_id, content_id, variant_id)` is the only runtime selection identity.
+
+When game-owned interaction/range/facing rules allow the door to open, select its authored variant rather than changing the definition or runtime internals:
+
+```ts
+const result = world.set_dynamic_content_variant("gate-01", "door", "open");
+if (result === 1) {
+  save.dynamicContent["gate-01:door"] = "open";
+}
+
+// Normal world frame: commits an accepted selection atomically.
+world.tick_engine(engine, dtSeconds);
+```
+
+`1` means accepted for the next world-frame commit. Invalid IDs or an unavailable lifecycle return an immediate stable rejection. At the `tick_engine(...)` boundary the engine revalidates accepted work and updates render publication and collision together. Read `dynamic_content_last_result()` after submission/commit and parse `dynamic_content_diagnostics_json()` when a result is not accepted.
+
+During restore, after the provider supplies validated base content, the game reads its own saved variant and calls `set_dynamic_content_variant(instanceId, contentId, variantId)` while that instance is resident-inactive; then it runs the normal frame tick. A resident-inactive linked target accepts this preparation before crossing, as does an active instance. Other lifecycle states reject. Eviction clears the engine's transient override, so game save state remains the source of the desired selection and is reapplied on every restore.
+
+The game never reloads the world, teleports the player, edits definitions or scene buffers, or synchronizes collision manually for this flow. The engine owns the atomic render/collision commit and crossing/activation authority.
+
 ## Provider Completion Rules
 
 For every active request, retain `{ requestId, instanceId, abortController }` in game-owned provider state. On success call the public acceptance method with the same request identity and instance. On failure report failure with the same identity. On engine cancellation abort the game job where possible. A late promise completion remains stale; never retry it by issuing acceptance under a newer ID.

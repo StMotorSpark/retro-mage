@@ -10,6 +10,7 @@ relates-to:
   - "[Rendering](./rendering.md)"
   - "[Scene Capacity](./scene-capacity.md)"
   - "[Polygon Scene Transport](./polygon-scene-transport.md)"
+  - "[Runtime Dynamic Content](./runtime-dynamic-content.md)"
   - "[Visibility](./visibility.md)"
   - "[Input Event Schema](./input-schema.md)"
   - "[Test-Driven Development](../principles/test-driven-development.md)"
@@ -46,6 +47,10 @@ Level definitions remain application-owned local data. Once a level instance is 
 
 Render may receive instance identity, material/geometry references, and render flags for debugging or batching. It does not decide level activation, persistence, streaming, or collision ownership.
 
+## Runtime Content Commands
+
+The application-to-engine transport direction includes validated named dynamic-content variant commands. A command addresses a stable instance ID, authored content ID, and authored variant ID. The transport exposes a stable acceptance or rejection code and diagnostics; it does not expose mutable scene-buffer lanes, collision-index structures, or application persistence payloads. Engine-core commits accepted commands at the world-frame boundary and exports only the resulting immutable scene snapshot.
+
 ## Schema Ownership
 
 Each bridge schema has one documented owner and colocated tests. Changes update the design contract, Rust writer, TypeScript reader, and boundary tests together. No implicit field order or capacity assumption is valid.
@@ -59,6 +64,7 @@ Each bridge schema has one documented owner and colocated tests. Changes update 
 - [Rendering](./rendering.md) — global scene consumer
 - [Scene Capacity](./scene-capacity.md) — configured buffers and overflow semantics
 - [Polygon Scene Transport](./polygon-scene-transport.md) — polygon render data boundary
+- [Runtime Dynamic Content](./runtime-dynamic-content.md) — command and diagnostic contract for content variants
 - [Visibility](./visibility.md) — render relevance
 - [Input Event Schema](./input-schema.md) — reverse-direction input contract
 - [Test-Driven Development](../principles/test-driven-development.md) — boundary tests

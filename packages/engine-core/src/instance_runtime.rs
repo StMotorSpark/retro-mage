@@ -22,18 +22,30 @@ pub struct GlobalLevelContent {
 }
 
 impl GlobalLevelContent {
-    pub(crate) fn from_definition(
-        definition: &LevelDefinition,
-        transform: &Transform,
-    ) -> Result<Self, WorldContractError> {
-        Ok(Self {
+    pub(crate) fn from_definition(definition: &LevelDefinition, transform: &Transform) -> Result<Self, WorldContractError> {
+        Self::from_definition_with_variants(definition, transform, &HashMap::new())
+    }
+
+    /// Compose immutable base content plus each selected authored slot variant.
+    pub(crate) fn from_definition_with_variants(definition: &LevelDefinition, transform: &Transform, variants: &HashMap<String, String>) -> Result<Self, WorldContractError> {
+        let mut content = Self {
             bounds: definition.bounds.transformed(transform)?,
             tiles: definition.tiles.iter().map(|tile| LevelTile { position: transform.transform_point(tile.position), ..*tile }).collect(),
             actors: definition.actors.iter().map(|actor| LevelActor { position: transform.transform_point(actor.position), ..actor.clone() }).collect(),
             lights: definition.lights.iter().map(|light| LevelLight { position: transform.transform_point(light.position), ..*light }).collect(),
             polygons: definition.polygons.iter().map(|polygon| LevelPolygon { vertices: transform_points(&polygon.vertices, transform), normals: polygon.normals.iter().map(|normal| transform.rotation.normalized().rotate(*normal)).collect(), ..polygon.clone() }).collect(),
             surfaces: definition.surfaces.iter().map(|surface| surface.transformed(transform).unwrap_or_else(|_| surface.clone())).collect(),
-        })
+        };
+        for slot in &definition.dynamic_content {
+            let selected = variants.get(&slot.content_id).unwrap_or(&slot.default_variant_id);
+            let variant = slot.variants.iter().find(|variant| variant.id == *selected).expect("validated dynamic variant");
+            content.tiles.extend(variant.contribution.tiles.iter().map(|tile| LevelTile { position: transform.transform_point(tile.position), ..*tile }));
+            content.actors.extend(variant.contribution.actors.iter().map(|actor| LevelActor { position: transform.transform_point(actor.position), ..actor.clone() }));
+            content.lights.extend(variant.contribution.lights.iter().map(|light| LevelLight { position: transform.transform_point(light.position), ..*light }));
+            content.polygons.extend(variant.contribution.polygons.iter().map(|polygon| LevelPolygon { vertices: transform_points(&polygon.vertices, transform), normals: polygon.normals.iter().map(|normal| transform.rotation.normalized().rotate(*normal)).collect(), ..polygon.clone() }));
+            content.surfaces.extend(variant.contribution.surfaces.iter().map(|surface| surface.transformed(transform).unwrap_or_else(|_| surface.clone())));
+        }
+        Ok(content)
     }
 }
 
@@ -181,6 +193,7 @@ mod tests {
             surfaces: vec![],
             anchors: vec![],
             metadata: Default::default(),
+            dynamic_content: vec![],
         }
     }
 

@@ -7,6 +7,7 @@ relates-to:
   - "[World Runtime](./world-runtime.md)"
   - "[Provider Lifecycle](./provider-lifecycle.md)"
   - "[Collision Bridge](./collision-bridge.md)"
+  - "[Runtime Dynamic Content](./runtime-dynamic-content.md)"
   - "[Known Gaps](../research/known-gaps.md)"
 ---
 
@@ -85,7 +86,7 @@ Eviction and reload preserve instance ID, topology identity, transform, persiste
 
 State schema versions are application-owned. The application supplies migration or rejects incompatible state explicitly. A rejected state does not activate gameplay or alter topology.
 
-Provider resolution returns base content. State restoration remains a separate application-owned operation, so mutable state cannot silently alter validated level geometry or collision. Geometry or topology changes use their own validated runtime operation.
+Provider resolution returns base content. State restoration remains a separate application-owned operation, so mutable state cannot silently alter validated level geometry or collision. Application-restored dynamic-content selections use the validated per-instance runtime operation while content is resident-inactive; arbitrary geometry and topology changes remain separate operations.
 
 ## Failure and Cancellation
 
@@ -140,4 +141,5 @@ This contract does not define application save formats, storage APIs, encryption
 - [World Runtime](./world-runtime.md) — instance lifecycle and persistence ownership
 - [Provider Lifecycle](./provider-lifecycle.md) — request identity and stale-result handling
 - [Collision Bridge](./collision-bridge.md) — activation and collision synchronization
+- [Runtime Dynamic Content](./runtime-dynamic-content.md) — restoring validated per-instance content selections
 - [Known Gaps](../research/known-gaps.md) — unresolved end-to-end proof

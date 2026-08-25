@@ -18,6 +18,7 @@ type DebugSnapshot = {
   targetVisible: boolean;
   instances: Array<{ id: string; state: number; renderResident: boolean; collisionActive: boolean; restoreStatus: number; restoreAttempts: number; stateVersion: string; restoreFailureReason: string; handoffStatus: number; }>;
   sourcePlayable: boolean;
+  debugMovement?: { x: number; z: number; yaw: number; pitch: number };
   evictions: Array<{ instance_id: string; eviction_reason: string; payload: string }>;
   restores: Record<string, string>;
 };
@@ -54,8 +55,8 @@ async function debug(page: Page): Promise<DebugSnapshot> {
   return snapshot;
 }
 
-async function strafe(page: Page, dx: number, reached: (snapshot: DebugSnapshot) => boolean, timeout = 10_000) {
-  await page.evaluate(({ dx }) => {
+async function move(page: Page, dx: number, dy: number, reached: (snapshot: DebugSnapshot) => boolean, timeout = 10_000) {
+  await page.evaluate(({ dx, dy }) => {
     const target = document.querySelector('.retro-input-move-zone');
     if (!target) throw new Error('Move zone missing');
     const rect = target.getBoundingClientRect();
@@ -63,16 +64,25 @@ async function strafe(page: Page, dx: number, reached: (snapshot: DebugSnapshot)
     const y = rect.top + rect.height / 2;
     const touch = new Touch({ identifier: 17, target, clientX: x, clientY: y });
     target.dispatchEvent(new TouchEvent('touchstart', { touches: [touch], targetTouches: [touch], changedTouches: [touch], bubbles: true }));
-    const moved = new Touch({ identifier: 17, target, clientX: x + dx, clientY: y });
+    const moved = new Touch({ identifier: 17, target, clientX: x + dx, clientY: y + dy });
     target.dispatchEvent(new TouchEvent('touchmove', { touches: [moved], targetTouches: [moved], changedTouches: [moved], bubbles: true }));
     (window as unknown as { __testTouch?: Touch }).__testTouch = moved;
-  }, { dx });
-  await expect.poll(async () => reached(await debug(page)), { timeout }).toBe(true);
+  }, { dx, dy });
+  try {
+    await expect.poll(async () => reached(await debug(page)), { timeout }).toBe(true);
+  } catch (error) {
+    const snapshot = await debug(page);
+    throw new Error(`Touch traversal did not reach route condition: ${JSON.stringify({ pose: snapshot.pose, activeInstance: snapshot.activeInstance, debugMovement: snapshot.debugMovement, instances: snapshot.instances, sourcePlayable: snapshot.sourcePlayable, evictions: snapshot.evictions, diagnostics: diagnostics.get(page) })}`, { cause: error });
+  }
   await page.evaluate(() => {
     const target = document.querySelector('.retro-input-move-zone');
     const touch = (window as unknown as { __testTouch?: Touch }).__testTouch;
     if (target && touch) target.dispatchEvent(new TouchEvent('touchend', { touches: [], targetTouches: [], changedTouches: [touch], bubbles: true }));
   });
+}
+
+async function strafe(page: Page, dx: number, reached: (snapshot: DebugSnapshot) => boolean, timeout = 10_000) {
+  await move(page, dx, 0, reached, timeout);
 }
 
 test.describe('Persistence Restore Proof Harness', () => {
@@ -99,7 +109,9 @@ test.describe('Persistence Restore Proof Harness', () => {
     await waitForDemo(page, '/?failAcknowledge=1');
     await expect.poll(async () => (await debug(page)).instances.find((instance) => instance.id === 'outdoor-instance')?.state, { timeout: 10_000 }).toBe(2);
     await strafe(page, 70, (snapshot) => snapshot.activeInstance === 'outdoor-instance');
-    await strafe(page, 180, (snapshot) => snapshot.pose.x > 20);
+    // The straight east line intersects the authored tree footprint at outdoor-local
+    // (7, 0.25). Follow the clearing's normal diagonal route instead.
+    await move(page, 180, 80, (snapshot) => snapshot.pose.x > 20);
 
     await expect.poll(async () => (await debug(page)).instances.find(i => i.id === 'dungeon-instance')?.handoffStatus, { timeout: 15_000 }).toBe(3); // Failed
     const after = await debug(page);
@@ -113,7 +125,9 @@ test.describe('Persistence Restore Proof Harness', () => {
     await waitForDemo(page, '/?delayAcknowledge=1');
     await expect.poll(async () => (await debug(page)).instances.find((instance) => instance.id === 'outdoor-instance')?.state, { timeout: 10_000 }).toBe(2);
     await strafe(page, 70, (snapshot) => snapshot.activeInstance === 'outdoor-instance');
-    await strafe(page, 180, (snapshot) => snapshot.pose.x > 20);
+    // The straight east line intersects the authored tree footprint at outdoor-local
+    // (7, 0.25). Follow the clearing's normal diagonal route instead.
+    await move(page, 180, 80, (snapshot) => snapshot.pose.x > 20);
 
     await expect.poll(async () => (await debug(page)).instances.find(i => i.id === 'dungeon-instance')?.handoffStatus, { timeout: 15_000 }).toBe(1); // Pending
     const pending = await debug(page);

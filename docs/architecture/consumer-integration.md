@@ -8,6 +8,7 @@ relates-to:
   - "[Collision Bridge](./collision-bridge.md)"
   - "[WASM Bridge](./wasm-bridge.md)"
   - "[Material Contract](./material-contract.md)"
+  - "[Runtime Dynamic Content](./runtime-dynamic-content.md)"
   - "[Input Event Schema](./input-schema.md)"
   - "[Consumer Agent Guide](../consumer/agent-guide.md)"
 ---
@@ -35,7 +36,8 @@ The current package manifests are private workspace packages. A consumer uses a 
 | Provider fetches, generation jobs, abort handles, metadata | consuming game |
 | Runtime instance identity, transforms, residency, crossing, collision activation | `engine-core` |
 | Durable save schema, storage, encryption, migration | consuming game |
-| Restore attempt identity and activation safety | `engine-core` |
+| Dynamic-content slot/variant selection | consuming game |
+| Per-instance dynamic-content application, restore attempt identity, and activation safety | `engine-core` |
 | Asset keys, URLs/bytes, material descriptors, palette choices | consuming game |
 | GPU resources, shaders, render passes, LUT upload | `render` |
 | Device polling and touch/gamepad normalization | `input` |
@@ -65,6 +67,10 @@ The engine exposes provider work through a pull queue. The game starts its own f
 
 A target becoming render-resident does not activate it for collision or simulation. The runtime owns crossing readiness, directional anchor checks, re-arm hysteresis, safe arrival, and activation. A failed or pending target leaves source pose, collision, and gameplay available. Game UI may report failure or offer retry, but does not force a crossing or teleport around the runtime gate.
 
+## Runtime Dynamic Content
+
+A game selects a named authored dynamic-content variant through `WorldTransport` when its own interaction rules permit the change. It records that selection in game-owned persistence and reapplies it while the instance is resident-inactive during restore. The engine applies the selected per-instance variant atomically to render publication and collision; the game never mutates scene buffers, collision state, definitions, or instance lifecycle to implement the change.
+
 ## Render and Asset Boundary
 
 Scene transport contains global geometry, numeric material IDs, UV metadata, render flags, actors, lights, and camera data. The game maps its stable material IDs to descriptors and asset keys. It resolves asset bytes. `render` creates, uploads, uses, and disposes GPU resources.
@@ -81,6 +87,7 @@ A consuming game follows these rules:
 - No application crossing thresholds in place of runtime link crossing.
 - No use of standalone legacy `EngineState.tick()` for a world managed by `WorldTransport`.
 - No stale/cancelled provider completion accepted as current content.
+- No manual collision or renderer synchronization for a dynamic-content change.
 - No GPU object stored in WASM or level content.
 - No silent scene-capacity overflow; inspect diagnostics, adjust configured capacity/content, and preserve atomic publication rules.
 
@@ -97,5 +104,6 @@ The consumer runbooks provide current commands and reference locations. The arch
 - [Collision Bridge](./collision-bridge.md) — canonical world-aware tick
 - [WASM Bridge](./wasm-bridge.md) — scene export ownership
 - [Material Contract](./material-contract.md) — asset and GPU ownership
+- [Runtime Dynamic Content](./runtime-dynamic-content.md) — game-selected per-instance content variants
 - [Input Event Schema](./input-schema.md) — normalized input boundary
 - [Consumer Agent Guide](../consumer/agent-guide.md) — consumer-agent entrypoint

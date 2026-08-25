@@ -209,7 +209,7 @@ mod tests {
     use crate::world::{Bounds, Vec3};
 
     fn definition(id: &str, version: &str) -> LevelDefinition {
-        LevelDefinition { id: id.into(), version: version.into(), bounds: Bounds { min: Vec3::ZERO, max: Vec3 { x: 1.0, y: 1.0, z: 1.0 } }, tiles: vec![], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], surfaces: vec![], metadata: Default::default() }
+        LevelDefinition { id: id.into(), version: version.into(), bounds: Bounds { min: Vec3::ZERO, max: Vec3 { x: 1.0, y: 1.0, z: 1.0 } }, tiles: vec![], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], surfaces: vec![], metadata: Default::default(), dynamic_content: vec![] }
     }
 
     fn request(coordinator: &mut LevelProviderCoordinator, instance: &str) -> LevelProviderRequest {
