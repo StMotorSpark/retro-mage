@@ -1,12 +1,12 @@
 ---
 task: "132"
 slug: dynamic-content-transport
-status: pending
+status: done
 depends-on: ["131"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-25
-outcome: ""
+outcome: "Exposed authored dynamic-slot builders plus queued per-instance variant and clear commands through WorldTransport. Commands commit before world-aware movement at tick_engine, publishing collision and scene together with stable result codes and JSON diagnostics; Rust, render, typecheck, and build checks pass."
 ---
 
 # Expose Atomic Dynamic-Content Transport

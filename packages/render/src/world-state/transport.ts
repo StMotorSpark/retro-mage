@@ -58,6 +58,18 @@ export interface WorldTransportEngine {
   overflowed?: () => boolean;
   overflow_diagnostics_json?: () => string;
   skipped_instances_json?: () => string;
+  /** Authored dynamic-content commands commit together at `tick_engine`. */
+  begin_dynamic_content_slot?(definition_id: string, content_id: string, default_variant_id: string): boolean;
+  definition_dynamic_content_variant?(definition_id: string, content_id: string, variant_id: string): boolean;
+  dynamic_content_variant_tile?(definition_id: string, x: number, y: number, z: number, tile_id: number, material_id: number, variant: number, orientation: number, solid: boolean, north: boolean, east: boolean, south: boolean, west: boolean, vertical: boolean): boolean;
+  dynamic_content_variant_actor?(definition_id: string, x: number, y: number, z: number, actor_id: string, sprite_id: number, facing: number, active: boolean, spawn: boolean): boolean;
+  dynamic_content_variant_light?(definition_id: string, x: number, y: number, z: number, r: number, g: number, b: number, intensity: number, active: boolean): boolean;
+  dynamic_content_variant_polygon?(definition_id: string, source_id: number, material_id: number, uv_mode: number, render_flags: number, vertices: Float32Array, normals: Float32Array, uvs: Float32Array): boolean;
+  finish_dynamic_content_slot?(definition_id: string, content_id: string): boolean;
+  set_dynamic_content_variant?(instance_id: string, content_id: string, variant_id: string): number;
+  clear_dynamic_content_override?(instance_id: string, content_id: string): number;
+  dynamic_content_last_result?(): number;
+  dynamic_content_diagnostics_json?(): string;
   definition_surface?(definition_id: string, min_x: number, min_y: number, min_z: number, max_x: number, max_y: number, max_z: number, h_x: number, h_y: number, h_c: number, nx: number, ny: number, nz: number, walkable: boolean): boolean;
   polygon_count?(): number; polygon_vertex_count?(): number; polygon_index_count?(): number;
   polygons_instance_ptr?(): number; polygons_source_ptr?(): number; polygons_vertex_start_ptr?(): number; polygons_vertex_count_ptr?(): number; polygons_index_start_ptr?(): number; polygons_index_count_ptr?(): number; polygons_material_id_ptr?(): number; polygons_uv_mode_ptr?(): number; polygons_render_flags_ptr?(): number; polygons_placement_ptr?(): number; polygon_vertices_ptr?(): number; polygon_indices_ptr?(): number;

@@ -9,6 +9,8 @@ use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
 
 use crate::world_runtime::WorldRuntime;
+use crate::residency::{DynamicContentMutationResult, DynamicContentRejection};
+use crate::world::{DynamicContentSlot, DynamicContentVariant, DynamicContentContribution};
 use crate::level_provider::{LevelProviderFailure, LevelProviderMetadata, LevelProviderOutcome, LevelProviderResult, OpaqueProviderData};
 use crate::world::{Bounds, LevelActor, LevelAnchor, LevelDefinition, LevelLight, LevelTile, PersistencePolicy, RuntimeState, TileOpenings, Transform, Vec3};
 use crate::world_manifest::{AnchorRef, AnchorSharingPolicy, CrossingPolicy, DefinitionDescriptor, LevelLink, LinkDirection, LinkPreloadPolicy, LinkTarget, LinkTransform};
@@ -21,7 +23,28 @@ pub const DEFAULT_WORLD_POLYGONS: usize = 4096;
 pub const DEFAULT_WORLD_POLYGON_VERTICES: usize = 65536;
 pub const DEFAULT_WORLD_POLYGON_INDICES: usize = 98304;
 
-struct DefinitionBuilder { definition: LevelDefinition }
+struct DefinitionBuilder {
+    definition: LevelDefinition,
+    dynamic_slot: Option<usize>,
+    dynamic_variant: Option<usize>,
+}
+
+struct PendingDynamicCommand { instance_id: String, content_id: String, variant_id: String }
+
+fn dynamic_result_code(result: &DynamicContentMutationResult) -> u32 {
+    match result {
+        DynamicContentMutationResult::Accepted { .. } => 1,
+        DynamicContentMutationResult::Rejected { reason, .. } => match reason {
+            DynamicContentRejection::UnknownInstance => 2,
+            DynamicContentRejection::InvalidIdentifier => 3,
+            DynamicContentRejection::InvalidLifecycleState(_) => 4,
+            DynamicContentRejection::UnknownContentId => 5,
+            DynamicContentRejection::UnknownVariantId => 6,
+            DynamicContentRejection::InstanceDefinitionMismatch => 7,
+            DynamicContentRejection::InvalidContent => 8,
+        },
+    }
+}
 
 #[wasm_bindgen]
 pub struct WorldTransport {
@@ -29,6 +52,9 @@ pub struct WorldTransport {
     runtime: WorldRuntime,
     definitions: HashMap<String, LevelDefinition>,
     builders: HashMap<String, DefinitionBuilder>,
+    pending_dynamic_commands: Vec<PendingDynamicCommand>,
+    dynamic_diagnostics: Vec<String>,
+    last_dynamic_result: u32,
     tile_x: Vec<f32>, tile_y: Vec<f32>, tile_z: Vec<f32>, tile_id: Vec<f32>, tile_material: Vec<f32>, tile_uv_mode: Vec<f32>, tile_uv_u: Vec<f32>, tile_uv_v: Vec<f32>, tile_render_flags: Vec<f32>, tile_variant: Vec<f32>, tile_orientation: Vec<f32>, tile_solid: Vec<f32>, tile_north: Vec<f32>, tile_east: Vec<f32>, tile_south: Vec<f32>, tile_west: Vec<f32>, tile_opening: Vec<f32>,
     actor_x: Vec<f32>, actor_y: Vec<f32>, actor_z: Vec<f32>, actor_facing: Vec<f32>, actor_sprite: Vec<f32>, actor_active: Vec<f32>, actor_material: Vec<f32>, actor_uv_mode: Vec<f32>, actor_uv_u: Vec<f32>, actor_uv_v: Vec<f32>, actor_render_flags: Vec<f32>,
     light_x: Vec<f32>, light_y: Vec<f32>, light_z: Vec<f32>, light_r: Vec<f32>, light_g: Vec<f32>, light_b: Vec<f32>, light_intensity: Vec<f32>, light_active: Vec<f32>,
@@ -53,7 +79,7 @@ impl WorldTransport {
     pub fn with_capacity(tile_capacity: usize, actor_capacity: usize, light_capacity: usize, instance_capacity: usize) -> Self {
         let policy = crate::streaming_scheduler::SchedulerPolicy { relevance_distance: 60.0, retention_hysteresis: 20.0, default_concurrency: 2 };
         Self {
-            runtime: WorldRuntime::new(crate::world_manifest::WorldManifest { definitions: vec![], instances: vec![], links: vec![], starting_locations: vec![] }).expect("empty world manifest"), definitions: HashMap::new(), builders: HashMap::new(),
+            runtime: WorldRuntime::new(crate::world_manifest::WorldManifest { definitions: vec![], instances: vec![], links: vec![], starting_locations: vec![] }).expect("empty world manifest"), definitions: HashMap::new(), builders: HashMap::new(), pending_dynamic_commands: vec![], dynamic_diagnostics: vec![], last_dynamic_result: 0,
             tile_x: vec![0.; tile_capacity], tile_y: vec![0.; tile_capacity], tile_z: vec![0.; tile_capacity], tile_id: vec![0.; tile_capacity], tile_material: vec![0.; tile_capacity], tile_uv_mode: vec![0.; tile_capacity], tile_uv_u: vec![0.; tile_capacity], tile_uv_v: vec![0.; tile_capacity], tile_render_flags: vec![5.; tile_capacity], tile_variant: vec![0.; tile_capacity], tile_orientation: vec![0.; tile_capacity], tile_solid: vec![0.; tile_capacity], tile_north: vec![0.; tile_capacity], tile_east: vec![0.; tile_capacity], tile_south: vec![0.; tile_capacity], tile_west: vec![0.; tile_capacity], tile_opening: vec![0.; tile_capacity],
             actor_x: vec![0.; actor_capacity], actor_y: vec![0.; actor_capacity], actor_z: vec![0.; actor_capacity], actor_facing: vec![0.; actor_capacity], actor_sprite: vec![0.; actor_capacity], actor_active: vec![0.; actor_capacity], actor_material: vec![0.; actor_capacity], actor_uv_mode: vec![2.; actor_capacity], actor_uv_u: vec![0.; actor_capacity], actor_uv_v: vec![0.; actor_capacity], actor_render_flags: vec![6.; actor_capacity],
             light_x: vec![0.; light_capacity], light_y: vec![0.; light_capacity], light_z: vec![0.; light_capacity], light_r: vec![0.; light_capacity], light_g: vec![0.; light_capacity], light_b: vec![0.; light_capacity], light_intensity: vec![0.; light_capacity], light_active: vec![0.; light_capacity],
@@ -73,7 +99,7 @@ impl WorldTransport {
     /// Start definition registration. Bounds are local-space.
     pub fn begin_definition(&mut self, id: &str, version: &str, min_x: f32, min_y: f32, min_z: f32, max_x: f32, max_y: f32, max_z: f32) -> bool {
         if id.trim().is_empty() || version.trim().is_empty() { return false; }
-        self.builders.insert(id.into(), DefinitionBuilder { definition: LevelDefinition { id: id.into(), version: version.into(), bounds: Bounds { min: Vec3 { x: min_x, y: min_y, z: min_z }, max: Vec3 { x: max_x, y: max_y, z: max_z } }, tiles: vec![], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], surfaces: vec![], metadata: Default::default(), dynamic_content: vec![] } }); true
+        self.builders.insert(id.into(), DefinitionBuilder { dynamic_slot: None, dynamic_variant: None, definition: LevelDefinition { id: id.into(), version: version.into(), bounds: Bounds { min: Vec3 { x: min_x, y: min_y, z: min_z }, max: Vec3 { x: max_x, y: max_y, z: max_z } }, tiles: vec![], actors: vec![], lights: vec![], polygons: vec![], anchors: vec![], surfaces: vec![], metadata: Default::default(), dynamic_content: vec![] } }); true
     }
 
     pub fn definition_tile(&mut self, definition_id: &str, x: f32, y: f32, z: f32, tile_id: u32, material_id: u32, variant: u16, orientation: u8, solid: bool, north: bool, east: bool, south: bool, west: bool, vertical: bool) -> bool {
@@ -135,6 +161,62 @@ impl WorldTransport {
         let Some(builder) = self.builders.get_mut(definition_id) else { return false; };
         let direction = match direction { 0 => crate::world::AnchorDirection::In, 1 => crate::world::AnchorDirection::Out, _ => crate::world::AnchorDirection::Both };
         builder.definition.anchors.push(LevelAnchor { id: anchor_id.into(), transform: Transform::from_translation_yaw_scale(Vec3 { x, y, z }, yaw, 1.0), volume: Bounds { min: Vec3 { x: min_x, y: min_y, z: min_z }, max: Vec3 { x: max_x, y: max_y, z: max_z } }, direction }); true
+    }
+
+    /// Begin one finalized authored slot. Variants are built only while this slot is open.
+    pub fn begin_dynamic_content_slot(&mut self, definition_id: &str, content_id: &str, default_variant_id: &str) -> bool {
+        if content_id.trim().is_empty() || default_variant_id.trim().is_empty() { return false; }
+        let Some(builder) = self.builders.get_mut(definition_id) else { return false; };
+        if builder.dynamic_slot.is_some() || builder.definition.dynamic_content.iter().any(|slot| slot.content_id == content_id) { return false; }
+        builder.definition.dynamic_content.push(DynamicContentSlot { content_id: content_id.into(), default_variant_id: default_variant_id.into(), variants: vec![] });
+        builder.dynamic_slot = Some(builder.definition.dynamic_content.len() - 1); true
+    }
+
+    /// Begin an authored variant. Its complete contribution is submitted through
+    /// the dynamic-content scalar builders before `finish_dynamic_content_slot`.
+    pub fn definition_dynamic_content_variant(&mut self, definition_id: &str, content_id: &str, variant_id: &str) -> bool {
+        if variant_id.trim().is_empty() { return false; }
+        let Some(builder) = self.builders.get_mut(definition_id) else { return false; };
+        let Some(slot_index) = builder.dynamic_slot else { return false; };
+        let slot = &mut builder.definition.dynamic_content[slot_index];
+        if slot.content_id != content_id || slot.variants.iter().any(|variant| variant.id == variant_id) { return false; }
+        slot.variants.push(DynamicContentVariant { id: variant_id.into(), contribution: DynamicContentContribution { tiles: vec![], actors: vec![], lights: vec![], polygons: vec![], surfaces: vec![] } });
+        builder.dynamic_variant = Some(slot.variants.len() - 1); true
+    }
+
+    pub fn dynamic_content_variant_tile(&mut self, definition_id: &str, x: f32, y: f32, z: f32, tile_id: u32, material_id: u32, variant: u16, orientation: u8, solid: bool, north: bool, east: bool, south: bool, west: bool, vertical: bool) -> bool {
+        let Some(builder) = self.builders.get_mut(definition_id) else { return false; };
+        let (Some(slot_index), Some(variant_index)) = (builder.dynamic_slot, builder.dynamic_variant) else { return false; };
+        builder.definition.dynamic_content[slot_index].variants[variant_index].contribution.tiles.push(LevelTile { position: Vec3 { x, y, z }, tile_id, material_id, uv_mode: 0, uv_u: 0.0, uv_v: 0.0, render_flags: 5, variant, orientation, solid, openings: TileOpenings { north, east, south, west, vertical }, stairs: None }); true
+    }
+
+    pub fn dynamic_content_variant_actor(&mut self, definition_id: &str, x: f32, y: f32, z: f32, actor_id: &str, sprite_id: u32, facing: f32, active: bool, spawn: bool) -> bool {
+        let Some(builder) = self.builders.get_mut(definition_id) else { return false; };
+        let (Some(slot_index), Some(variant_index)) = (builder.dynamic_slot, builder.dynamic_variant) else { return false; };
+        builder.definition.dynamic_content[slot_index].variants[variant_index].contribution.actors.push(LevelActor { position: Vec3 { x, y, z }, actor_id: actor_id.into(), sprite_id, facing, active, spawn, material_id: 0, uv_mode: 2, uv_u: 0.0, uv_v: 0.0, render_flags: 6 }); true
+    }
+
+    pub fn dynamic_content_variant_light(&mut self, definition_id: &str, x: f32, y: f32, z: f32, r: f32, g: f32, b: f32, intensity: f32, active: bool) -> bool {
+        let Some(builder) = self.builders.get_mut(definition_id) else { return false; };
+        let (Some(slot_index), Some(variant_index)) = (builder.dynamic_slot, builder.dynamic_variant) else { return false; };
+        builder.definition.dynamic_content[slot_index].variants[variant_index].contribution.lights.push(LevelLight { position: Vec3 { x, y, z }, color: [r, g, b], intensity, active }); true
+    }
+
+    pub fn dynamic_content_variant_polygon(&mut self, definition_id: &str, source_id: u32, material_id: u32, uv_mode: u8, render_flags: u32, vertices: &[f32], normals: &[f32], uvs: &[f32]) -> bool {
+        let Some(builder) = self.builders.get_mut(definition_id) else { return false; };
+        let (Some(slot_index), Some(variant_index)) = (builder.dynamic_slot, builder.dynamic_variant) else { return false; };
+        if uv_mode > 2 || vertices.len() < 9 || vertices.len() % 3 != 0 || normals.len() != vertices.len() || uvs.len() != vertices.len() / 3 * 2 { return false; }
+        let points = vertices.chunks_exact(3).map(|v| Vec3 { x: v[0], y: v[1], z: v[2] }).collect();
+        let ns = normals.chunks_exact(3).map(|v| Vec3 { x: v[0], y: v[1], z: v[2] }).collect();
+        let tex = uvs.chunks_exact(2).map(|v| (v[0], v[1])).collect();
+        builder.definition.dynamic_content[slot_index].variants[variant_index].contribution.polygons.push(crate::world::LevelPolygon { vertices: points, normals: ns, uvs: tex, material_id, uv_mode, render_flags, source_id, solid: false }); true
+    }
+
+    pub fn finish_dynamic_content_slot(&mut self, definition_id: &str, content_id: &str) -> bool {
+        let Some(builder) = self.builders.get_mut(definition_id) else { return false; };
+        let Some(slot_index) = builder.dynamic_slot else { return false; };
+        if builder.definition.dynamic_content[slot_index].content_id != content_id || builder.dynamic_variant.is_none() { return false; }
+        builder.dynamic_slot = None; builder.dynamic_variant = None; true
     }
 
     pub fn finish_definition(&mut self, id: &str) -> bool {
@@ -261,9 +343,40 @@ impl WorldTransport {
     pub fn crossing_pose_z(&self) -> f32 { self.crossing_pose.translation.z }
 
 
+    /// Queue an authored per-instance variant. Code 1 means accepted for next
+    /// world-frame commit; rejection codes are available through diagnostics.
+    pub fn set_dynamic_content_variant(&mut self, instance_id: &str, content_id: &str, variant_id: &str) -> u32 {
+        if instance_id.trim().is_empty() || content_id.trim().is_empty() || variant_id.trim().is_empty() { self.last_dynamic_result = 3; return 3; }
+        self.pending_dynamic_commands.push(PendingDynamicCommand { instance_id: instance_id.into(), content_id: content_id.into(), variant_id: variant_id.into() });
+        self.last_dynamic_result = 1; 1
+    }
+    pub fn clear_dynamic_content_override(&mut self, instance_id: &str, content_id: &str) -> u32 {
+        let variant = self.runtime.dynamic_content_variant(instance_id, content_id).unwrap_or("").to_owned();
+        // Core clear resolves default; queue it by asking core at frame boundary via sentinel.
+        if variant.is_empty() { self.last_dynamic_result = 5; return 5; }
+        self.pending_dynamic_commands.push(PendingDynamicCommand { instance_id: instance_id.into(), content_id: content_id.into(), variant_id: String::new() }); self.last_dynamic_result = 1; 1
+    }
+    pub fn dynamic_content_last_result(&self) -> u32 { self.last_dynamic_result }
+    pub fn dynamic_content_diagnostics_json(&self) -> String { format!("[{}]", self.dynamic_diagnostics.join(",")) }
+
+    fn commit_dynamic_content_commands(&mut self) {
+        self.dynamic_diagnostics.clear();
+        for command in self.pending_dynamic_commands.drain(..) {
+            let result = if command.variant_id.is_empty() { self.runtime.clear_dynamic_content_override(&command.instance_id, &command.content_id) } else { self.runtime.set_dynamic_content_variant(&command.instance_id, &command.content_id, &command.variant_id) };
+            let code = dynamic_result_code(&result); self.last_dynamic_result = code;
+            match result {
+                DynamicContentMutationResult::Accepted { instance_id, content_id, variant_id, runtime_revision } => self.dynamic_diagnostics.push(format!(r#"{{"code":{},"instance_id":"{}","content_id":"{}","variant_id":"{}","runtime_revision":{}}}"#, code, instance_id, content_id, variant_id, runtime_revision)),
+                DynamicContentMutationResult::Rejected { instance_id, content_id, variant_id, runtime_revision, .. } => self.dynamic_diagnostics.push(format!(r#"{{"code":{},"instance_id":"{}","content_id":"{}","variant_id":"{}","runtime_revision":{}}}"#, code, instance_id, content_id, variant_id, runtime_revision)),
+            }
+        }
+    }
+
     /// Drives one world-aware frame: movement against runtime collision,
     /// directional crossing, streaming relevance, and render publication.
     pub fn tick_engine(&mut self, engine: &mut crate::EngineState, dt: f64) {
+        // Boundary precedes immutable movement query: render/collision publish together.
+        self.commit_dynamic_content_commands();
+        self.sync();
         let prev_x = engine.camera.x[0];
         let prev_z = engine.camera.z[0];
 
@@ -526,6 +639,33 @@ mod tests {
         let mut t = WorldTransport::default();
         assert!(t.begin_definition("bad", "1", 2., 0., 0., 1., 1., 1.));
         assert!(!t.finish_definition("bad"));
+    }
+
+    #[test]
+    fn dynamic_content_transport_commits_variant_at_tick_boundary() {
+        let mut t = WorldTransport::with_capacity(4, 1, 1, 1);
+        assert!(t.begin_definition("door", "1", -2., 0., -2., 2., 2., 2.));
+        assert!(t.begin_dynamic_content_slot("door", "gate", "closed"));
+        assert!(t.definition_dynamic_content_variant("door", "gate", "closed"));
+        assert!(t.dynamic_content_variant_tile("door", 0., 0., 0., 1, 0, 0, 0, true, false, false, false, false, false));
+        assert!(t.definition_dynamic_content_variant("door", "gate", "open"));
+        assert!(t.dynamic_content_variant_tile("door", 0., 0., 0., 2, 0, 0, 0, false, false, false, false, false, false));
+        assert!(t.finish_dynamic_content_slot("door", "gate"));
+        assert!(t.finish_definition("door"));
+        assert!(t.register_instance("door-instance", "door", 0., 0., 0., 0., 0., 0., 1., 1., 0));
+        let request = t.begin_load("door-instance", "test"); assert!(t.accept_definition(request, "door-instance"));
+        assert!(t.set_instance_state("door-instance", 3, true, true, true));
+        assert_eq!(t.tile_id[0], 1.); // command not visible before frame boundary
+        assert_eq!(t.set_dynamic_content_variant("door-instance", "gate", "open"), 1);
+        assert_eq!(t.tile_id[0], 1.);
+        let mut engine = crate::EngineState::new();
+        t.tick_engine(&mut engine, 0.0);
+        assert_eq!((t.tile_id[0], t.tile_solid[0]), (2., 0.));
+        assert!(t.dynamic_content_diagnostics_json().contains("\"runtime_revision\":1"));
+        assert_eq!(t.set_dynamic_content_variant("door-instance", "gate", "missing"), 1);
+        t.tick_engine(&mut engine, 0.0);
+        assert_eq!((t.tile_id[0], t.tile_solid[0]), (2., 0.));
+        assert_eq!(t.dynamic_content_last_result(), 6);
     }
 
     #[test]
