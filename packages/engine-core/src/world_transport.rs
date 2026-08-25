@@ -42,6 +42,7 @@ fn dynamic_result_code(result: &DynamicContentMutationResult) -> u32 {
             DynamicContentRejection::UnknownVariantId => 6,
             DynamicContentRejection::InstanceDefinitionMismatch => 7,
             DynamicContentRejection::InvalidContent => 8,
+            DynamicContentRejection::SceneCapacityOverflow => 9,
         },
     }
 }
@@ -343,31 +344,70 @@ impl WorldTransport {
     pub fn crossing_pose_z(&self) -> f32 { self.crossing_pose.translation.z }
 
 
-    /// Queue an authored per-instance variant. Code 1 means accepted for next
-    /// world-frame commit; rejection codes are available through diagnostics.
+    /// Queue an authored command only after submission-time validation.
     pub fn set_dynamic_content_variant(&mut self, instance_id: &str, content_id: &str, variant_id: &str) -> u32 {
-        if instance_id.trim().is_empty() || content_id.trim().is_empty() || variant_id.trim().is_empty() { self.last_dynamic_result = 3; return 3; }
-        self.pending_dynamic_commands.push(PendingDynamicCommand { instance_id: instance_id.into(), content_id: content_id.into(), variant_id: variant_id.into() });
-        self.last_dynamic_result = 1; 1
+        let result = self.runtime.validate_dynamic_content_variant(instance_id, content_id, variant_id);
+        self.submit_dynamic_result(result, instance_id, content_id, variant_id)
     }
     pub fn clear_dynamic_content_override(&mut self, instance_id: &str, content_id: &str) -> u32 {
-        let variant = self.runtime.dynamic_content_variant(instance_id, content_id).unwrap_or("").to_owned();
-        // Core clear resolves default; queue it by asking core at frame boundary via sentinel.
-        if variant.is_empty() { self.last_dynamic_result = 5; return 5; }
-        self.pending_dynamic_commands.push(PendingDynamicCommand { instance_id: instance_id.into(), content_id: content_id.into(), variant_id: String::new() }); self.last_dynamic_result = 1; 1
+        let result = self.runtime.validate_clear_dynamic_content_override(instance_id, content_id);
+        self.submit_dynamic_result(result, instance_id, content_id, "")
+    }
+    fn submit_dynamic_result(&mut self, result: DynamicContentMutationResult, instance_id: &str, content_id: &str, variant_id: &str) -> u32 {
+        let code = dynamic_result_code(&result); self.last_dynamic_result = code;
+        if code == 1 { self.pending_dynamic_commands.push(PendingDynamicCommand { instance_id: instance_id.into(), content_id: content_id.into(), variant_id: variant_id.into() }); } else { self.record_dynamic_result(result); }
+        code
     }
     pub fn dynamic_content_last_result(&self) -> u32 { self.last_dynamic_result }
     pub fn dynamic_content_diagnostics_json(&self) -> String { format!("[{}]", self.dynamic_diagnostics.join(",")) }
 
-    fn commit_dynamic_content_commands(&mut self) {
-        self.dynamic_diagnostics.clear();
-        for command in self.pending_dynamic_commands.drain(..) {
-            let result = if command.variant_id.is_empty() { self.runtime.clear_dynamic_content_override(&command.instance_id, &command.content_id) } else { self.runtime.set_dynamic_content_variant(&command.instance_id, &command.content_id, &command.variant_id) };
-            let code = dynamic_result_code(&result); self.last_dynamic_result = code;
-            match result {
-                DynamicContentMutationResult::Accepted { instance_id, content_id, variant_id, runtime_revision } => self.dynamic_diagnostics.push(format!(r#"{{"code":{},"instance_id":"{}","content_id":"{}","variant_id":"{}","runtime_revision":{}}}"#, code, instance_id, content_id, variant_id, runtime_revision)),
-                DynamicContentMutationResult::Rejected { instance_id, content_id, variant_id, runtime_revision, .. } => self.dynamic_diagnostics.push(format!(r#"{{"code":{},"instance_id":"{}","content_id":"{}","variant_id":"{}","runtime_revision":{}}}"#, code, instance_id, content_id, variant_id, runtime_revision)),
+    fn record_dynamic_result(&mut self, result: DynamicContentMutationResult) {
+        let code = dynamic_result_code(&result);
+        let (instance_id, content_id, variant_id, runtime_revision, reason, lifecycle_state) = match result {
+            DynamicContentMutationResult::Accepted { instance_id, content_id, variant_id, runtime_revision } => (instance_id, content_id, variant_id, runtime_revision, "accepted", None),
+            DynamicContentMutationResult::Rejected { instance_id, content_id, variant_id, runtime_revision, reason } => {
+                let lifecycle = match reason { DynamicContentRejection::InvalidLifecycleState(state) => Some(state_code(state)), _ => None };
+                let text = match reason { DynamicContentRejection::UnknownInstance => "unknown-instance", DynamicContentRejection::InvalidIdentifier => "invalid-identifier", DynamicContentRejection::InvalidLifecycleState(_) => "invalid-lifecycle-state", DynamicContentRejection::UnknownContentId => "unknown-content-id", DynamicContentRejection::UnknownVariantId => "unknown-variant-id", DynamicContentRejection::InstanceDefinitionMismatch => "instance-definition-mismatch", DynamicContentRejection::InvalidContent => "invalid-content", DynamicContentRejection::SceneCapacityOverflow => "scene-capacity-overflow" };
+                (instance_id, content_id, variant_id, runtime_revision, text, lifecycle)
             }
+        };
+        let mut diagnostic = serde_json::json!({
+            "code": code, "reason": reason, "instance_id": instance_id,
+            "content_id": content_id, "variant_id": variant_id,
+            "runtime_revision": runtime_revision,
+        });
+        if let Some(state) = lifecycle_state { diagnostic["lifecycle_state"] = serde_json::json!(state); }
+        self.dynamic_diagnostics.push(diagnostic.to_string());
+    }
+
+    /// Run the same atomic instance submission accounting as `sync`, replacing
+    /// only the addressed instance's global contribution with its candidate.
+    fn candidate_fits_capacity(&self, candidate_id: &str, candidate: &crate::instance_runtime::GlobalLevelContent) -> bool {
+        let entries: std::collections::HashMap<_, _> = self.runtime.resident_global_content().map(|(id, content)| (id, content)).collect();
+        let mut tiles = 0; let mut actors = 0; let mut lights = 0; let mut polygons = 0; let mut vertices = 0; let mut indices = 0; let mut instances = 0;
+        let mut candidate_published = false;
+        let mut all_published = true;
+        for instance in self.runtime.instances() {
+            let content = if instance.id == candidate_id { Some(candidate) } else { entries.get(instance.id.as_str()).copied() };
+            let (tile_count, actor_count, light_count) = content.map(|value| (value.tiles.len(), value.actors.len(), value.lights.len())).unwrap_or((0, 0, 0));
+            let polygon_count = content.map(|value| value.polygons.len()).unwrap_or(0);
+            let vertex_count = content.map(|value| value.polygons.iter().map(|polygon| polygon.vertices.len()).sum::<usize>()).unwrap_or(0);
+            let index_count = content.map(|value| value.polygons.iter().map(|polygon| (polygon.vertices.len() - 2) * 3).sum::<usize>()).unwrap_or(0);
+            if instances + 1 > self.instance_states.len() || tiles + tile_count > self.tile_x.len() || actors + actor_count > self.actor_x.len() || lights + light_count > self.light_x.len() || polygons + polygon_count > self.polygon_instance.len() || (vertices + vertex_count) * 8 > self.polygon_vertices.len() || indices + index_count > self.polygon_indices.len() { all_published = false; continue; }
+            instances += 1; tiles += tile_count; actors += actor_count; lights += light_count; polygons += polygon_count; vertices += vertex_count; indices += index_count;
+            if instance.id == candidate_id { candidate_published = true; }
+        }
+        candidate_published && all_published
+    }
+    fn commit_dynamic_content_commands(&mut self) {
+        let commands: Vec<_> = self.pending_dynamic_commands.drain(..).collect();
+        for command in commands {
+            let clear = command.variant_id.is_empty();
+            let validation = if clear { self.runtime.validate_clear_dynamic_content_override(&command.instance_id, &command.content_id) } else { self.runtime.validate_dynamic_content_variant(&command.instance_id, &command.content_id, &command.variant_id) };
+            let result = if !matches!(&validation, DynamicContentMutationResult::Accepted { .. }) { validation } else if self.runtime.dynamic_content_candidate_owned(&command.instance_id, &command.content_id, &command.variant_id, clear).is_some_and(|content| !self.candidate_fits_capacity(&command.instance_id, &content)) {
+                DynamicContentMutationResult::Rejected { instance_id: command.instance_id.clone(), content_id: command.content_id.clone(), variant_id: command.variant_id.clone(), reason: DynamicContentRejection::SceneCapacityOverflow, runtime_revision: match validation { DynamicContentMutationResult::Accepted { runtime_revision, .. } => runtime_revision, _ => 0 } }
+            } else if clear { self.runtime.clear_dynamic_content_override(&command.instance_id, &command.content_id) } else { self.runtime.set_dynamic_content_variant(&command.instance_id, &command.content_id, &command.variant_id) };
+            self.last_dynamic_result = dynamic_result_code(&result); self.record_dynamic_result(result);
         }
     }
 
@@ -662,10 +702,49 @@ mod tests {
         t.tick_engine(&mut engine, 0.0);
         assert_eq!((t.tile_id[0], t.tile_solid[0]), (2., 0.));
         assert!(t.dynamic_content_diagnostics_json().contains("\"runtime_revision\":1"));
-        assert_eq!(t.set_dynamic_content_variant("door-instance", "gate", "missing"), 1);
+        assert_eq!(t.clear_dynamic_content_override("door-instance", "gate"), 1);
         t.tick_engine(&mut engine, 0.0);
-        assert_eq!((t.tile_id[0], t.tile_solid[0]), (2., 0.));
-        assert_eq!(t.dynamic_content_last_result(), 6);
+        assert_eq!((t.tile_id[0], t.tile_solid[0]), (1., 1.));
+        assert!(t.dynamic_content_diagnostics_json().contains("\"runtime_revision\":2"));
+        assert_eq!(t.set_dynamic_content_variant("door-instance", "gate", "missing"), 6);
+        assert_eq!(t.set_dynamic_content_variant("missing", "gate", "open"), 2);
+        assert_eq!(t.set_dynamic_content_variant("door-instance", "missing", "open"), 5);
+        assert_eq!(t.clear_dynamic_content_override("", "gate"), 3);
+        assert_eq!(t.clear_dynamic_content_override("missing", "gate"), 2);
+        assert_eq!(t.clear_dynamic_content_override("door-instance", "missing"), 5);
+        let escaped_id = "quote\"\\\n\t\u{0001}雪";
+        assert_eq!(t.set_dynamic_content_variant(escaped_id, "gate", "open"), 2);
+        let diagnostics: serde_json::Value = serde_json::from_str(&t.dynamic_content_diagnostics_json()).unwrap();
+        assert_eq!(diagnostics.as_array().unwrap().last().unwrap()["instance_id"], escaped_id);
+        assert_eq!(diagnostics.as_array().unwrap().last().unwrap()["reason"], "unknown-instance");
+        t.tick_engine(&mut engine, 0.0);
+        assert_eq!((t.tile_id[0], t.tile_solid[0]), (1., 1.));
+        assert_eq!(t.dynamic_content_last_result(), 2);
+    }
+
+    #[test]
+    fn dynamic_content_capacity_rejection_preserves_render_and_collision() {
+        let mut t = WorldTransport::with_capacity(2, 1, 1, 2);
+        assert!(t.begin_definition("door", "1", 0., 0., 0., 2., 2., 2.));
+        assert!(t.begin_dynamic_content_slot("door", "gate", "closed"));
+        assert!(t.definition_dynamic_content_variant("door", "gate", "closed"));
+        assert!(t.dynamic_content_variant_tile("door", 0., 0., 0., 1, 0, 0, 0, true, false, false, false, false, false));
+        assert!(t.definition_dynamic_content_variant("door", "gate", "open"));
+        assert!(t.dynamic_content_variant_tile("door", 0., 0., 0., 2, 0, 0, 0, false, false, false, false, false, false));
+        assert!(t.dynamic_content_variant_tile("door", 1., 0., 0., 3, 0, 0, 0, false, false, false, false, false, false));
+        assert!(t.finish_dynamic_content_slot("door", "gate")); assert!(t.finish_definition("door"));
+        for id in ["i", "other"] {
+            assert!(t.register_instance(id, "door", 0., 0., 0., 0., 0., 0., 1., 1., 0));
+            let request = t.begin_load(id, "test"); assert!(t.accept_definition(request, id));
+            assert!(t.set_instance_state(id, 3, true, true, true));
+        }
+        assert_eq!((t.tile_count(), t.tile_id[0], t.tile_id[1]), (2, 1., 1.));
+        assert_eq!(t.set_dynamic_content_variant("i", "gate", "open"), 1);
+        t.tick_engine(&mut crate::EngineState::new(), 0.0);
+        assert_eq!(t.dynamic_content_last_result(), 9);
+        assert_eq!((t.tile_count(), t.tile_id[0], t.tile_id[1], t.tile_solid[0]), (2, 1., 1., 1.));
+        assert_eq!(t.runtime.dynamic_content_variant("i", "gate"), Some("closed"));
+        assert!(t.runtime.collision_world().has_active_geometry());
     }
 
     #[test]
@@ -715,9 +794,13 @@ mod tests {
         // Failed/stale lifecycle use changes neither effective scene nor source.
         assert!(t.set_instance_state("linked-target", 2, true, false, false));
         assert!(t.set_instance_state("linked-target", 4, true, false, false));
-        assert_eq!(t.set_dynamic_content_variant("linked-target", "gate", "closed"), 1);
+        assert_eq!(t.set_dynamic_content_variant("linked-target", "gate", "closed"), 4);
+        assert_eq!(t.clear_dynamic_content_override("linked-target", "gate"), 4);
         t.tick_engine(&mut engine, 0.0);
         assert_eq!(t.dynamic_content_last_result(), 4);
+        let diagnostics: serde_json::Value = serde_json::from_str(&t.dynamic_content_diagnostics_json()).unwrap();
+        assert_eq!(diagnostics.as_array().unwrap().last().unwrap()["reason"], "invalid-lifecycle-state");
+        assert_eq!(diagnostics.as_array().unwrap().last().unwrap()["lifecycle_state"], 4);
         assert_eq!(t.runtime.dynamic_content_variant("linked-target", "gate"), Some("open"));
         assert_eq!(t.runtime.state("source"), Some(RuntimeState::Active));
     }

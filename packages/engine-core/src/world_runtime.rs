@@ -264,6 +264,15 @@ impl WorldRuntime {
         Ok(())
     }
     pub fn set_current(&mut self, id: Option<&str>) -> Result<(), WorldRuntimeError> { Ok(self.residency.set_current(id)?) }
+    pub fn validate_dynamic_content_variant(&self, instance_id: &str, content_id: &str, variant_id: &str) -> DynamicContentMutationResult {
+        self.residency.validate_dynamic_content_variant(instance_id, content_id, variant_id)
+    }
+    pub fn validate_clear_dynamic_content_override(&self, instance_id: &str, content_id: &str) -> DynamicContentMutationResult {
+        self.residency.validate_clear_dynamic_content_override(instance_id, content_id)
+    }
+    pub fn dynamic_content_candidate_owned(&self, instance_id: &str, content_id: &str, variant_id: &str, clear: bool) -> Option<crate::instance_runtime::GlobalLevelContent> {
+        self.residency.dynamic_content_candidate(instance_id, content_id, variant_id, clear)
+    }
     pub fn set_dynamic_content_variant(&mut self, instance_id: &str, content_id: &str, variant_id: &str) -> DynamicContentMutationResult {
         self.residency.set_dynamic_content_variant(instance_id, content_id, variant_id)
     }

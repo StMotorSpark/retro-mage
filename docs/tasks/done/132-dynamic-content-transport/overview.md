@@ -1,12 +1,12 @@
 ---
 task: "132"
 slug: dynamic-content-transport
-status: in-flight
+status: done
 depends-on: ["131"]
 blocked-by: ""
-assigned-to: "agent"
+assigned-to: ""
 created: 2026-08-25
-outcome: ""
+outcome: "Repaired global-scene dynamic-capacity preflight, clear-operation rejection identity, and serde_json diagnostics. Added two-instance capacity, clear rejection, lifecycle, and escaped-identifier proofs; all required checks and git diff --check pass."
 ---
 
 # Expose Atomic Dynamic-Content Transport
@@ -22,12 +22,12 @@ Expose authored slot construction, per-instance variant commands, result codes, 
 
 ## Definition of Done
 
-- [ ] Public transport APIs expose slot building, variant selection, override clearing, result codes, and diagnostics without private-state access.
-- [ ] A command accepted before `tick_engine` updates render publication and collision consistently in that world frame.
-- [ ] Movement never resolves against a partially changed collision query and readers never observe partial scene content.
-- [ ] Invalid commands and capacity failures retain the previous effective variant and actionable diagnostics.
-- [ ] Rust/WASM and TypeScript boundary tests cover the public contract and pointer/view safety where applicable.
-- [ ] Relevant engine-core, render, typecheck, and build checks pass.
+- [x] Public transport APIs expose slot building, variant selection, override clearing, result codes, and diagnostics without private-state access.
+- [x] A command accepted before `tick_engine` updates render publication and collision consistently in that world frame.
+- [x] Movement never resolves against a partially changed collision query and readers never observe partial scene content.
+- [x] Invalid commands return stable submission-time rejection codes; global-scene capacity failures return `scene-capacity-overflow` at commit and retain the previous effective variant, render publication, collision contribution, and actionable JSON diagnostics.
+- [x] Rust/WASM and TypeScript boundary tests cover the public contract and pointer/view safety where applicable.
+- [x] Relevant engine-core, render, typecheck, and build checks pass.
 
 ## Out of Scope
 
@@ -56,5 +56,5 @@ This task was reopened after review. Repair the public contract before completio
 - `clear_dynamic_content_override` removes the override entry rather than selecting and storing the default variant.
 - Invalid instance/content/variant IDs and invalid lifecycle state return their stable rejection code at command submission; commit-time validation remains a safety backstop.
 - JSON diagnostics safely escape public IDs and include rejection reason plus lifecycle state when applicable.
-- Reconcile dynamic-mutation scene-capacity behavior with the atomic render/collision contract. The preferred policy preflights the post-mutation instance contribution and rejects an overflowing mutation while preserving the prior effective render and collision state. Update `docs/architecture/runtime-dynamic-content.md` and this prompt if the accepted policy differs.
+- Reconcile dynamic-mutation scene-capacity behavior with the atomic render/collision contract. Preflight the complete post-mutation global scene under ordinary submission ordering and reject an overflowing mutation while preserving the prior effective render and collision state.
 - Add focused public transport tests for each repaired behavior and rerun engine-core, render, demo typecheck, and package build checks.

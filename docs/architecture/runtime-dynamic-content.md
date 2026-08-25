@@ -87,7 +87,7 @@ Movement receives an immutable collision query for its whole resolution. A mutat
 
 Several accepted mutations in one frame commit in deterministic acceptance order as one runtime-content revision set. If any selected variant is invalid at commit validation, that operation is rejected and leaves the last effective variant, collision contribution, and published scene unchanged. Unrelated slots and instances continue normally.
 
-Scene-capacity preflight remains atomic at the instance-publication boundary. A dynamic-content change that makes an instance unable to publish records the normal overflow diagnostic and does not silently publish partial geometry. Collision and gameplay lifecycle ownership remain independent of overflow, while crossing follows the established overflow gate.
+Dynamic-content commands preflight the complete resulting global scene at the world-frame commit boundary. The preflight substitutes the affected instance's post-mutation contribution, retains every other resident contribution, and applies the transport's ordinary deterministic instance ordering and capacity accounting. A scene that cannot publish rejects that command as `scene-capacity-overflow`; it preserves the prior effective variant, rendered publication, collision contribution, and runtime revision, and publishes no partial mutation. This command-specific rejection does not change the general scene-overflow behavior for unrelated lifecycle publication. Collision and gameplay lifecycle ownership remain independent of unrelated overflow, while crossing follows the established overflow gate.
 
 ## Lifecycle and Residency
 

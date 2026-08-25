@@ -17,7 +17,7 @@ use crate::world::{LevelInstance, RuntimeState, WorldContractError};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DynamicContentRejection {
     UnknownInstance, InvalidIdentifier, InvalidLifecycleState(RuntimeState),
-    UnknownContentId, UnknownVariantId, InstanceDefinitionMismatch, InvalidContent,
+    UnknownContentId, UnknownVariantId, InstanceDefinitionMismatch, InvalidContent, SceneCapacityOverflow,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -114,29 +114,67 @@ impl ResidencyStore {
         record.effective_variants.get(content_id).map(String::as_str).or_else(|| definition.dynamic_content.iter().find(|slot| slot.content_id == content_id).map(|slot| slot.default_variant_id.as_str()))
     }
 
-    /// Atomically replace one selected slot contribution and its collision entry.
-    pub fn set_dynamic_content_variant(&mut self, instance_id: &str, content_id: &str, variant_id: &str) -> DynamicContentMutationResult {
+    /// Validate a command without changing the effective variant. Transport uses
+    /// this at submission time and repeats validation at its commit boundary.
+    pub fn validate_dynamic_content_variant(&self, instance_id: &str, content_id: &str, variant_id: &str) -> DynamicContentMutationResult {
         let rejected = |reason, revision| DynamicContentMutationResult::Rejected { instance_id: instance_id.into(), content_id: content_id.into(), variant_id: variant_id.into(), reason, runtime_revision: revision };
         if instance_id.trim().is_empty() || content_id.trim().is_empty() || variant_id.trim().is_empty() { return rejected(DynamicContentRejection::InvalidIdentifier, 0); }
-        let Some(record) = self.records.get_mut(instance_id) else { return rejected(DynamicContentRejection::UnknownInstance, 0) };
+        let Some(record) = self.records.get(instance_id) else { return rejected(DynamicContentRejection::UnknownInstance, 0) };
         if !matches!(record.descriptor.state, RuntimeState::Resident | RuntimeState::Active) { return rejected(DynamicContentRejection::InvalidLifecycleState(record.descriptor.state), record.runtime_revision); }
         let Some(definition) = record.definition.as_deref() else { return rejected(DynamicContentRejection::InvalidContent, record.runtime_revision) };
         if record.descriptor.definition_id != definition.id || record.descriptor.definition_version != definition.version { return rejected(DynamicContentRejection::InstanceDefinitionMismatch, record.runtime_revision); }
         let Some(slot) = definition.dynamic_content.iter().find(|slot| slot.content_id == content_id) else { return rejected(DynamicContentRejection::UnknownContentId, record.runtime_revision) };
         if !slot.variants.iter().any(|variant| variant.id == variant_id) { return rejected(DynamicContentRejection::UnknownVariantId, record.runtime_revision); }
+        DynamicContentMutationResult::Accepted { instance_id: instance_id.into(), content_id: content_id.into(), variant_id: variant_id.into(), runtime_revision: record.runtime_revision }
+    }
+
+    pub fn validate_clear_dynamic_content_override(&self, instance_id: &str, content_id: &str) -> DynamicContentMutationResult {
+        let rejected = |reason, revision| DynamicContentMutationResult::Rejected { instance_id: instance_id.into(), content_id: content_id.into(), variant_id: String::new(), reason, runtime_revision: revision };
+        if instance_id.trim().is_empty() || content_id.trim().is_empty() { return rejected(DynamicContentRejection::InvalidIdentifier, 0); }
+        let Some(record) = self.records.get(instance_id) else { return rejected(DynamicContentRejection::UnknownInstance, 0) };
+        if !matches!(record.descriptor.state, RuntimeState::Resident | RuntimeState::Active) { return rejected(DynamicContentRejection::InvalidLifecycleState(record.descriptor.state), record.runtime_revision); }
+        let Some(definition) = record.definition.as_deref() else { return rejected(DynamicContentRejection::InvalidContent, record.runtime_revision) };
+        if record.descriptor.definition_id != definition.id || record.descriptor.definition_version != definition.version { return rejected(DynamicContentRejection::InstanceDefinitionMismatch, record.runtime_revision); }
+        let Some(slot) = definition.dynamic_content.iter().find(|slot| slot.content_id == content_id) else { return rejected(DynamicContentRejection::UnknownContentId, record.runtime_revision) };
+        // Definitions validate their default variant at finalization; clear has no
+        // caller-supplied variant and must not turn unrelated errors into one.
+        DynamicContentMutationResult::Accepted { instance_id: instance_id.into(), content_id: content_id.into(), variant_id: slot.default_variant_id.clone(), runtime_revision: record.runtime_revision }
+    }
+
+    pub fn dynamic_content_candidate(&self, instance_id: &str, content_id: &str, variant_id: &str, clear: bool) -> Option<GlobalLevelContent> {
+        let record = self.records.get(instance_id)?;
+        let definition = record.definition.as_deref()?;
         let mut variants = record.effective_variants.clone();
-        variants.insert(content_id.into(), variant_id.into());
-        let Ok(global) = GlobalLevelContent::from_definition_with_variants(definition, &record.descriptor.transform, &variants) else { return rejected(DynamicContentRejection::InvalidContent, record.runtime_revision) };
+        if clear { variants.remove(content_id); } else { variants.insert(content_id.into(), variant_id.into()); }
+        GlobalLevelContent::from_definition_with_variants(definition, &record.descriptor.transform, &variants).ok()
+    }
+
+    /// Atomically replace one selected slot contribution and its collision entry.
+    pub fn set_dynamic_content_variant(&mut self, instance_id: &str, content_id: &str, variant_id: &str) -> DynamicContentMutationResult {
+        let validation = self.validate_dynamic_content_variant(instance_id, content_id, variant_id);
+        if !matches!(&validation, DynamicContentMutationResult::Accepted { .. }) { return validation; }
+        self.apply_dynamic_content_variant(instance_id, content_id, variant_id, false)
+    }
+
+    /// Remove the override map entry and compose the slot's authored default.
+    pub fn clear_dynamic_content_override(&mut self, instance_id: &str, content_id: &str) -> DynamicContentMutationResult {
+        let validation = self.validate_clear_dynamic_content_override(instance_id, content_id);
+        if !matches!(&validation, DynamicContentMutationResult::Accepted { .. }) { return validation; }
+        self.apply_dynamic_content_variant(instance_id, content_id, "", true)
+    }
+
+    fn apply_dynamic_content_variant(&mut self, instance_id: &str, content_id: &str, variant_id: &str, clear: bool) -> DynamicContentMutationResult {
+        let record = self.records.get_mut(instance_id).expect("validated dynamic instance");
+        let definition = record.definition.as_deref().expect("validated dynamic definition");
+        let selected = if clear { definition.dynamic_content.iter().find(|slot| slot.content_id == content_id).expect("validated dynamic slot").default_variant_id.clone() } else { variant_id.into() };
+        let mut variants = record.effective_variants.clone();
+        if clear { variants.remove(content_id); } else { variants.insert(content_id.into(), selected.clone()); }
+        let global = GlobalLevelContent::from_definition_with_variants(definition, &record.descriptor.transform, &variants).expect("validated dynamic content");
         record.effective_variants = variants;
         record.global = Some(global.clone());
         record.runtime_revision += 1;
         if record.descriptor.collision_active { self.collision_world.set_instance(crate::global_collision::CollisionInstance::from_content(instance_id, &global), true); }
-        DynamicContentMutationResult::Accepted { instance_id: instance_id.into(), content_id: content_id.into(), variant_id: variant_id.into(), runtime_revision: record.runtime_revision }
-    }
-
-    pub fn clear_dynamic_content_override(&mut self, instance_id: &str, content_id: &str) -> DynamicContentMutationResult {
-        let variant = match self.records.get(instance_id).and_then(|record| record.definition.as_deref()).and_then(|definition| definition.dynamic_content.iter().find(|slot| slot.content_id == content_id)) { Some(slot) => slot.default_variant_id.clone(), None => String::new() };
-        self.set_dynamic_content_variant(instance_id, content_id, &variant)
+        DynamicContentMutationResult::Accepted { instance_id: instance_id.into(), content_id: content_id.into(), variant_id: selected, runtime_revision: record.runtime_revision }
     }
 
     /// Move instance while retaining authoritative transformed content.
@@ -508,6 +546,19 @@ mod tests {
         assert!(matches!(manager.set_dynamic_content_variant("missing", "door", "open"), DynamicContentMutationResult::Rejected { reason: DynamicContentRejection::UnknownInstance, .. }));
         manager.mark_evictable("b").unwrap();
         assert!(matches!(manager.set_dynamic_content_variant("b", "door", "open"), DynamicContentMutationResult::Rejected { reason: DynamicContentRejection::InvalidLifecycleState(RuntimeState::Evictable), .. }));
+    }
+
+    #[test]
+    fn clearing_override_removes_map_entry_and_differs_from_explicit_default() {
+        let mut manager = ResidencyStore::new();
+        manager.register(instance("a")).unwrap();
+        let mut provider = FixtureProvider::ready(dynamic_definition()); manager.resolve(&mut provider, "a", metadata()).unwrap();
+        manager.set_dynamic_content_variant("a", "door", "closed");
+        assert_eq!(manager.records["a"].effective_variants.get("door"), Some(&"closed".into()));
+        assert!(matches!(manager.clear_dynamic_content_override("a", "door"), DynamicContentMutationResult::Accepted { runtime_revision: 2, .. }));
+        assert_eq!(manager.dynamic_content_variant("a", "door"), Some("closed"));
+        assert!(!manager.records["a"].effective_variants.contains_key("door"));
+        assert!(manager.content("a").unwrap().tiles[0].solid);
     }
 
     #[test]

@@ -1,9 +1,9 @@
 ---
 task: "133"
 slug: dynamic-content-restore-proof
-status: parked
+status: pending
 depends-on: ["132"]
-blocked-by: "task:132 dynamic-content transport contract repair"
+blocked-by: ""
 assigned-to: ""
 created: 2026-08-25
 outcome: ""
