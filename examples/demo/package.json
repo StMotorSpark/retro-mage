@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "pnpm --filter vite-plugin-ktx2 build",
     "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
