@@ -669,6 +669,60 @@ mod tests {
     }
 
     #[test]
+    fn dynamic_content_restore_reapplies_before_activation_and_evicts_transient_override() {
+        let mut t = WorldTransport::with_capacity(8, 1, 1, 2);
+        assert!(t.begin_definition("door", "1", -2., 0., -2., 2., 2., 2.));
+        assert!(t.begin_dynamic_content_slot("door", "gate", "closed"));
+        assert!(t.definition_dynamic_content_variant("door", "gate", "closed"));
+        assert!(t.dynamic_content_variant_tile("door", 0., 0., 0., 1, 0, 0, 0, true, false, false, false, false, false));
+        assert!(t.definition_dynamic_content_variant("door", "gate", "open"));
+        assert!(t.dynamic_content_variant_tile("door", 0., 0., 0., 2, 0, 0, 0, false, false, false, false, false, false));
+        assert!(t.finish_dynamic_content_slot("door", "gate"));
+        assert!(t.finish_definition("door"));
+        for id in ["source", "linked-target"] {
+            assert!(t.register_instance(id, "door", 0., 0., 0., 0., 0., 0., 1., 1., 0));
+            let request = t.begin_load(id, "fixture");
+            assert!(t.accept_definition(request, id));
+        }
+        assert!(t.set_instance_state("source", 3, true, true, true));
+        let mut engine = crate::EngineState::new();
+        // Keep active source playable while target's closed contribution is
+        // replaced. Target has already arrived resident-inactive from provider.
+        assert_eq!(t.set_dynamic_content_variant("source", "gate", "open"), 1);
+        t.tick_engine(&mut engine, 0.0);
+        assert_eq!(t.set_dynamic_content_variant("linked-target", "gate", "open"), 1);
+        t.tick_engine(&mut engine, 0.0);
+        assert_eq!(t.runtime.dynamic_content_variant("linked-target", "gate"), Some("open"));
+        assert_eq!(t.runtime.state("source"), Some(RuntimeState::Active));
+        assert!(!t.runtime.collision_active("linked-target"));
+        assert!(t.set_instance_state("linked-target", 3, true, true, true));
+        assert!(!t.runtime.collision_world().has_active_geometry());
+
+        // Eviction drops only transient override. Reload returns authored closed
+        // content until application restore selects open while still inactive.
+        assert!(t.set_instance_state("linked-target", 2, true, false, false));
+        assert!(t.set_instance_state("linked-target", 4, true, false, false));
+        assert!(t.set_instance_state("linked-target", 5, false, false, false));
+        assert!(t.acknowledge_handoff("linked-target", true, None));
+        let request = t.begin_load("linked-target", "reload");
+        assert!(t.accept_definition(request, "linked-target"));
+        assert_eq!(t.runtime.dynamic_content_variant("linked-target", "gate"), Some("closed"));
+        assert_eq!(t.set_dynamic_content_variant("linked-target", "gate", "open"), 1);
+        t.tick_engine(&mut engine, 0.0);
+        assert!(t.set_instance_state("linked-target", 3, true, true, true));
+        assert!(!t.runtime.collision_world().has_active_geometry());
+
+        // Failed/stale lifecycle use changes neither effective scene nor source.
+        assert!(t.set_instance_state("linked-target", 2, true, false, false));
+        assert!(t.set_instance_state("linked-target", 4, true, false, false));
+        assert_eq!(t.set_dynamic_content_variant("linked-target", "gate", "closed"), 1);
+        t.tick_engine(&mut engine, 0.0);
+        assert_eq!(t.dynamic_content_last_result(), 4);
+        assert_eq!(t.runtime.dynamic_content_variant("linked-target", "gate"), Some("open"));
+        assert_eq!(t.runtime.state("source"), Some(RuntimeState::Active));
+    }
+
+    #[test]
     fn tick_engine_orders_movement_crossing_and_scheduler() {
         let mut t = WorldTransport::with_capacity(4, 1, 1, 2);
         // Consumer-equivalent topology: outside anchor [4, 0, 1], dungeon

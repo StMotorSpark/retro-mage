@@ -355,6 +355,9 @@ impl ResidencyStore {
             record.descriptor.simulation_active = false;
             record.definition = None;
             record.global = None;
+            // Variant overrides are resident runtime state. Durable app state
+            // reapplies a selection through the normal restore boundary.
+            record.effective_variants.clear();
             record.render_ready = false;
             record.collision_ready = false;
             record.opaque_payload = None;
@@ -376,6 +379,9 @@ impl ResidencyStore {
             record.descriptor.simulation_active = false;
             record.definition = None;
             record.global = None;
+            // Variant overrides are resident runtime state. Durable app state
+            // reapplies a selection through the normal restore boundary.
+            record.effective_variants.clear();
             record.render_ready = false;
             record.collision_ready = false;
             record.opaque_payload = None;

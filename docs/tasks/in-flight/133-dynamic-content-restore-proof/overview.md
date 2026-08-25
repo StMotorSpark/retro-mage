@@ -1,10 +1,10 @@
 ---
 task: "133"
 slug: dynamic-content-restore-proof
-status: pending
+status: in-flight
 depends-on: ["132"]
 blocked-by: ""
-assigned-to: ""
+assigned-to: "agent"
 created: 2026-08-25
 outcome: ""
 ---
