@@ -1,12 +1,12 @@
 ---
 task: "134"
 slug: dynamic-content-consumer-docs
-status: pending
+status: done
 depends-on: ["132", "133"]
 blocked-by: ""
 assigned-to: ""
 created: 2026-08-25
-outcome: ""
+outcome: "Updated consumer integration contract, quickstart, and troubleshooting with the complete supported dynamic-content transport surface, stable result/diagnostic handling, and game-owned door save/restore flow. Chose WorldTransport.tick_engine(...) as the sole commit path and explicitly prohibits manual render/collision workarounds; pnpm --filter demo typecheck and documentation link validation pass."
 ---
 
 # Publish Dynamic-Content Consumer Guidance
@@ -21,11 +21,11 @@ Document the supported consumer surface, ownership, lifecycle ordering, restore 
 
 ## Definition of Done
 
-- [ ] Consumer documentation names only implemented supported public APIs.
-- [ ] Guidance makes game and engine ownership explicit and forbids manual render/collision synchronization.
-- [ ] The example opens a per-instance slot and restores game-owned selected state without reloading or teleporting.
-- [ ] Diagnostics and invalid lifecycle behavior are documented with actionable remediation.
-- [ ] Documentation links and `docs/_map.md` remain complete and present-tense.
+- [x] Consumer documentation names only implemented supported public APIs.
+- [x] Guidance makes game and engine ownership explicit and forbids manual render/collision synchronization.
+- [x] The example opens a per-instance slot and restores game-owned selected state without reloading or teleporting.
+- [x] Diagnostics and invalid lifecycle behavior are documented with actionable remediation.
+- [x] Documentation links and `docs/_map.md` remain complete and present-tense.
 
 ## Out of Scope
 
