@@ -1,12 +1,12 @@
 ---
 task: "132"
 slug: dynamic-content-transport
-status: done
+status: in-flight
 depends-on: ["131"]
 blocked-by: ""
-assigned-to: ""
+assigned-to: "agent"
 created: 2026-08-25
-outcome: "Exposed authored dynamic-slot builders plus queued per-instance variant and clear commands through WorldTransport. Commands commit before world-aware movement at tick_engine, publishing collision and scene together with stable result codes and JSON diagnostics; Rust, render, typecheck, and build checks pass."
+outcome: ""
 ---
 
 # Expose Atomic Dynamic-Content Transport
@@ -48,3 +48,13 @@ Expose authored slot construction, per-instance variant commands, result codes, 
 - Depends on: task:131 — supplies the core slot and per-instance override model.
 - Read: `docs/architecture/collision-bridge.md` — frame ordering.
 - Key files: `packages/engine-core/src/world_transport.rs`, `packages/engine-core/src/lib.rs`, `packages/render/src/world-state/`.
+
+## Review Notes
+
+This task was reopened after review. Repair the public contract before completion:
+
+- `clear_dynamic_content_override` removes the override entry rather than selecting and storing the default variant.
+- Invalid instance/content/variant IDs and invalid lifecycle state return their stable rejection code at command submission; commit-time validation remains a safety backstop.
+- JSON diagnostics safely escape public IDs and include rejection reason plus lifecycle state when applicable.
+- Reconcile dynamic-mutation scene-capacity behavior with the atomic render/collision contract. The preferred policy preflights the post-mutation instance contribution and rejects an overflowing mutation while preserving the prior effective render and collision state. Update `docs/architecture/runtime-dynamic-content.md` and this prompt if the accepted policy differs.
+- Add focused public transport tests for each repaired behavior and rerun engine-core, render, demo typecheck, and package build checks.

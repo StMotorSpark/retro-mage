@@ -1,10 +1,10 @@
 ---
 task: "133"
 slug: dynamic-content-restore-proof
-status: in-flight
+status: parked
 depends-on: ["132"]
-blocked-by: ""
-assigned-to: "agent"
+blocked-by: "task:132 dynamic-content transport contract repair"
+assigned-to: ""
 created: 2026-08-25
 outcome: ""
 ---
@@ -47,3 +47,7 @@ Verify per-instance dynamic-content selections preserve lifecycle authority acro
 - Depends on: task:132 — public transport and atomic world-frame behavior.
 - Read: `docs/architecture/collision-bridge.md`, `docs/architecture/persistence-restore.md`, and `docs/consumer/integration-contract.md`.
 - Key files: `packages/engine-core/src/world_transport.rs`, `examples/demo/`, `packages/render/src/world-state/`.
+
+## Parking Notes
+
+Task 133 has a focused core restore/eviction proof and clears transient dynamic overrides on eviction. It remains blocked because task 132’s public command contract is not yet review-complete: override clearing does not remove its override entry, non-empty invalid commands report queued acceptance instead of immediate rejection, diagnostics omit actionable reason/lifecycle detail and can produce malformed JSON, and capacity behavior has not been reconciled with the atomic render/collision guarantee. Resume after task 132 has repaired and proven the public transport contract.
